@@ -53,7 +53,8 @@ class PrestadorResource extends Resource
                                     ->label('Org. Emissor'),
                                 Forms\Components\DatePicker::make('dt_emissao')
                                     ->label('Data de Emissão')
-                                    ->format('d/m/Y'),
+                                    ->displayFormat('d/m/Y') // <--- Visual (Dia/Mês/Ano)
+                                    ->format('Y-m-d')        // <--- Banco (Ano-Mês-Dia)
                             ])->columns(3),
 
                         // Outros Dados Civis
@@ -77,13 +78,13 @@ class PrestadorResource extends Resource
                         Forms\Components\TextInput::make('cep')
                             ->label('CEP')
                             ->mask('99999-999'),
-                        
+
                         Forms\Components\TextInput::make('logradouro')
                             ->columnSpan(2),
-                        
+
                         Forms\Components\TextInput::make('numero')
                             ->label('Número'),
-                        
+
                         Forms\Components\TextInput::make('complemento'),
                         Forms\Components\TextInput::make('bairro'),
                         Forms\Components\TextInput::make('cidade'),
@@ -136,10 +137,10 @@ class PrestadorResource extends Resource
                         Forms\Components\Select::make('tipo_procuracao')
                             ->label('Tipo de Procuração')
                             ->options([
-                                'COMPLETO' => 'Completo', 
+                                'COMPLETO' => 'Completo',
                                 'REDUZIDO' => 'Reduzido'
                             ])
-                            ->visible(fn (Get $get) => $get('is_procurador')),
+                            ->visible(fn(Get $get) => $get('is_procurador')),
                     ]),
             ]);
     }
@@ -166,10 +167,10 @@ class PrestadorResource extends Resource
             ])
             ->filters([
                 Tables\Filters\Filter::make('instrutores')
-                    ->query(fn ($query) => $query->where('is_instrutor', true))
+                    ->query(fn($query) => $query->where('is_instrutor', true))
                     ->label('Apenas Instrutores'),
                 Tables\Filters\Filter::make('procuradores')
-                    ->query(fn ($query) => $query->where('is_procurador', true))
+                    ->query(fn($query) => $query->where('is_procurador', true))
                     ->label('Apenas Procuradores'),
             ])
             ->actions([

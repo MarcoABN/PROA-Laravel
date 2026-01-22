@@ -2,21 +2,19 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+// 1. ADICIONE ESSES DOIS IMPORTS
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable
+// 2. ADICIONE "implements FilamentUser" AQUI
+class User extends Authenticatable implements FilamentUser
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'name',
         'email',
@@ -24,27 +22,24 @@ class User extends Authenticatable
         'last_login_at',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'last_login_at' => 'datetime',
+    ];
+
+    // 3. ADICIONE ESTA FUNÇÃO NO FINAL DA CLASSE
+    public function canAccessPanel(Panel $panel): bool
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'last_login_at' => 'datetime',
-        ];
+        // Retorne true para permitir que este usuário acesse o painel.
+        // Para maior segurança no futuro, você pode colocar:
+        // return str_ends_with($this->email, '@campeaonautica.com.br');
+        
+        return true; 
     }
 }
