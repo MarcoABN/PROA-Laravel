@@ -30,6 +30,7 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Blue,
             ])
+            ->favicon(asset('images/favicon.png'))
             ->brandLogo(asset('images/logo-proa.png'))
             ->brandLogoHeight('3rem')
             ->brandName('PROA')
