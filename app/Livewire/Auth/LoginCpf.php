@@ -17,21 +17,27 @@ class LoginCpf extends Component
     // app/Livewire/Auth/LoginCpf.php
     public function login()
     {
-        $this->validate(['cpf' => 'required']);
-        $cpfLimpo = preg_replace('/[^0-9]/', '', $this->cpf);
+        try {
+            $this->validate(['cpf' => 'required']);
+            $cpfLimpo = preg_replace('/[^0-9]/', '', $this->cpf);
 
-        // --- CORREÇÃO AQUI ---
-        // Antes você buscava em Cliente. Agora TEM que ser em User.
-        // O Laravel só aceita logar o objeto que está no auth.php
-        $user = \App\Models\User::where('cpf', $cpfLimpo)->first();
+            // Teste de conexão simples
+            $cliente = \App\Models\Cliente::where('cpfcnpj', $cpfLimpo)->first();
 
-        if ($user) {
-            // Agora o Auth::login recebe um User, que bate com a configuração do auth.php
-            \Illuminate\Support\Facades\Auth::login($user);
-            return redirect()->to('/dashboard'); // ou para a rota do simulado
+            if ($cliente) {
+                \Illuminate\Support\Facades\Auth::login($cliente);
+                return redirect()->to('/dashboard');
+            }
+
+            session()->flash('error', 'CPF não encontrado.');
+        } catch (\Throwable $e) {
+            // Isso vai parar a execução e mostrar o erro real na tela
+            dd([
+                'Mensagem' => $e->getMessage(),
+                'Arquivo' => $e->getFile(),
+                'Linha' => $e->getLine()
+            ]);
         }
-
-        session()->flash('error', 'CPF não encontrado ou não cadastrado como Usuário.');
     }
 
     public function render()
