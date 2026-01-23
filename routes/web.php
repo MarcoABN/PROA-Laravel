@@ -2,7 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PropostaController;
-use App\Http\Controllers\AnexoController; // <--- Importante ter isso
+use App\Http\Controllers\AnexoController;
+use App\Http\Controllers\SiteController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,3 +25,9 @@ Route::get('/admin/anexos/gerar/{classe}/{embarcacao}', [AnexoController::class,
 Route::get('/propostas/{id}/imprimir', [PropostaController::class, 'imprimir'])
     ->middleware('auth')
     ->name('propostas.imprimir');
+
+Route::get('/', [App\Http\Controllers\SiteController::class, 'index']);
+// Comente a rota anterior e use esta:
+/*Route::get('/', function () {
+    return view('site.index');
+});*/
