@@ -36,9 +36,16 @@ return [
     */
 
     'guards' => [
+        // Guard padrão para Usuários do sistema (Admins, Staff, etc)
         'web' => [
             'driver' => 'session',
             'provider' => 'users',
+        ],
+
+        // NOVO Guard específico para Clientes
+        'cliente' => [
+            'driver' => 'session',
+            'provider' => 'clientes', // Aponta para o provider 'clientes' abaixo
         ],
     ],
 
@@ -60,9 +67,16 @@ return [
     */
 
     'providers' => [
+        // Provider para o model User
         'users' => [
             'driver' => 'eloquent',
-            'model' => App\Models\Cliente::class, //
+            'model' => App\Models\User::class,
+        ],
+
+        // NOVO Provider para o model Cliente
+        'clientes' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Cliente::class,
         ],
     ],
 
