@@ -7,6 +7,7 @@
             </div>
 
             <div class="grid md:grid-cols-2 gap-8">
+                {{-- MODO APRENDIZADO --}}
                 <div class="bg-white rounded-2xl shadow-lg overflow-hidden border-t-4 border-green-500 flex flex-col">
                     <div class="p-8 flex-grow">
                         <h2 class="text-2xl font-bold text-slate-900 mb-4">Modo Aprendizado</h2>
@@ -17,13 +18,15 @@
                         </ul>
                     </div>
                     <div class="p-6 bg-slate-50">
-                        <a href="{{ route('simulado', ['modalidade' => 'aprendizado']) }}" 
+                        {{-- CORREÇÃO AQUI: route('cliente.simulado') --}}
+                        <a href="{{ route('cliente.simulado', ['modalidade' => 'aprendizado']) }}" 
                            class="block w-full text-center py-3 px-4 rounded-md bg-green-600 text-white font-bold hover:bg-green-700 transition">
                             COMEÇAR APRENDIZADO
                         </a>
                     </div>
                 </div>
 
+                {{-- SIMULADO REAL --}}
                 <div class="bg-white rounded-2xl shadow-lg overflow-hidden border-t-4 border-blue-600 flex flex-col">
                     <div class="p-8 flex-grow">
                         <h2 class="text-2xl font-bold text-slate-900 mb-4">Simulado Real</h2>
@@ -34,7 +37,8 @@
                         </ul>
                     </div>
                     <div class="p-6 bg-slate-50">
-                        <a href="{{ route('simulado', ['modalidade' => 'real']) }}" 
+                        {{-- CORREÇÃO AQUI: route('cliente.simulado') --}}
+                        <a href="{{ route('cliente.simulado', ['modalidade' => 'real']) }}" 
                            class="block w-full text-center py-3 px-4 rounded-md bg-blue-600 text-white font-bold hover:bg-blue-700 transition">
                             INICIAR SIMULADO REAL
                         </a>

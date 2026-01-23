@@ -7,9 +7,19 @@ use Illuminate\Database\Eloquent\Model;
 class SimuladoResultado extends Model
 {
     protected $table = 'simulado_resultados';
-    protected $fillable = ['user_id', 'modalidade', 'acertos', 'total', 'porcentagem', 'aprovado'];
+    
+    protected $fillable = [
+        'cliente_id', // Alterado
+        'modalidade', 
+        'acertos', 
+        'erros',      // Novo
+        'total', 
+        'porcentagem', 
+        'aprovado'
+    ];
 
-    public function user() {
-        return $this->belongsTo(User::class);
+    // Relacionamento com Cliente (Não mais com User)
+    public function cliente() {
+        return $this->belongsTo(Cliente::class);
     }
 }

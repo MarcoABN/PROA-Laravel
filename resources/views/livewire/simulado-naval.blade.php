@@ -3,7 +3,8 @@
     {{-- Cabeçalho Compacto --}}
     <div class="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm mb-4 border border-slate-200">
         <div class="flex items-center space-x-3">
-            <a href="{{ route('dashboard') }}" class="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
+            {{-- CORREÇÃO AQUI: Aponta para a rota do cliente --}}
+            <a href="{{ route('cliente.dashboard') }}" class="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             </a>
             <img src="{{ asset('images/logo-proa.png') }}" alt="PROA" class="h-7 w-auto">
@@ -89,7 +90,8 @@
             </div>
 
             <div class="space-y-3">
-                <a href="{{ route('dashboard') }}" class="block w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition">
+                {{-- CORREÇÃO AQUI TAMBÉM: --}}
+                <a href="{{ route('cliente.dashboard') }}" class="block w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition">
                     VOLTAR AO INÍCIO
                 </a>
                 <button onclick="window.location.reload()" class="block w-full bg-slate-200 text-slate-700 font-bold py-4 rounded-xl hover:bg-slate-300 transition">

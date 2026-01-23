@@ -7,42 +7,41 @@ use App\Http\Controllers\SiteController;
 use App\Livewire\Auth\LoginCpf;
 use App\Livewire\SimuladoNaval;
 
-
 /*
 |--------------------------------------------------------------------------
 | Web Routes
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    return redirect('/admin');
+// 1. Rota Pública (Site)
+Route::get('/', [SiteController::class, 'index'])->name('site.index');
+
+// 2. Rota de Login do Cliente (CPF)
+Route::get('/login', LoginCpf::class)->name('login');
+
+// 3. Área do CLIENTE (Aluno)
+Route::middleware(['auth:cliente'])->group(function () {
+    
+    // Dashboard do Aluno
+    Route::get('/cliente/dashboard', function () {
+        return view('dashboard'); 
+    })->name('cliente.dashboard');
+
+    // Simulado do Aluno (COM PARÂMETRO DE MODALIDADE)
+    Route::get('/cliente/simulado/{modalidade}', SimuladoNaval::class)
+        ->name('cliente.simulado');
 });
 
-// --- ROTA CORRIGIDA ---
-// Aponta para o Controller que sabe decidir entre PDF e DOCX
-Route::get('/admin/anexos/gerar/{classe}/{embarcacao}', [AnexoController::class, 'gerarGenerico'])
-    ->middleware('auth')
-    ->name('anexos.gerar_generico');
+// 4. Área do ADMIN (Rotas Extras do PROA)
+Route::middleware(['auth:web'])->prefix('admin')->group(function () {
+    
+    // Gerador de Anexos
+    Route::get('/anexos/gerar/{classe}/{embarcacao}', [AnexoController::class, 'gerarGenerico'])
+        ->name('anexos.gerar_generico');
+});
 
-// Rota de Propostas
-Route::get('/propostas/{id}/imprimir', [PropostaController::class, 'imprimir'])
-    ->middleware('auth')
-    ->name('propostas.imprimir');
-
-Route::get('/', [App\Http\Controllers\SiteController::class, 'index']);
-// Comente a rota anterior e use esta:
-/*Route::get('/', function () {
-    return view('site.index');
-});*/
-
-Route::get('/login', \App\Livewire\Auth\LoginCpf::class)->name('login');
-
-Route::middleware(['auth'])->group(function () {
-    // Tela de seleção (Dashboard)
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
-
-    // Componente do Simulado com parâmetro dinâmico
-    Route::get('/simulado/{modalidade}', SimuladoNaval::class)->name('simulado');
+// Outras rotas protegidas gerais
+Route::middleware(['auth:web'])->group(function () {
+    Route::get('/propostas/{id}/imprimir', [PropostaController::class, 'imprimir'])
+        ->name('propostas.imprimir');
 });

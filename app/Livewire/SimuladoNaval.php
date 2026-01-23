@@ -43,32 +43,44 @@ class SimuladoNaval extends Component
         if ($this->finalizado)
             return;
 
+        $totalQuestões = count($this->questoes);
         $acertos = 0;
+
         foreach ($this->questoes as $q) {
             if (($this->respostasUsuario[$q->id] ?? null) === $q->resposta_correta) {
                 $acertos++;
             }
         }
 
-        $porcentagem = ($acertos / 40) * 100;
-        $aprovado = $porcentagem >= 50; // Sua regra de 50%
+        // Cálculo simples dos erros
+        $erros = $totalQuestões - $acertos;
 
-        if ($this->modalidade === 'real') {
+        $porcentagem = ($totalQuestões > 0) ? ($acertos / $totalQuestões) * 100 : 0;
+        $aprovado = $porcentagem >= 50;
+
+        // Salva no banco
+        try {
             SimuladoResultado::create([
-                'user_id' => Auth::id(),
-                'modalidade' => 'real',
+                'cliente_id' => Auth::guard('cliente')->id(), // <--- Pega o ID do Cliente Logado
+                'modalidade' => $this->modalidade,
                 'acertos' => $acertos,
-                'total' => 40,
+                'erros' => $erros, // <--- Salvando erros
+                'total' => $totalQuestões,
                 'porcentagem' => $porcentagem,
                 'aprovado' => $aprovado
             ]);
+        } catch (\Exception $e) {
+            // Em produção use Log::error($e);
+            // Isso evita que o aluno trave na tela de resultado se o banco falhar
         }
 
         $this->resultado = [
             'acertos' => $acertos,
+            'erros' => $erros, // Disponível para a view
             'porcentagem' => $porcentagem,
             'aprovado' => $aprovado
         ];
+
         $this->finalizado = true;
     }
 

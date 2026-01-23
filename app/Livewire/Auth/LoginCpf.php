@@ -3,7 +3,7 @@
 namespace App\Livewire\Auth;
 
 use Livewire\Component;
-use App\Models\Cliente; // Importe o model corretamente
+use App\Models\Cliente;
 use Illuminate\Support\Facades\Auth;
 
 class LoginCpf extends Component
@@ -14,7 +14,7 @@ class LoginCpf extends Component
     {
         try {
             $this->validate(['cpf' => 'required']);
-            
+
             // Limpa o CPF mantendo apenas números
             $cpfLimpo = preg_replace('/[^0-9]/', '', $this->cpf);
 
@@ -22,24 +22,19 @@ class LoginCpf extends Component
             $cliente = Cliente::where('cpfcnpj', $cpfLimpo)->first();
 
             if ($cliente) {
-                // CORREÇÃO PRINCIPAL AQUI:
-                // 1. Usamos o guard 'cliente' especificamente
-                // 2. Usamos o método login() passando o objeto do cliente
+                // Loga usando o guard 'cliente'
                 Auth::guard('cliente')->login($cliente);
                 
-                // Recomendado por segurança: regenerar a sessão
                 session()->regenerate();
 
-                return redirect()->to('/dashboard'); 
-                // Dica: Se tiver dashboard diferente para cliente, mude para ex: '/painel-cliente'
+                // Redireciona para a rota NOMEADA do cliente
+                return redirect()->route('cliente.dashboard');
             }
 
-            $this->addError('cpf', 'CPF não encontrado.'); // Jeito Livewire de mostrar erro no campo
-            
+            $this->addError('cpf', 'CPF não encontrado.');
+
         } catch (\Throwable $e) {
-            // Para produção, use Log::error() em vez de dd()
-            // \Illuminate\Support\Facades\Log::error($e->getMessage());
-            
+            // Em produção remova o dd() e use Log::error($e->getMessage());
             dd([
                 'Mensagem' => $e->getMessage(),
                 'Arquivo' => $e->getFile(),
