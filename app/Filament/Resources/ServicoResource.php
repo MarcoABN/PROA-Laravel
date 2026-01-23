@@ -61,17 +61,36 @@ class ServicoResource extends Resource
     {
         return $table
             ->columns([
-                //
+                \Filament\Tables\Columns\TextColumn::make('nome')
+                    ->label('Nome do Serviço')
+                    ->searchable()
+                    ->sortable(),
+
+                \Filament\Tables\Columns\TextColumn::make('descricao')
+                    ->label('Descrição')
+                    ->limit(50) // Limita o texto para não quebrar o layout
+                    ->searchable(),
+
+                \Filament\Tables\Columns\IconColumn::make('ativo')
+                    ->label('Status')
+                    ->boolean()
+                    ->sortable(),
+
+                \Filament\Tables\Columns\TextColumn::make('created_at')
+                    ->label('Criado em')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                \Filament\Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Tables\Actions\BulkActionGroup::make([
+                    \Filament\Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
     }
