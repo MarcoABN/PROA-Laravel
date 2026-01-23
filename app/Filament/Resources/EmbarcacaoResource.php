@@ -20,7 +20,7 @@ class EmbarcacaoResource extends Resource
     protected static ?string $model = Embarcacao::class;
 
     protected static ?int $navigationSort = 4;
-    protected static ?string $navigationIcon = 'heroicon-o-rocket-launch';
+    protected static ?string $navigationIcon = 'heroicon-o-lifebuoy';
     protected static ?string $navigationLabel = 'Embarcações';
 
     public static function form(Form $form): Form
