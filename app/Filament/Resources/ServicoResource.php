@@ -19,6 +19,12 @@ class ServicoResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
+    protected static ?string $navigationLabel = 'Serviços do Site';
+
+    protected static ?string $navigationGroup = 'Painel de Controle';
+
+    protected static ?string $slug = 'servicos-do-site';
+
     public static function form(Form $form): Form
     {
         return $form
