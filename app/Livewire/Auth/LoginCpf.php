@@ -14,23 +14,23 @@ class LoginCpf extends Component
 
     // app\Livewire\Auth\LoginCpf.php
 
+    // app/Livewire/Auth/LoginCpf.php
     public function login()
     {
-        $this->validate(['cpf' => 'required']);
-        $cpfLimpo = preg_replace('/[^0-9]/', '', $this->cpf);
-
         try {
-            // Testamos se a consulta ao banco funciona
+            $this->validate(['cpf' => 'required']);
+            $cpfLimpo = preg_replace('/[^0-9]/', '', $this->cpf);
+
             $cliente = \App\Models\Cliente::where('cpfcnpj', $cpfLimpo)->first();
 
             if ($cliente) {
-                \Illuminate\Support\Facades\Auth::login($cliente);
-                return redirect()->to('/dashboard');
+                Auth::login($cliente); //
+                return redirect()->to('/dashboard'); //
             }
 
             session()->flash('error', 'CPF não encontrado.');
         } catch (\Exception $e) {
-            // Se houver erro de banco ou classe, ele será exibido aqui
+            // Isso vai "cuspir" o erro exato na tela em vez do erro 500 genérico
             dd($e->getMessage());
         }
     }
