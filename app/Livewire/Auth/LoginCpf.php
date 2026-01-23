@@ -16,21 +16,23 @@ class LoginCpf extends Component
 
     public function login()
     {
-
-        dd("Chegou no PHP!");
         $this->validate(['cpf' => 'required']);
         $cpfLimpo = preg_replace('/[^0-9]/', '', $this->cpf);
 
-        // Busca o cliente na tabela correta
-        $cliente = \App\Models\Cliente::where('cpfcnpj', $cpfLimpo)->first();
+        try {
+            // Testamos se a consulta ao banco funciona
+            $cliente = \App\Models\Cliente::where('cpfcnpj', $cpfLimpo)->first();
 
-        if ($cliente) {
-            // Agora o Laravel aceitará o objeto $cliente porque ele é Authenticatable
-            \Illuminate\Support\Facades\Auth::login($cliente);
-            return redirect()->to('/dashboard');
+            if ($cliente) {
+                \Illuminate\Support\Facades\Auth::login($cliente);
+                return redirect()->to('/dashboard');
+            }
+
+            session()->flash('error', 'CPF não encontrado.');
+        } catch (\Exception $e) {
+            // Se houver erro de banco ou classe, ele será exibido aqui
+            dd($e->getMessage());
         }
-
-        session()->flash('error', 'CPF não encontrado.');
     }
 
     public function render()
