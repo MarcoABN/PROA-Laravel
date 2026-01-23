@@ -61,7 +61,7 @@ class AnexoDocService
             // --headless: sem interface gráfica
             // --convert-to pdf: formato de saída
             // --outdir: pasta de destino
-            $command = "libreoffice --headless --convert-to pdf --outdir " . escapeshellarg($outputDir) . " " . escapeshellarg($tempDocx);
+            $command = "export HOME=/tmp && libreoffice --headless --convert-to pdf --outdir " . escapeshellarg($outputDir) . " " . escapeshellarg($tempDocx);
 
             // Executa o comando
             $output = null;
