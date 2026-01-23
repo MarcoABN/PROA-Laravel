@@ -13,8 +13,14 @@ use Filament\Forms\Set;
 
 class Anexo3B implements AnexoInterface
 {
-    public function getTitulo(): string { return 'Anexo 3B - Atestado Motonauta'; }
-    public function getTemplatePath(): string { return storage_path('app/public/templates/Anexo3B-N212.pdf'); }
+    public function getTitulo(): string
+    {
+        return 'Anexo 3B - Atestado Motonauta';
+    }
+    public function getTemplatePath(): string
+    {
+        return storage_path('app/public/templates/Anexo3B-N212.pdf');
+    }
 
     public function getFormSchema(): array
     {
@@ -46,8 +52,12 @@ class Anexo3B implements AnexoInterface
                 TextInput::make('escola_nome')->label('Estabelecimento')->required(),
                 Grid::make(2)->schema([TextInput::make('instrutor_nome'), TextInput::make('instrutor_cha'), TextInput::make('instrutor_cat')]),
                 Grid::make(2)->schema([
-                    TextInput::make('resp_nome'), TextInput::make('resp_cpf'), TextInput::make('resp_rg'),
-                    TextInput::make('resp_org_emissor'), DatePicker::make('resp_dt_emissao')->format('d/m/Y'), TextInput::make('resp_cha')
+                    TextInput::make('resp_nome'),
+                    TextInput::make('resp_cpf'),
+                    TextInput::make('resp_rg'),
+                    TextInput::make('resp_org_emissor'),
+                    DatePicker::make('resp_dt_emissao')->format('d/m/Y'),
+                    TextInput::make('resp_cha')
                 ]),
             ])->collapsible(),
         ];
@@ -60,21 +70,32 @@ class Anexo3B implements AnexoInterface
         $dataAula = isset($input['data_aula']) ? Carbon::parse($input['data_aula']) : Carbon::now();
 
         return [
-            'nomecliente' => mb_strtoupper($c->nome ?? ''), 'cpfcliente' => $c->cpfcnpj ?? '',
-            'nomecliente2' => mb_strtoupper($c->nome ?? ''), 'cpfcliente2' => $c->cpfcnpj ?? '',
-            'rgcliente' => $c->rg ?? '', 'orgemissorcliente' => $c->org_emissor ?? '',
+            'nomecliente' => mb_strtoupper($c->nome ?? ''),
+            'cpfcliente' => $c->cpfcnpj ?? '',
+            'nomecliente2' => mb_strtoupper($c->nome ?? ''),
+            'cpfcliente2' => $c->cpfcnpj ?? '',
+            'rgcliente' => $c->rg ?? '',
+            'orgemissorcliente' => $c->org_emissor ?? '',
             'estabelecimento' => mb_strtoupper($input['escola_nome'] ?? ''),
             'nomeresponsavel' => mb_strtoupper($input['resp_nome'] ?? ''),
-            'rgresponsavel' => $input['resp_rg'] ?? '', 'cpfresponsavel' => $input['resp_cpf'] ?? '',
+            'rgresponsavel' => $input['resp_rg'] ?? '',
+            'cpfresponsavel' => $input['resp_cpf'] ?? '',
             'charesponsavel' => $input['resp_cha'] ?? '',
             'orgemresponsavel' => mb_strtoupper($input['resp_org_emissor'] ?? ''),
-            'dtemissaoresponsavel' => isset($input['resp_dt_emissao']) ? Carbon::parse($input['resp_dt_emissao'])->format('d/m/Y') : '',
+            'dtemissaoresponsavel' => isset($input['resp_dt_emissao'])
+                ? (str_contains($input['resp_dt_emissao'], '/')
+                    ? $input['resp_dt_emissao']  // Já está em d/m/Y, usa direto
+                    : Carbon::parse($input['resp_dt_emissao'])->format('d/m/Y')) // Está em Y-m-d, converte
+                : '',
             'instrutor' => mb_strtoupper($input['instrutor_nome'] ?? ''),
             'nomeinstrutor' => mb_strtoupper($input['instrutor_nome'] ?? ''),
-            'chainstrutor' => $input['instrutor_cat'] ?? '', 'numchainstrutor' => $input['instrutor_cha'] ?? '',
+            'chainstrutor' => $input['instrutor_cat'] ?? '',
+            'numchainstrutor' => $input['instrutor_cha'] ?? '',
             'data' => $dataAula->format('d/m/Y'),
             'localdata' => ($c->cidade ?? 'Brasília') . ', ' . $dataAula->translatedFormat('d \d\e F \d\e Y'),
-            'dia' => $dataAula->format('d'), 'mes' => $dataAula->format('m'), 'ano' => $dataAula->format('Y'),
+            'dia' => $dataAula->format('d'),
+            'mes' => $dataAula->format('m'),
+            'ano' => $dataAula->format('Y'),
         ];
     }
 }
