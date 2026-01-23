@@ -16,6 +16,8 @@ class LoginCpf extends Component
 
     public function login()
     {
+
+        dd("Chegou no PHP!");
         $this->validate(['cpf' => 'required']);
         $cpfLimpo = preg_replace('/[^0-9]/', '', $this->cpf);
 
