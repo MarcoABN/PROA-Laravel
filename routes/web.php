@@ -4,6 +4,9 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PropostaController;
 use App\Http\Controllers\AnexoController;
 use App\Http\Controllers\SiteController;
+use App\Livewire\Auth\LoginCpf;
+use App\Livewire\SimuladoNaval;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -31,3 +34,15 @@ Route::get('/', [App\Http\Controllers\SiteController::class, 'index']);
 /*Route::get('/', function () {
     return view('site.index');
 });*/
+
+Route::get('/login', \App\Livewire\Auth\LoginCpf::class)->name('login');
+
+Route::middleware(['auth'])->group(function () {
+    // Tela de seleção (Dashboard)
+    Route::get('/dashboard', function () {
+        return view('dashboard');
+    })->name('dashboard');
+
+    // Componente do Simulado com parâmetro dinâmico
+    Route::get('/simulado/{modalidade}', SimuladoNaval::class)->name('simulado');
+});
