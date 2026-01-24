@@ -156,8 +156,8 @@ class ClienteResource extends Resource
                     ->label('Documento')
                     ->searchable(),
 
-                Tables\Columns\TextColumn::make('simulados_count')
-                    ->counts('simulados')
+                Tables\Columns\TextColumn::make('simulado_resultados_count')
+                    ->counts('simulado_resultados')
                     ->label('Simulados')
                     ->alignCenter()
                     ->badge()
@@ -166,8 +166,8 @@ class ClienteResource extends Resource
                 Tables\Columns\TextColumn::make('performance')
                     ->label('Aprov / Reprov')
                     ->state(function (Cliente $record): string {
-                        $aprovados = $record->simulados()->where('aprovado', true)->count();
-                        $reprovados = $record->simulados()->where('aprovado', false)->count();
+                        $aprovados = $record->simulado_resultados()->where('aprovado', true)->count();
+                        $reprovados = $record->simulado_resultados()->where('aprovado', false)->count();
                         return "{$aprovados}  /  {$reprovados}";
                     })
                     ->alignCenter(),
@@ -175,7 +175,7 @@ class ClienteResource extends Resource
                 Tables\Columns\TextColumn::make('media_notas')
                     ->label('Nota Média')
                     ->state(function (Cliente $record) {
-                        $media = $record->simulados()->avg('porcentagem');
+                        $media = $record->simulado_resultados()->avg('porcentagem');
                         return $media !== null ? number_format($media, 1) . '%' : '-';
                     })
                     ->alignCenter()
@@ -187,36 +187,18 @@ class ClienteResource extends Resource
                     }),
             ])
             ->filters([
-                // 1. Filtro: Realizou Simulado?
                 SelectFilter::make('status_simulado')
                     ->label('Realizou Simulado?')
                     ->options([
                         'sim' => 'Sim, já realizou',
                         'nao' => 'Não, nunca realizou',
                     ])
-                    ->query(function (Builder $query, array $data) {
-                        if ($data['value'] === 'sim') return $query->has('simulados');
-                        if ($data['value'] === 'nao') return $query->doesntHave('simulados');
+                    ->query(fn (Builder $query, array $data) => match($data['value']) {
+                        'sim' => $query->has('simulado_resultados'),
+                        'nao' => $query->doesntHave('simulado_resultados'),
+                        default => $query,
                     }),
 
-                // 2. Filtro: Status de Aprovação
-                SelectFilter::make('resultado')
-                    ->label('Status de Aprovação')
-                    ->options([
-                        'aprovado' => 'Aprovados (Pelo menos um)',
-                        'reprovado' => 'Reprovados (Apenas reprovados)',
-                    ])
-                    ->query(function (Builder $query, array $data) {
-                        if ($data['value'] === 'aprovado') {
-                            return $query->whereHas('simulados', fn($q) => $q->where('aprovado', true));
-                        }
-                        if ($data['value'] === 'reprovado') {
-                            return $query->whereHas('simulados', fn($q) => $q->where('aprovado', false))
-                                         ->whereDoesntHave('simulados', fn($q) => $q->where('aprovado', true));
-                        }
-                    }),
-
-                // 3. NOVO Filtro: % de Acerto (Média)
                 Filter::make('media_acerto')
                     ->label('Média de Acerto (%)')
                     ->form([
@@ -230,25 +212,25 @@ class ClienteResource extends Resource
                             ]),
                     ])
                     ->query(function (Builder $query, array $data) {
-                        if (!$data['faixa_acerto']) return $query;
+                        if (empty($data['faixa_acerto'])) return $query;
 
-                        // Subquery para calcular a média e filtrar
-                        return $query->where(function ($q) use ($data) {
-                            $subquery = \DB::table('simulados')
-                                ->selectRaw('avg(porcentagem)')
-                                ->whereColumn('cliente_id', 'clientes.id');
+                        // Solução robusta para PostgreSQL: Usar whereHas com Having Interno
+                        return $query->whereHas('simulado_resultados', function ($q) use ($data) {
+                            $q->select('cliente_id')
+                              ->groupBy('cliente_id');
 
-                            match ($data['faixa_acerto']) {
-                                'excelente' => $q->where(($subquery), '>=', 90),
-                                'bom' => $q->where(($subquery), '>=', 70)->where(($subquery), '<', 90),
-                                'regular' => $q->where(($subquery), '>=', 50)->where(($subquery), '<', 70),
-                                'insuficiente' => $q->where(($subquery), '<', 50),
+                            return match ($data['faixa_acerto']) {
+                                'excelente' => $q->havingRaw('AVG(porcentagem) >= 90'),
+                                'bom' => $q->havingRaw('AVG(porcentagem) >= 70 AND AVG(porcentagem) < 90'),
+                                'regular' => $q->havingRaw('AVG(porcentagem) >= 50 AND AVG(porcentagem) < 70'),
+                                'insuficiente' => $q->havingRaw('AVG(porcentagem) < 50'),
                             };
                         });
                     })
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+
                 Action::make('procuracao')
                     ->label('Procuração')
                     ->icon('heroicon-o-document-text')
@@ -256,12 +238,15 @@ class ClienteResource extends Resource
                     ->form(function (Cliente $record) {
                         $temBarcos = $record->embarcacoes()->exists();
                         if (!$temBarcos) return [];
+
                         return [
                             Select::make('embarcacao_id')
                                 ->label('Incluir dados da Embarcação?')
+                                ->placeholder('Não incluir (Somente dados do cliente)')
                                 ->options($record->embarcacoes->pluck('nome_embarcacao', 'id'))
                                 ->searchable()
-                                ->preload(),
+                                ->preload()
+                                ->helperText('Selecione uma embarcação para preencher o nome e usar a cidade dela como local.'),
                         ];
                     })
                     ->action(function (Cliente $record, array $data, Action $action) {

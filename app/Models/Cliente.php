@@ -32,4 +32,10 @@ class Cliente extends Authenticatable
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    public function simulado_resultados()
+    {
+        // Este nome DEVE ser igual ao que usamos no Resource
+        return $this->hasMany(\App\Models\SimuladoResultado::class, 'cliente_id');
+    }
 }
