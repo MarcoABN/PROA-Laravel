@@ -177,43 +177,40 @@ class PropostaDocService
         }
     }
 
-    private function salvarEConverter(TemplateProcessor $template, $filenameBase)
+    private function salvarArquivo(TemplateProcessor $template, $filename)
     {
-        // 1. Cria diretório temporário para arquivos
         $tempDir = storage_path("app/public/temp");
         if (!file_exists($tempDir))
-            mkdir($tempDir, 0755, true);
+            mkdir($tempDir, 0777, true);
+        $tempDocx = $tempDir . DIRECTORY_SEPARATOR . "{$filename}.docx";
+        if (file_exists($tempDocx))
+            @unlink($tempDocx);
 
-        // 2. Salva o DOCX modificado
-        $tempDocx = $tempDir . DIRECTORY_SEPARATOR . "{$filenameBase}.docx";
         $template->saveAs($tempDocx);
 
-        // 3. Define diretório de saída
-        $outputDir = storage_path("app/public/documentos_gerados");
+        $outputDir = storage_path("app/public/propostas_pdf");
         if (!file_exists($outputDir))
-            mkdir($outputDir, 0755, true);
-
-        $pdfPath = $outputDir . DIRECTORY_SEPARATOR . "{$filenameBase}.pdf";
+            mkdir($outputDir, 0777, true);
+        $pdfPath = $outputDir . DIRECTORY_SEPARATOR . "{$filename}.pdf";
         if (file_exists($pdfPath))
             @unlink($pdfPath);
 
-        // 4. CONVERSÃO COM CORREÇÃO DE HOME (Linux)
-        // O "export HOME=/tmp" diz ao LibreOffice para usar a pasta temporária
-        // para gravar seus arquivos de config, evitando o erro de permissão no /var/www
-        $command = "export HOME=/tmp && libreoffice --headless --convert-to pdf " . escapeshellarg($tempDocx) . " --outdir " . escapeshellarg($outputDir);
-
-        $output = shell_exec($command . " 2>&1");
-
-        // 5. Verificação
-        if (!file_exists($pdfPath)) {
-            // Remove o DOCX para não acumular lixo
-            @unlink($tempDocx);
-            throw new \Exception("Erro ao gerar PDF. Log do sistema: " . $output);
+        try {
+            $word = new \COM("Word.Application") or die("Erro Word");
+            $word->Visible = 0;
+            $word->DisplayAlerts = 0;
+            $doc = $word->Documents->Open(realpath($tempDocx));
+            $doc->ExportAsFixedFormat($pdfPath, 17);
+            $doc->Close(false);
+            $word->Quit();
+            $word = null;
+        } catch (\Throwable $e) {
+            if (isset($word)) {
+                $word->Quit();
+                $word = null;
+            }
+            throw new \Exception("Erro PDF: " . $e->getMessage());
         }
-
-        // Limpeza do arquivo temporário
-        @unlink($tempDocx);
-
         return $pdfPath;
     }
 
