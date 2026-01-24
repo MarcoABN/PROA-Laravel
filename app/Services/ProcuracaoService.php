@@ -143,42 +143,41 @@ class ProcuracaoService
 
     private function salvarEConverter(TemplateProcessor $template, $filenameBase)
     {
+        // 1. Cria diretório temporário
         $tempDir = storage_path("app/public/temp");
         if (!file_exists($tempDir))
-            mkdir($tempDir, 0777, true);
+            mkdir($tempDir, 0755, true);
 
+        // 2. Salva o DOCX modificado temporariamente
         $tempDocx = $tempDir . DIRECTORY_SEPARATOR . "{$filenameBase}.docx";
-        if (file_exists($tempDocx))
-            @unlink($tempDocx);
-
         $template->saveAs($tempDocx);
 
+        // 3. Define diretório de saída
         $outputDir = storage_path("app/public/documentos_gerados");
         if (!file_exists($outputDir))
-            mkdir($outputDir, 0777, true);
+            mkdir($outputDir, 0755, true);
 
         $pdfPath = $outputDir . DIRECTORY_SEPARATOR . "{$filenameBase}.pdf";
+
+        // Remove arquivo antigo se existir
         if (file_exists($pdfPath))
             @unlink($pdfPath);
 
-        try {
-            // Conversão LibreOffice (Linux) ou COM (Windows)
-            // Assumindo Windows/COM como nos exemplos anteriores
-            $word = new \COM("Word.Application") or die("Erro ao instanciar o Word.");
-            $word->Visible = 0;
-            $word->DisplayAlerts = 0;
-            $doc = $word->Documents->Open(realpath($tempDocx));
-            $doc->ExportAsFixedFormat($pdfPath, 17); // 17 = PDF
-            $doc->Close(false);
-            $word->Quit();
-            $word = null;
-        } catch (\Throwable $e) {
-            if (isset($word)) {
-                $word->Quit();
-                $word = null;
-            }
-            throw new \Exception("Erro na conversão PDF: " . $e->getMessage());
+        // 4. CONVERSÃO LINUX (Usando LibreOffice Headless)
+        // O comando exporta o PDF para o diretório de saída ($outputDir)
+        // "2>&1" captura erros para podermos debugar se falhar
+        $command = "libreoffice --headless --convert-to pdf " . escapeshellarg($tempDocx) . " --outdir " . escapeshellarg($outputDir);
+
+        $output = shell_exec($command . " 2>&1");
+
+        // 5. Verificação e Limpeza
+        if (!file_exists($pdfPath)) {
+            // Se o PDF não foi criado, lança erro com o log do comando
+            throw new \Exception("Erro ao gerar PDF. Verifique se o LibreOffice está instalado. Log: " . $output);
         }
+
+        // Remove o DOCX temporário para não encher o servidor
+        @unlink($tempDocx);
 
         return $pdfPath;
     }
