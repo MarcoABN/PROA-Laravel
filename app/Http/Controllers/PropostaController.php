@@ -8,17 +8,29 @@ use Illuminate\Http\Response;
 
 class PropostaController extends Controller
 {
+    // Gera o CONTRATO
     public function imprimir($id, PropostaDocService $service)
     {
         $proposta = Proposta::findOrFail($id);
         
-        // Gera o PDF
         $pdfPath = $service->gerarPdf($proposta);
 
-        // Retorna o arquivo para o navegador exibir (inline) ao invés de baixar
         return response()->file($pdfPath, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="proposta-'.$proposta->numero_formatado.'.pdf"'
+            'Content-Disposition' => 'inline; filename="contrato-'.$proposta->numero_formatado.'.pdf"'
+        ]);
+    }
+
+    // Gera o RECIBO
+    public function imprimirRecibo($id, PropostaDocService $service)
+    {
+        $proposta = Proposta::findOrFail($id);
+        
+        $pdfPath = $service->gerarReciboPdf($proposta);
+
+        return response()->file($pdfPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="recibo-'.$proposta->numero_formatado.'.pdf"'
         ]);
     }
 }

@@ -17,6 +17,11 @@ class EscolaNauticaResource extends Resource
     protected static ?string $model = EscolaNautica::class;
 
     protected static ?string $navigationGroup = 'Cadastros Auxiliares';
+
+    protected static ?string $modelLabel = 'Escolas Náuticas';
+    protected static ?string $pluralModelLabel = 'Escolas Náuticas';
+    protected static ?string $navigationLabel = 'Escolas Náuticas';
+    
     protected static ?int $navigationSort = 1;
     protected static ?string $navigationIcon = 'heroicon-o-academic-cap'; // Ícone sugerido
 

@@ -22,10 +22,10 @@ Route::get('/login', LoginCpf::class)->name('login');
 
 // 3. Área do CLIENTE (Aluno)
 Route::middleware(['auth:cliente'])->group(function () {
-    
+
     // Dashboard do Aluno
     Route::get('/cliente/dashboard', function () {
-        return view('dashboard'); 
+        return view('dashboard');
     })->name('cliente.dashboard');
 
     // Simulado do Aluno (COM PARÂMETRO DE MODALIDADE)
@@ -35,17 +35,18 @@ Route::middleware(['auth:cliente'])->group(function () {
 
 // 4. Área do ADMIN (Rotas Extras do PROA)
 Route::middleware(['auth:web'])->prefix('admin')->group(function () {
-    
+
     // Gerador de Anexos
     Route::get('/anexos/gerar/{classe}/{embarcacao}', [AnexoController::class, 'gerarGenerico'])
         ->name('anexos.gerar_generico');
 });
 
-// Outras rotas protegidas gerais
-Route::middleware(['auth:web'])->group(function () {
-    Route::get('/propostas/{id}/imprimir', [PropostaController::class, 'imprimir'])
-        ->name('propostas.imprimir');
-});
+
+Route::get('/propostas/{id}/imprimir', [PropostaController::class, 'imprimir'])->name('propostas.imprimir');
+
+// ADICIONE ESTA LINHA (Rota do Recibo):
+Route::get('/propostas/{id}/imprimir-recibo', [PropostaController::class, 'imprimirRecibo'])->name('propostas.imprimir_recibo');
+
 /*
 Route::get('/gerar-sitemap', function () {
     SitemapGenerator::create('https://campeaonautica.com.br')->writeToFile(public_path('sitemap.xml'));

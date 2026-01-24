@@ -3,7 +3,9 @@
 namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany; // <--- Importante
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Cliente extends Authenticatable
 {
@@ -11,11 +13,7 @@ class Cliente extends Authenticatable
 
     protected $guarded = []; // Ou seus fillables
 
-    protected $fillable = [
-        'nome',
-        'cpfcnpj',
-        'email',
-    ];
+    protected $fillable = [];
 
     /**
      * Adicione ESTA função para corrigir o erro:
@@ -28,5 +26,10 @@ class Cliente extends Authenticatable
     public function simulados(): HasMany
     {
         return $this->hasMany(SimuladoResultado::class);
+    }
+
+    public function usuario(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

@@ -4,7 +4,6 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PropostaResource\Pages;
 use App\Models\Proposta;
-use App\Services\PropostaDocService;
 use Filament\Forms;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Repeater;
@@ -25,9 +24,7 @@ use Closure;
 class PropostaResource extends Resource
 {
     protected static ?string $model = Proposta::class;
-
     protected static ?int $navigationSort = 2;
-
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
     protected static ?string $navigationLabel = 'Propostas de Serviço';
 
@@ -49,11 +46,10 @@ class PropostaResource extends Resource
                             ->default(now())
                             ->required(),
 
-                        TextInput::make('sequencial_diario')
+                        // ALTERAÇÃO 1: Campo Sequencial agora é apenas informativo
+                        Placeholder::make('sequencial_display')
                             ->label('Nº Sequencial')
-                            ->numeric()
-                            ->default(1)
-                            ->required(),
+                            ->content('Gerado automaticamente ao salvar'),
                     ]),
 
                 Section::make('Cliente e Embarcação')
@@ -65,20 +61,20 @@ class PropostaResource extends Resource
                             ->searchable()
                             ->preload()
                             ->live()
-                            ->afterStateUpdated(fn (Set $set) => $set('embarcacao_id', null))
+                            ->afterStateUpdated(fn(Set $set) => $set('embarcacao_id', null))
                             ->required(),
 
                         Select::make('embarcacao_id')
-                            ->label('Embarcação (Objeto)')
+                            ->label('Embarcação (Opcional)')
                             ->options(function (Get $get) {
                                 $clienteId = $get('cliente_id');
-                                if (!$clienteId) return [];
+                                if (!$clienteId)
+                                    return [];
                                 return \App\Models\Embarcacao::where('cliente_id', $clienteId)
                                     ->pluck('nome_embarcacao', 'id');
                             })
                             ->searchable()
-                            ->preload()
-                            ->required(),
+                            ->preload(),
                     ]),
 
                 Section::make('Serviços e Valores')
@@ -86,17 +82,8 @@ class PropostaResource extends Resource
                         Repeater::make('itens_servico')
                             ->label('Lista de Serviços')
                             ->schema([
-                                TextInput::make('descricao')
-                                    ->label('Descrição do Serviço')
-                                    ->required()
-                                    ->columnSpan(2),
-                                    
-                                TextInput::make('valor')
-                                    ->label('Valor')
-                                    ->numeric()
-                                    ->prefix('R$')
-                                    ->live(onBlur: true)
-                                    ->required(),
+                                TextInput::make('descricao')->label('Descrição')->required()->columnSpan(2),
+                                TextInput::make('valor')->label('Valor')->numeric()->prefix('R$')->live(onBlur: true)->required(),
                             ])
                             ->maxItems(11)
                             ->columns(3)
@@ -104,76 +91,58 @@ class PropostaResource extends Resource
 
                         Forms\Components\Grid::make(2)
                             ->schema([
-                                TextInput::make('valor_desconto')
-                                    ->label('Desconto')
-                                    ->numeric()
-                                    ->prefix('R$')
-                                    ->default(0)
-                                    ->live(onBlur: true),
-
+                                TextInput::make('valor_desconto')->label('Desconto')->numeric()->prefix('R$')->default(0)->live(onBlur: true),
                                 Placeholder::make('total_calculado')
                                     ->label('Total Líquido Estimado')
-                                    ->content(function (Get $get) {
-                                        $total = self::getTotalLiquido($get);
-                                        return 'R$ ' . number_format($total, 2, ',', '.');
-                                    })
+                                    ->content(fn(Get $get) => 'R$ ' . number_format(self::getTotalLiquido($get), 2, ',', '.'))
                                     ->extraAttributes(['class' => 'text-xl font-bold text-success-600']),
                             ]),
                     ]),
 
-                // --- LÓGICA DE PAGAMENTO CORRIGIDA ---
                 Section::make('Condições de Pagamento')
                     ->schema([
-                        // CORREÇÃO 1: dehydrated(false) impede o erro SQL
-                        Hidden::make('parcelas_count')
-                            ->default(1)
-                            ->dehydrated(false), 
+                        Hidden::make('parcelas_count')->default(0)->dehydrated(false),
 
+                        // ALTERAÇÃO 3: Repeater opcional, sem required
                         Repeater::make('parcelas')
-                            ->label('Parcelamento')
+                            ->label('Parcelamento (Opcional)')
                             ->schema([
                                 TextInput::make('descricao')
                                     ->label('Descrição')
-                                    ->placeholder('Ex: Entrada / 30 dias')
-                                    ->required(),
+                                    ->placeholder('Ex: Entrada / 30 dias'),
+                                // sem required()
 
                                 TextInput::make('valor')
                                     ->label('Valor (R$)')
                                     ->numeric()
                                     ->prefix('R$')
-                                    ->live(onBlur: true) 
-                                    // Passamos o $state explicitamente
-                                    ->afterStateUpdated(function (Get $get, Set $set, $component, $state) {
-                                        self::recalcularCascata($get, $set, $component, $state);
-                                    })
-                                    ->required(),
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(fn(Get $get, Set $set, $component, $state) => self::recalcularCascata($get, $set, $component, $state)),
+                                // sem required()
                             ])
-                            ->maxItems(4)
-                            ->defaultItems(1)
+                            ->maxItems(6)
+                            ->defaultItems(0) // Começa vazio
                             ->columns(2)
                             ->addActionLabel('Adicionar Parcela')
                             ->live()
                             ->afterStateUpdated(function (Get $get, Set $set, $state) {
                                 $novaQtd = count($state);
-                                $qtdAnterior = (int) $get('parcelas_count');
-
-                                // Só divide igualmente se mudou a quantidade de linhas
-                                if ($novaQtd !== $qtdAnterior) {
+                                if ($novaQtd !== (int) $get('parcelas_count')) {
                                     self::recalcularDivisaoIgual($get, $set);
                                     $set('parcelas_count', $novaQtd);
                                 }
                             })
                             ->rules([
-                                fn (Get $get): Closure => function (string $attribute, $value, Closure $fail) use ($get) {
-                                    $totalLiquido = self::getTotalLiquido($get);
-                                    
-                                    // Converte para float antes de somar para evitar erro de string
-                                    $totalParcelas = collect($value)->sum(fn($p) => (float) ($p['valor'] ?? 0));
-                                    $totalParcelas = round($totalParcelas, 2);
+                                fn(Get $get): Closure => function (string $attribute, $value, Closure $fail) use ($get) {
+                                    // Se estiver vazio, pula a validação de soma
+                                    if (empty($value) || count($value) === 0)
+                                        return;
 
-                                    if (abs($totalLiquido - $totalParcelas) > 0.05) {
-                                        $diferenca = number_format($totalLiquido - $totalParcelas, 2, ',', '.');
-                                        $fail("A soma das parcelas (R$ " . number_format($totalParcelas, 2, ',', '.') . ") difere do total líquido (R$ " . number_format($totalLiquido, 2, ',', '.') . ").");
+                                    $totalLiq = self::getTotalLiquido($get);
+                                    $totalParc = round(collect($value)->sum(fn($p) => (float) ($p['valor'] ?? 0)), 2);
+
+                                    if (abs($totalLiq - $totalParc) > 0.05) {
+                                        $fail("A soma das parcelas difere do total.");
                                     }
                                 },
                             ]),
@@ -188,30 +157,22 @@ class PropostaResource extends Resource
                 Tables\Columns\TextColumn::make('numero_formatado')->label('Nº Proposta')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('cliente.nome')->label('Cliente')->searchable(),
                 Tables\Columns\TextColumn::make('data_proposta')->date('d/m/Y')->label('Data'),
-                Tables\Columns\TextColumn::make('status')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'rascunho' => 'gray',
-                        'gerada' => 'warning',
-                        'aceita' => 'success',
-                        default => 'gray',
-                    }),
+                // ALTERAÇÃO 2: Coluna Status removida
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\Action::make('imprimir')
-                    ->label('Imprimir PDF')
-                    ->icon('heroicon-o-printer')
-                    ->color('success')
-                    ->url(fn (Proposta $record) => route('propostas.imprimir', $record->id))
-                    ->openUrlInNewTab(),
+                Tables\Actions\Action::make('imprimir_contrato')->label('Contrato')->icon('heroicon-o-document-text')->color('primary')
+                    ->url(fn(Proposta $record) => route('propostas.imprimir', $record->id))->openUrlInNewTab(),
+                Tables\Actions\Action::make('imprimir_recibo')->label('Recibo')->icon('heroicon-o-receipt-percent')->color('success')
+                    ->url(fn(Proposta $record) => route('propostas.imprimir_recibo', $record->id))->openUrlInNewTab(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()]),
-            ]);
+            ->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
     }
 
-    public static function getRelations(): array { return []; }
+    public static function getRelations(): array
+    {
+        return [];
+    }
     public static function getPages(): array
     {
         return [
@@ -221,70 +182,45 @@ class PropostaResource extends Resource
         ];
     }
 
-    // --- MÉTODOS AUXILIARES ---
-
     protected static function getTotalLiquido(Get $get): float
     {
         $itens = $get('itens_servico') ?? [];
         $totalServico = collect($itens)->sum(fn($item) => (float) ($item['valor'] ?? 0));
-        $desconto = (float) ($get('valor_desconto') ?? 0);
-        return round($totalServico - $desconto, 2);
+        return round($totalServico - (float) ($get('valor_desconto') ?? 0), 2);
     }
 
     public static function recalcularCascata(Get $get, Set $set, $component, $novoValorState)
     {
         $totalLiquido = self::getTotalLiquido($get);
         $parcelas = $get('parcelas') ?? [];
-
-        // Identifica o UUID da linha atual
         $uuidEditado = Str::afterLast(Str::beforeLast($component->getStatePath(), '.'), '.');
-
         $somaAnterior = 0;
         $encontrouAtual = false;
         $chavesFuturas = [];
 
-        // Itera para separar: Passado / Presente / Futuro
         foreach ($parcelas as $uuid => $dados) {
-            // Se já passamos pela linha editada, é Futuro
             if ($encontrouAtual) {
                 $chavesFuturas[] = $uuid;
                 continue;
             }
-
-            // Se for a linha atual
-            if ((string)$uuid === (string)$uuidEditado) {
-                $valor = (float) $novoValorState; // Usa o valor que acabou de ser digitado
-                $somaAnterior += $valor;
+            if ((string) $uuid === (string) $uuidEditado) {
+                $somaAnterior += (float) $novoValorState;
                 $encontrouAtual = true;
             } else {
-                // Linhas anteriores
                 $somaAnterior += (float) ($dados['valor'] ?? 0);
             }
         }
 
-        // Se não houver linhas futuras, não há o que recalcular
-        if (empty($chavesFuturas)) return;
-
-        // Calcula o que sobra para as próximas
+        if (empty($chavesFuturas))
+            return;
         $restante = round($totalLiquido - $somaAnterior, 2);
-        $qtdFuturas = count($chavesFuturas);
-
-        // Distribui o restante
-        $valorBase = floor(($restante / $qtdFuturas) * 100) / 100;
-        $somaDistrib = $valorBase * $qtdFuturas;
-        $centavosSobra = round($restante - $somaDistrib, 2);
+        $valorBase = floor(($restante / count($chavesFuturas)) * 100) / 100;
+        $centavosSobra = round($restante - ($valorBase * count($chavesFuturas)), 2);
 
         foreach ($chavesFuturas as $index => $uuid) {
-            $novoValor = $valorBase;
-            if ($index === ($qtdFuturas - 1)) {
-                $novoValor += $centavosSobra;
-            }
-            
-            // Atualiza o valor no array
-            // Formatamos para string para garantir que o input exiba "100.00"
-            $parcelas[$uuid]['valor'] = number_format($novoValor, 2, '.', '');
+            $novo = $valorBase + ($index === count($chavesFuturas) - 1 ? $centavosSobra : 0);
+            $parcelas[$uuid]['valor'] = number_format($novo, 2, '.', '');
         }
-
         $set('parcelas', $parcelas);
     }
 
@@ -292,24 +228,16 @@ class PropostaResource extends Resource
     {
         $totalLiquido = self::getTotalLiquido($get);
         $parcelas = $get('parcelas');
-
-        if (!$parcelas || count($parcelas) == 0) return;
-
+        if (!$parcelas || count($parcelas) == 0)
+            return;
         $qtd = count($parcelas);
         $valorBase = floor(($totalLiquido / $qtd) * 100) / 100;
-        $soma = $valorBase * $qtd;
-        $diferenca = round($totalLiquido - $soma, 2);
-
+        $diferenca = round($totalLiquido - ($valorBase * $qtd), 2);
         $i = 0;
         foreach ($parcelas as $uuid => $dados) {
-            $novoValor = $valorBase;
-            if ($i === ($qtd - 1)) {
-                $novoValor += $diferenca;
-            }
-            $parcelas[$uuid]['valor'] = number_format($novoValor, 2, '.', '');
+            $parcelas[$uuid]['valor'] = number_format($valorBase + ($i === $qtd - 1 ? $diferenca : 0), 2, '.', '');
             $i++;
         }
-
         $set('parcelas', $parcelas);
     }
 }

@@ -9,6 +9,7 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 // 2. ADICIONE "implements FilamentUser" AQUI
 class User extends Authenticatable implements FilamentUser
@@ -41,5 +42,10 @@ class User extends Authenticatable implements FilamentUser
         // return str_ends_with($this->email, '@campeaonautica.com.br');
         
         return true; 
+    }
+
+    public function clientes(): HasMany
+    {
+        return $this->hasMany(Cliente::class, 'user_id');
     }
 }

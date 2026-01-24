@@ -16,9 +16,13 @@ class PrestadorResource extends Resource
     protected static ?string $model = Prestador::class;
 
     protected static ?string $navigationGroup = 'Cadastros Auxiliares';
+
+    protected static ?string $modelLabel = 'Instrutores / Procuradores';
+    protected static ?string $pluralModelLabel = 'Instrutores / Procuradores';
+    protected static ?string $navigationLabel = 'Instrutores / Procuradores';
     protected static ?int $navigationSort = 2;
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
-    protected static ?string $navigationLabel = 'Instrutores / Procuradores';
+
 
     public static function form(Form $form): Form
     {

@@ -10,7 +10,10 @@ use Filament\Widgets\TableWidget as BaseWidget;
 class LatestClientes extends BaseWidget
 {
     protected static ?string $heading = 'Últimos Clientes Cadastrados';
-    protected int | string | array $columnSpan = 'full'; // Ocupa a largura toda
+    protected int | string | array $columnSpan = 'full';
+
+    // ORDEM 2: Aparece EMBAIXO do widget de simulados
+    protected static ?int $sort = 2;
 
     public function table(Table $table): Table
     {
@@ -24,6 +27,7 @@ class LatestClientes extends BaseWidget
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Cadastrado em')
                     ->date('d/m/Y'),
-            ]);
+            ])
+            ->paginated(false); // Sugestão: remover paginação aqui também para ficar igual ao de cima
     }
 }

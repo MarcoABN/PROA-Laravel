@@ -24,6 +24,10 @@ class ServicoResource extends Resource
     protected static ?string $navigationGroup = 'Painel de Controle';
 
     protected static ?string $slug = 'servicos-do-site';
+    protected static ?string $modelLabel = 'Serviços do Site';
+    protected static ?string $pluralModelLabel = 'Serviços do Site';
+
+    
 
     public static function form(Form $form): Form
     {
