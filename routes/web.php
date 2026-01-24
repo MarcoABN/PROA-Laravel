@@ -46,8 +46,9 @@ Route::middleware(['auth:web'])->group(function () {
     Route::get('/propostas/{id}/imprimir', [PropostaController::class, 'imprimir'])
         ->name('propostas.imprimir');
 });
-
+/*
 Route::get('/gerar-sitemap', function () {
     SitemapGenerator::create('https://campeaonautica.com.br')->writeToFile(public_path('sitemap.xml'));
     return 'Sitemap gerado com sucesso!';
 });
+*/
