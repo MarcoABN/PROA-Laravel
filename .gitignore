@@ -5,3 +5,5 @@
 /public/build
 /public/hot
 .env
+!storage/app/public/templates/
+!storage/app/public/templates/*
