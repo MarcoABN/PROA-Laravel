@@ -34,7 +34,6 @@ class PropostaDocService
         $this->preencherDadosComuns($template, $proposta);
 
         // --- 2. SERVIÇOS ---
-        // Contrato: até 11 itens / Recibo: até 4 itens
         $limiteServicos = $tipo === 'recibo' ? 4 : 11;
         $itens = $proposta->itens_servico ?? [];
         $totalBruto = 0;
@@ -54,32 +53,24 @@ class PropostaDocService
             }
         }
 
-        // Soma itens ocultos (se houver) para o cálculo bater
         for ($k = $limiteServicos; $k < count($itens); $k++) {
             $totalBruto += (float) $itens[$k]['valor'];
         }
 
-        // --- 3. TOTAIS, LABEL BRUTO E DESCONTO ---
+        // --- 3. TOTAIS ---
         $desconto = (float) $proposta->valor_desconto;
         $totalLiquido = $totalBruto - $desconto;
 
-        // Sempre exibe o Total Geral (Líquido)
         $template->setValue('valortotalserv', 'R$ ' . number_format($totalLiquido, 2, ',', '.'));
 
-        // Lógica condicional para Bruto e Desconto
         if ($desconto > 0) {
-            // Com Desconto: Exibe Bruto e o Desconto
             $template->setValue('label_total_bruto', 'Valor Total');
             $template->setValue('valorbrutoserv', 'R$ ' . number_format($totalBruto, 2, ',', '.'));
-
             $template->setValue('desc_label', 'DESCONTO');
             $template->setValue('descserv', 'R$ ' . number_format($desconto, 2, ',', '.'));
         } else {
-            // Sem Desconto: Limpa o Bruto e o Desconto
-            // Assim, só sobrará o "Total Geral" visível no recibo
             $template->setValue('label_total_bruto', '');
             $template->setValue('valorbrutoserv', '');
-
             $template->setValue('desc_label', '');
             $template->setValue('descserv', '');
         }
@@ -90,8 +81,6 @@ class PropostaDocService
         // --- 5. SALVAR E GERAR ---
         return $this->salvarArquivo($template, "{$tipo}_{$proposta->id}");
     }
-
-    // --- MÉTODOS AUXILIARES ---
 
     private function preencherDadosComuns(TemplateProcessor $template, Proposta $proposta)
     {
@@ -131,7 +120,6 @@ class PropostaDocService
         $respTexto = $responsavel ? $responsavel->nome . ' - CPF ' . $this->formatarCpfCnpj($responsavel->cpfcnpj) : '';
         $template->setValue('responsavel_escolanautica', $this->up($respTexto));
 
-        // Bancos
         foreach (['banco', 'agencia', 'conta_corrente', 'chave_pix'] as $campo) {
             $keyWord = ($campo == 'agencia') ? 'ag' : ($campo == 'conta_corrente' ? 'cc' : ($campo == 'chave_pix' ? 'pix' : $campo));
             $template->setValue("{$keyWord}_proponente", $this->up($escola->$campo));
@@ -143,7 +131,7 @@ class PropostaDocService
         $endereco = ($cliente->logradouro ?? '') . ', ' . ($cliente->numero ?? '');
         $template->setValue('endereco_aceitante', $this->up($endereco));
 
-        // Embarcação (Trata Nulo)
+        // Embarcação
         if ($embarcacao) {
             $template->setValue('nome_embarcacao', $this->up($embarcacao->nome_embarcacao));
             $template->setValue('tipo_embarcacao', $this->up($embarcacao->tipo_embarcacao));
@@ -180,51 +168,36 @@ class PropostaDocService
     private function salvarArquivo(TemplateProcessor $template, $filename)
     {
         $tempDir = storage_path("app/public/temp");
-        if (!file_exists($tempDir))
-            mkdir($tempDir, 0777, true);
+        if (!file_exists($tempDir)) mkdir($tempDir, 0755, true);
+        
         $tempDocx = $tempDir . DIRECTORY_SEPARATOR . "{$filename}.docx";
-        if (file_exists($tempDocx))
-            @unlink($tempDocx);
-
         $template->saveAs($tempDocx);
 
         $outputDir = storage_path("app/public/propostas_pdf");
-        if (!file_exists($outputDir))
-            mkdir($outputDir, 0777, true);
+        if (!file_exists($outputDir)) mkdir($outputDir, 0755, true);
+        
         $pdfPath = $outputDir . DIRECTORY_SEPARATOR . "{$filename}.pdf";
-        if (file_exists($pdfPath))
-            @unlink($pdfPath);
+        if (file_exists($pdfPath)) @unlink($pdfPath);
 
-        try {
-            $word = new \COM("Word.Application") or die("Erro Word");
-            $word->Visible = 0;
-            $word->DisplayAlerts = 0;
-            $doc = $word->Documents->Open(realpath($tempDocx));
-            $doc->ExportAsFixedFormat($pdfPath, 17);
-            $doc->Close(false);
-            $word->Quit();
-            $word = null;
-        } catch (\Throwable $e) {
-            if (isset($word)) {
-                $word->Quit();
-                $word = null;
-            }
-            throw new \Exception("Erro PDF: " . $e->getMessage());
+        // --- CONVERSÃO LINUX (LibreOffice) ---
+        $command = "export HOME=/tmp && libreoffice --headless --convert-to pdf " . escapeshellarg($tempDocx) . " --outdir " . escapeshellarg($outputDir);
+        
+        $output = shell_exec($command . " 2>&1");
+
+        if (!file_exists($pdfPath)) {
+            @unlink($tempDocx);
+            throw new \Exception("Erro ao gerar PDF da Proposta. Log: " . $output);
         }
+        
+        @unlink($tempDocx);
         return $pdfPath;
     }
 
-    private function up($v)
-    {
-        return mb_strtoupper((string) ($v ?? ''), 'UTF-8');
-    }
-    private function formatarCpfCnpj($v)
-    {
+    private function up($v) { return mb_strtoupper((string) ($v ?? ''), 'UTF-8'); }
+    private function formatarCpfCnpj($v) {
         $v = preg_replace('/[^0-9]/', '', (string) $v);
-        if (strlen($v) == 11)
-            return preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $v);
-        if (strlen($v) == 14)
-            return preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $v);
+        if (strlen($v) == 11) return preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $v);
+        if (strlen($v) == 14) return preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $v);
         return $v;
     }
 }

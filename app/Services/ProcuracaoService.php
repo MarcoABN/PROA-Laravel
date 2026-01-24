@@ -143,12 +143,12 @@ class ProcuracaoService
 
     private function salvarEConverter(TemplateProcessor $template, $filenameBase)
     {
-        // 1. Cria diretório temporário
+        // 1. Cria diretório temporário para arquivos
         $tempDir = storage_path("app/public/temp");
         if (!file_exists($tempDir))
             mkdir($tempDir, 0755, true);
 
-        // 2. Salva o DOCX modificado temporariamente
+        // 2. Salva o DOCX modificado
         $tempDocx = $tempDir . DIRECTORY_SEPARATOR . "{$filenameBase}.docx";
         $template->saveAs($tempDocx);
 
@@ -163,20 +163,20 @@ class ProcuracaoService
         if (file_exists($pdfPath))
             @unlink($pdfPath);
 
-        // 4. CONVERSÃO LINUX (Usando LibreOffice Headless)
-        // O comando exporta o PDF para o diretório de saída ($outputDir)
-        // "2>&1" captura erros para podermos debugar se falhar
-        $command = "libreoffice --headless --convert-to pdf " . escapeshellarg($tempDocx) . " --outdir " . escapeshellarg($outputDir);
+        // 4. CONVERSÃO COM CORREÇÃO DE HOME (Truque para Linux/www-data)
+        // O comando exporta o HOME para /tmp antes de rodar o LibreOffice
+        // Isso evita que ele tente escrever em /var/www/.cache e falhe
+        $command = "export HOME=/tmp && libreoffice --headless --convert-to pdf " . escapeshellarg($tempDocx) . " --outdir " . escapeshellarg($outputDir);
 
         $output = shell_exec($command . " 2>&1");
 
-        // 5. Verificação e Limpeza
+        // 5. Verificação
         if (!file_exists($pdfPath)) {
-            // Se o PDF não foi criado, lança erro com o log do comando
-            throw new \Exception("Erro ao gerar PDF. Verifique se o LibreOffice está instalado. Log: " . $output);
+            @unlink($tempDocx); // Limpa lixo
+            throw new \Exception("Erro ao gerar PDF da Procuração. Log: " . $output);
         }
 
-        // Remove o DOCX temporário para não encher o servidor
+        // Limpeza do arquivo temporário
         @unlink($tempDocx);
 
         return $pdfPath;
