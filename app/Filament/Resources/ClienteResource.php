@@ -4,14 +4,14 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ClienteResource\Pages;
 use App\Models\Cliente;
-use App\Services\ProcuracaoService; // Importação do Service
+use App\Services\ProcuracaoService;
 use Filament\Forms;
-use Filament\Forms\Components\Select; // Importação do Select
+use Filament\Forms\Components\Select;
 use Filament\Forms\Form;
 use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
-use Filament\Tables\Actions\Action; // Importação da Action Customizada
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\HtmlString;
@@ -186,7 +186,7 @@ class ClienteResource extends Resource
             ->actions([
                 Tables\Actions\EditAction::make(),
 
-                // --- NOVA ACTION: PROCURAÇÃO ---
+                // --- ACTION: PROCURAÇÃO ---
                 Action::make('procuracao')
                     ->label('Procuração')
                     ->icon('heroicon-o-document-text')
@@ -209,17 +209,18 @@ class ClienteResource extends Resource
                                 ->helperText('Selecione uma embarcação para preencher o nome e usar a cidade dela como local.'),
                         ];
                     })
-                    ->action(function (Cliente $record, array $data) {
-                        // Captura o ID da embarcação ou 'null' string se vier vazio
+                    // AQUI ESTÁ A CORREÇÃO: Usamos o Action $action para injetar JS
+                    ->action(function (Cliente $record, array $data, Action $action) {
                         $barcoId = $data['embarcacao_id'] ?? 'null';
                         
-                        // Redireciona para a rota do Controller
-                        return redirect()->route('clientes.procuracao', [
+                        $url = route('clientes.procuracao', [
                             'id' => $record->id, 
                             'embarcacao_id' => $barcoId
                         ]);
-                    })
-                    ->openUrlInNewTab(), // Abre o PDF em nova aba
+
+                        // Comando JS para abrir em nova aba
+                        $action->getLivewire()->js("window.open('{$url}', '_blank');");
+                    }),
             ]);
     }
 
