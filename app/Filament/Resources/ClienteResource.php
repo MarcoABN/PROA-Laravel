@@ -13,6 +13,9 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Table;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\HtmlString;
 
@@ -183,6 +186,42 @@ class ClienteResource extends Resource
                         return $valor >= 50 ? 'success' : 'danger';
                     }),
             ])
+            ->filters([
+                // FILTRO: Status de Realização (Fez ou não fez simulados)
+                SelectFilter::make('status_simulado')
+                    ->label('Realizou Simulado?')
+                    ->options([
+                        'sim' => 'Sim, já realizou',
+                        'nao' => 'Não, nunca realizou',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if ($data['value'] === 'sim') {
+                            return $query->has('simulados');
+                        }
+                        if ($data['value'] === 'nao') {
+                            return $query->doesntHave('simulados');
+                        }
+                    }),
+
+                // FILTRO: Status de Aprovação
+                SelectFilter::make('resultado')
+                    ->label('Status de Aprovação')
+                    ->options([
+                        'aprovado' => 'Aprovados (Pelo menos um)',
+                        'reprovado' => 'Reprovados (Apenas reprovados)',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if ($data['value'] === 'aprovado') {
+                            // Clientes que possuem ao menos 1 simulado aprovado
+                            return $query->whereHas('simulados', fn($q) => $q->where('aprovado', true));
+                        }
+                        if ($data['value'] === 'reprovado') {
+                            // Clientes que têm simulados, mas NENHUM deles é aprovado
+                            return $query->whereHas('simulados', fn($q) => $q->where('aprovado', false))
+                                         ->whereDoesntHave('simulados', fn($q) => $q->where('aprovado', true));
+                        }
+                    })
+            ])
             ->actions([
                 Tables\Actions\EditAction::make(),
 
@@ -192,11 +231,10 @@ class ClienteResource extends Resource
                     ->icon('heroicon-o-document-text')
                     ->color('warning')
                     ->form(function (Cliente $record) {
-                        // Verifica se o cliente tem embarcações
                         $temBarcos = $record->embarcacoes()->exists();
 
                         if (!$temBarcos) {
-                            return []; // Não exibe o Select se não houver barcos
+                            return [];
                         }
 
                         return [
@@ -209,7 +247,6 @@ class ClienteResource extends Resource
                                 ->helperText('Selecione uma embarcação para preencher o nome e usar a cidade dela como local.'),
                         ];
                     })
-                    // AQUI ESTÁ A CORREÇÃO: Usamos o Action $action para injetar JS
                     ->action(function (Cliente $record, array $data, Action $action) {
                         $barcoId = $data['embarcacao_id'] ?? 'null';
                         
@@ -218,7 +255,6 @@ class ClienteResource extends Resource
                             'embarcacao_id' => $barcoId
                         ]);
 
-                        // Comando JS para abrir em nova aba
                         $action->getLivewire()->js("window.open('{$url}', '_blank');");
                     }),
             ]);
