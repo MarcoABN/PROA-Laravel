@@ -12,8 +12,9 @@ use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Actions\Action;
-use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\SelectFilter; // <--- IMPORTANTE
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder; // <--- IMPORTANTE
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\HtmlString;
 
@@ -93,11 +94,9 @@ class ClienteResource extends Resource
                                 </div>
                             '))
                             ->afterStateUpdated(function ($state, Set $set) {
-                                if (!$state)
-                                    return;
+                                if (!$state) return;
                                 $cep = preg_replace('/[^0-9]/', '', $state);
-                                if (strlen($cep) !== 8)
-                                    return;
+                                if (strlen($cep) !== 8) return;
 
                                 $response = Http::get("https://viacep.com.br/ws/{$cep}/json/")->json();
 
@@ -134,10 +133,10 @@ class ClienteResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('cha_numero')
                             ->label('Número'),
-
+                            
                         Forms\Components\TextInput::make('cha_categoria')
                             ->label('Categoria'),
-
+                            
                         Forms\Components\DatePicker::make('cha_dtemissao')
                             ->label('Validade/Emissão'),
                     ]),
@@ -181,10 +180,32 @@ class ClienteResource extends Resource
                     ->alignCenter()
                     ->badge()
                     ->color(function ($state) {
-                        if ($state === '-')
-                            return 'gray';
+                        if ($state === '-') return 'gray';
                         $valor = (float) str_replace('%', '', $state);
                         return $valor >= 50 ? 'success' : 'danger';
+                    }),
+            ])
+            ->filters([
+                // --- FILTRO DE STATUS DO SIMULADO ---
+                SelectFilter::make('performance_simulado')
+                    ->label('Status do Simulado')
+                    ->options([
+                        'realizou' => 'Realizou Simulados (Geral)',
+                        'aprovado' => 'Com Aprovação',
+                        'reprovado' => 'Com Reprovação',
+                        'sem_simulado' => 'Nunca realizou',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        $value = $data['value'];
+                        if (!$value) return $query; // Se não selecionou nada, retorna tudo
+
+                        return match ($value) {
+                            'realizou' => $query->has('simulados'),
+                            'aprovado' => $query->whereHas('simulados', fn ($q) => $q->where('aprovado', true)),
+                            'reprovado' => $query->whereHas('simulados', fn ($q) => $q->where('aprovado', false)),
+                            'sem_simulado' => $query->doesntHave('simulados'),
+                            default => $query,
+                        };
                     }),
             ])
             ->actions([
@@ -196,12 +217,8 @@ class ClienteResource extends Resource
                     ->icon('heroicon-o-document-text')
                     ->color('warning')
                     ->form(function (Cliente $record) {
-                        // Verifica se o cliente tem embarcações
                         $temBarcos = $record->embarcacoes()->exists();
-
-                        if (!$temBarcos) {
-                            return []; // Não exibe o Select se não houver barcos
-                        }
+                        if (!$temBarcos) return [];
 
                         return [
                             Select::make('embarcacao_id')
@@ -213,40 +230,16 @@ class ClienteResource extends Resource
                                 ->helperText('Selecione uma embarcação para preencher o nome e usar a cidade dela como local.'),
                         ];
                     })
-                    // AQUI ESTÁ A CORREÇÃO: Usamos o Action $action para injetar JS
                     ->action(function (Cliente $record, array $data, Action $action) {
                         $barcoId = $data['embarcacao_id'] ?? 'null';
-
+                        
                         $url = route('clientes.procuracao', [
-                            'id' => $record->id,
+                            'id' => $record->id, 
                             'embarcacao_id' => $barcoId
                         ]);
 
                         // Comando JS para abrir em nova aba
                         $action->getLivewire()->js("window.open('{$url}', '_blank');");
-                    }),
-            ])
-            ->filters([
-                SelectFilter::make('performance_simulado')
-                    ->label('Status do Simulado')
-                    ->options([
-                        'realizou' => 'Realizou Simulados (Geral)',
-                        'aprovado' => 'Com Aprovação',
-                        'reprovado' => 'Com Reprovação',
-                        'sem_simulado' => 'Nunca realizou',
-                    ])
-                    ->query(function (Builder $query, array $data) {
-                        $value = $data['value'];
-                        if (!$value)
-                            return $query; // Se não selecionou nada, retorna tudo
-            
-                        return match ($value) {
-                            'realizou' => $query->has('simulados'),
-                            'aprovado' => $query->whereHas('simulados', fn($q) => $q->where('aprovado', true)),
-                            'reprovado' => $query->whereHas('simulados', fn($q) => $q->where('aprovado', false)),
-                            'sem_simulado' => $query->doesntHave('simulados'),
-                            default => $query,
-                        };
                     }),
             ]);
     }
