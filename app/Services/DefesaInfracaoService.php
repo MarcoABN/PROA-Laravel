@@ -102,7 +102,7 @@ class DefesaInfracaoService
 
     private function salvarEConverter(TemplateProcessor $template, $filenameBase)
     {
-        // 1. Cria diretório temporário
+        // 1. Cria diretório temporário para arquivos
         $tempDir = storage_path("app/public/temp");
         if (!file_exists($tempDir))
             mkdir($tempDir, 0755, true);
@@ -120,16 +120,17 @@ class DefesaInfracaoService
         if (file_exists($pdfPath))
             @unlink($pdfPath);
 
-        // 4. CONVERSÃO COM CORREÇÃO DE HOME (Truque para Linux/www-data)
-        // Adicionamos "export HOME=/tmp &&" antes do comando.
-        // Isso faz o LibreOffice gravar os caches no /tmp em vez de tentar no /var/www
+        // 4. CONVERSÃO COM CORREÇÃO DE HOME (Linux)
+        // O "export HOME=/tmp" diz ao LibreOffice para usar a pasta temporária
+        // para gravar seus arquivos de config, evitando o erro de permissão no /var/www
         $command = "export HOME=/tmp && libreoffice --headless --convert-to pdf " . escapeshellarg($tempDocx) . " --outdir " . escapeshellarg($outputDir);
 
         $output = shell_exec($command . " 2>&1");
 
         // 5. Verificação
         if (!file_exists($pdfPath)) {
-            @unlink($tempDocx); // Limpa lixo
+            // Remove o DOCX para não acumular lixo
+            @unlink($tempDocx);
             throw new \Exception("Erro ao gerar PDF. Log do sistema: " . $output);
         }
 
