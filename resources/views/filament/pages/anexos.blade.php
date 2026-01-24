@@ -12,27 +12,32 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Requerimento Motonauta</span></x-slot>
-                {{ $this->gerarAnexo3AAction }}
+                {{ $this->gerarAnexo3AClienteAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Atestado Motonauta</span></x-slot>
-                {{ $this->gerarAnexo3BAction }}
+                {{ $this->gerarAnexo3BClienteAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Extravio CHA</span></x-slot>
-                {{ $this->gerarAnexo5DAction }}
+                {{ $this->gerarAnexo5DClienteAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Atestado Arrais</span></x-slot>
-                {{ $this->gerarAnexo5EAction }}
+                {{ $this->gerarAnexo5EClienteAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Requerimento Geral CHA</span></x-slot>
-                {{ $this->gerarAnexo5HAction }}
+                {{ $this->gerarAnexo5HClienteAction }}
+            </x-filament::section>
+
+            <x-filament::section class="h-full">
+                <x-slot name="heading"><span class="text-sm">Residência (Cliente)</span></x-slot>
+                {{ $this->gerarAnexo2LClienteAction }}
             </x-filament::section>
         </div>
     </div>
@@ -65,7 +70,7 @@
             </x-filament::section>
 
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Residência</span></x-slot>
+                <x-slot name="heading"><span class="text-sm">Residência (Embarcação)</span></x-slot>
                 {{ $this->gerarAnexo2LAction }}
             </x-filament::section>
 
@@ -127,7 +132,7 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Representação</span></x-slot>
-                {{ $this->gerarProcuracaoAction }}
+                {{ $this->gerarProcuracaoClienteAction }}
             </x-filament::section>
         </div>
     </div>

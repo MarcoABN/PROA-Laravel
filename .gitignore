@@ -1,2 +1,7 @@
 .env
 /public/hot
+/vendor
+/node_modules
+/public/build
+/public/hot
+.env

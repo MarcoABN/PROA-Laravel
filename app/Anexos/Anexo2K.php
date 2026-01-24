@@ -58,18 +58,21 @@ class Anexo2K implements AnexoInterface
             'nomeembarcacao' => $this->up($embarcacao->nome_embarcacao),
             'inscricao' => $this->up($embarcacao->num_inscricao),
             'cp-dl-ag' => $capitania ? $this->up($capitania->sigla) : '',
-            'nomeproprietarioanterior' => $this->up($input['antigo_nome']),
-            'rg' => $this->up($input['antigo_rg']),
-            'orgaoexpedidor' => $this->up($input['antigo_orgao']),
+            
+            // CORREÇÃO AQUI: Adicionado "?? ''" em todos os campos opcionais do input
+            'nomeproprietarioanterior' => $this->up($input['antigo_nome'] ?? ''),
+            'rg' => $this->up($input['antigo_rg'] ?? ''),
+            'orgaoexpedidor' => $this->up($input['antigo_orgao'] ?? ''),
             'dtexpedicao' => !empty($input['antigo_dtexp']) ? Carbon::parse($input['antigo_dtexp'])->format('d/m/Y') : '',
             'cpfcnpj' => $input['antigo_cpf'] ?? '',
-            'endereco' => $this->up($input['antigo_endereco']),
+            'endereco' => $this->up($input['antigo_endereco'] ?? ''),
             'numero' => $input['antigo_numero'] ?? '',
-            'complemento' => $this->up($input['antigo_complemento']),
-            'bairro' => $this->up($input['antigo_bairro']),
-            'cidade' => $this->up($input['antigo_cidade']),
-            'uf' => $this->up($input['antigo_uf']),
+            'complemento' => $this->up($input['antigo_complemento'] ?? ''),
+            'bairro' => $this->up($input['antigo_bairro'] ?? ''),
+            'cidade' => $this->up($input['antigo_cidade'] ?? ''),
+            'uf' => $this->up($input['antigo_uf'] ?? ''),
             'cep' => $input['antigo_cep'] ?? '',
+            
             'nomenovoproprietario' => $this->up($c->nome),
             'rgnovoproprietario' => $this->up($c->rg),
             'orgaoexpedidornovoproprietario' => $this->up($c->org_emissor),
@@ -82,8 +85,10 @@ class Anexo2K implements AnexoInterface
             'cidadenovoproprietario' => $this->up($c->cidade),
             'ufnovoproprietario' => $this->up($c->uf),
             'cepnovoproprietario' => $c->cep ?? '',
+            
             'localdata' => $this->up($embarcacao->cidade ?? 'Brasília') . ', ' . Carbon::now()->translatedFormat('d \d\e F \d\e Y'),
         ];
     }
+    
     private function up($valor) { return mb_strtoupper((string)($valor ?? ''), 'UTF-8'); }
 }

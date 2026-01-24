@@ -25,8 +25,8 @@ class Anexo2D implements AnexoInterface
 
     public function getDados($record, array $input): array
     {
-        $embarcacao = $record; // Cast implícito, pois o controller envia embarcação para este anexo
-        $embarcacao->load('notaFiscal');
+        $embarcacao = $record; // Cast implícito
+        $embarcacao->load('notaFiscal', 'motores'); // Carrega nota e motores
         $nf = $embarcacao->notaFiscal;
         $cliente = $embarcacao->cliente;
 
@@ -36,7 +36,10 @@ class Anexo2D implements AnexoInterface
             'tipo'           => $this->up($embarcacao->tipo_embarcacao),
             'atividade'      => $this->up($embarcacao->tipo_atividade),
             'tripulantes'    => $embarcacao->qtd_tripulantes,
-            'anoconstrucao'  => $embarcacao->dt_construcao ? Carbon::parse($embarcacao->dt_construcao)->format('d/m/Y') : '',
+            
+            // CORREÇÃO 1: Formata apenas o ANO (Y)
+            'anoconstrucao'  => $embarcacao->dt_construcao ? Carbon::parse($embarcacao->dt_construcao)->format('Y') : '',
+            
             'passageiros'    => $embarcacao->lotacao,
             'numcasco'       => $this->up($embarcacao->num_casco),
             'matcasco'       => $this->up($embarcacao->mat_casco),
@@ -77,12 +80,19 @@ class Anexo2D implements AnexoInterface
         ];
         if (array_key_exists($natureza, $checkboxMap)) { $dados[$checkboxMap[$natureza]] = 'Sim'; }
 
-        foreach ($embarcacao->motores as $index => $motor) {
-            $i = $index + 1;
-            if ($i > 3) break;
-            $dados["marcamotor{$i}"] = $this->up($motor->marca);
-            $dados["potmotor{$i}"] = $motor->potencia;
-            $dados["numseriemotor{$i}"] = $this->up($motor->num_serie);
+        // CORREÇÃO 2: Lógica de Motores vs Potência Máxima
+        if ($embarcacao->motores->isNotEmpty()) {
+            // Se tem motores cadastrados, preenche eles individualmente
+            foreach ($embarcacao->motores as $index => $motor) {
+                $i = $index + 1;
+                if ($i > 3) break;
+                $dados["marcamotor{$i}"] = $this->up($motor->marca);
+                $dados["potmotor{$i}"] = $motor->potencia;
+                $dados["numseriemotor{$i}"] = $this->up($motor->num_serie);
+            }
+        } elseif (!empty($embarcacao->potencia_motor)) {
+            // Se NÃO tem motores cadastrados, mas tem Potência Máxima definida na embarcação
+            $dados['potmotor1'] = "Max. {$embarcacao->potencia_motor} HP";
         }
 
         return $dados;

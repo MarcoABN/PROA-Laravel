@@ -59,10 +59,10 @@ class EmbarcacaoResource extends Resource
                         Forms\Components\TextInput::make('nome_embarcacao')
                             ->label('Nome da Embarcação')
                             ->placeholder('Caso não tenha nome, deixe em branco'),
-                            
+
                         Forms\Components\TextInput::make('num_casco')->label('Número do Casco'),
                         Forms\Components\TextInput::make('num_inscricao')->label('Inscrição'),
-                        
+
                         Forms\Components\Select::make('tipo_embarcacao')
                             ->options([
                                 'MOTOAQUÁTICA' => 'MOTOAQUÁTICA',
@@ -77,7 +77,7 @@ class EmbarcacaoResource extends Resource
                         Forms\Components\Select::make('tipo_atividade')
                             ->options(['ESPORTE LAZER' => 'ESPORTE LAZER', 'COMERCIAL' => 'COMERCIAL'])
                             ->required(),
-                            
+
                         Forms\Components\Select::make('area_navegacao')
                             ->options(['INTERIOR' => 'INTERIOR', 'MAR ABERTO' => 'MAR ABERTO'])
                             ->required(),
@@ -100,6 +100,10 @@ class EmbarcacaoResource extends Resource
                         Forms\Components\TextInput::make('mat_casco')->label('Material do Casco'),
                         Forms\Components\TextInput::make('qtd_tripulantes')->numeric(),
                         Forms\Components\TextInput::make('lotacao')->numeric(),
+                        Forms\Components\TextInput::make('potencia_motor')
+                            ->label('Potência Máx. (HP)')
+                            ->numeric()
+                            ->suffix('HP'),
                     ]),
 
                 // --- SEÇÃO 4: ENDEREÇO ONDE FICA A EMBARCAÇÃO ---
@@ -120,12 +124,14 @@ class EmbarcacaoResource extends Resource
                                 </div>
                             '))
                             ->afterStateUpdated(function ($state, Set $set) {
-                                if (!$state) return;
-                                
+                                if (!$state)
+                                    return;
+
                                 // Remove formatação para enviar para a API
                                 $cep = preg_replace('/[^0-9]/', '', $state);
-                                
-                                if (strlen($cep) !== 8) return;
+
+                                if (strlen($cep) !== 8)
+                                    return;
 
                                 $response = Http::get("https://viacep.com.br/ws/{$cep}/json/")->json();
 
@@ -171,7 +177,7 @@ class EmbarcacaoResource extends Resource
                                 Forms\Components\TextInput::make('numero_nota')->label('Número da Nota'),
                                 Forms\Components\DatePicker::make('dt_venda')->label('Data da Venda'),
                             ]),
-                        
+
                         Forms\Components\FileUpload::make('pdf_path')
                             ->label('Arquivo PDF')
                             ->disk('public')
@@ -190,8 +196,20 @@ class EmbarcacaoResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->placeholder('Nome não informado'), // Visual na tabela quando vazio
-                
-                Tables\Columns\TextColumn::make('cliente.nome')->searchable()->label('Proprietário'),
+
+                Tables\Columns\TextColumn::make('cliente.nome')
+                    ->label('Proprietário')
+                    ->searchable(query: function ($query, string $search) {
+                        // Limpa pontuação para pesquisar CPF mesmo se o usuário digitar pontos
+                        $searchNumeros = preg_replace('/[^0-9]/', '', $search);
+
+                        // Busca dentro do relacionamento 'cliente'
+                        $query->whereHas('cliente', function ($q) use ($search, $searchNumeros) {
+                            $q->where('nome', 'ilike', "%{$search}%") // Busca por Nome (Insensitive)
+                                ->orWhere('cpfcnpj', 'like', "%{$search}%") // Busca CPF exato digitado
+                                ->orWhere('cpfcnpj', 'like', "%{$searchNumeros}%"); // Busca CPF apenas números
+                        });
+                    }),
                 Tables\Columns\TextColumn::make('tipo_embarcacao'),
                 Tables\Columns\TextColumn::make('num_inscricao'),
                 Tables\Columns\TextColumn::make('motores_count')->counts('motores')->label('Qtd Motores'),

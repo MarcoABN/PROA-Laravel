@@ -22,14 +22,37 @@ class Anexo2B implements AnexoInterface
     public function getDados($record, array $input): array
     {
         $embarcacao = $record;
+        $embarcacao->load('motores', 'notaFiscal');
+        
         Carbon::setLocale('pt_BR');
         $c = $embarcacao->cliente;
         $nf = $embarcacao->notaFiscal;
         
+        // --- NOVA LÓGICA DE PASSAGEIROS (SEM SUBTRAÇÃO) ---
+        $tripulantes = intval($embarcacao->qtd_tripulantes ?? 0);
+        $lotacao = intval($embarcacao->lotacao ?? 0);
+        
+        if ($tripulantes > 0 && $lotacao > 0) {
+            // Exibe exatamente o que foi digitado: "1 + 2"
+            $lotacaoFormatada = "{$tripulantes} + {$lotacao}";
+        } elseif ($tripulantes > 0) {
+            $lotacaoFormatada = (string) $tripulantes;
+        } elseif ($lotacao > 0) {
+            $lotacaoFormatada = (string) $lotacao;
+        } else {
+            $lotacaoFormatada = '';
+        }
+        // --------------------------------------------------
+
         $dados = [
-            'nomeembarcacao' => $this->up($embarcacao->nome_embarcacao), 'inscricao' => $this->up($embarcacao->num_inscricao),
-            'anoconstrucao' => $embarcacao->dt_construcao ? Carbon::parse($embarcacao->dt_construcao)->format('d/m/Y') : '',
-            'passageiros' => $embarcacao->lotacao ?? '', 'numcasco' => $this->up($embarcacao->num_casco),
+            'nomeembarcacao' => $this->up($embarcacao->nome_embarcacao), 
+            'inscricao' => $this->up($embarcacao->num_inscricao),
+            'anoconstrucao' => $embarcacao->dt_construcao ? Carbon::parse($embarcacao->dt_construcao)->format('Y') : '',
+            
+            // Campo atualizado
+            'passageiros' => $lotacaoFormatada, 
+            
+            'numcasco' => $this->up($embarcacao->num_casco),
             'comprimento' => $embarcacao->comp_total ? $embarcacao->comp_total.'m' : '',
             'nomeproprietario' => $this->up($c->nome),
             'endereco' => $this->up(($c->logradouro ?? '') . ', ' . ($c->numero ?? '') . ' - ' . ($c->complemento ?? '')),
@@ -44,15 +67,24 @@ class Anexo2B implements AnexoInterface
                 'Transf. Jurisdição'=>'check_transfjurisdicao', 'Atualização de Dados'=>'check_atualizacaodados'];
         if (isset($map[$input['natureza']])) $dados[$map[$input['natureza']]] = 'Sim';
 
-        foreach ($embarcacao->motores as $i => $motor) {
-            $idx = $i + 1; if ($idx > 3) break;
-            $dados["marcamotor{$idx}"] = $this->up($motor->marca); $dados["potmotor{$idx}"] = $motor->potencia; $dados["numseriemotor{$idx}"] = $this->up($motor->num_serie);
+        // Lógica de Motores vs Potência Máxima
+        if ($embarcacao->motores->isNotEmpty()) {
+            foreach ($embarcacao->motores as $i => $motor) {
+                $idx = $i + 1; if ($idx > 3) break;
+                $dados["marcamotor{$idx}"] = $this->up($motor->marca); 
+                $dados["potmotor{$idx}"] = $motor->potencia; 
+                $dados["numseriemotor{$idx}"] = $this->up($motor->num_serie);
+            }
+        } elseif (!empty($embarcacao->potencia_motor)) {
+            $dados['potmotor1'] = "MAX. {$embarcacao->potencia_motor} HP";
         }
+
         if ($nf) {
             $dados['numnota'] = $nf->numero_nota; $dados['dtvenda'] = $nf->dt_venda ? Carbon::parse($nf->dt_venda)->format('d/m/Y') : '';
             $dados['vendedor'] = $this->up($nf->razao_social); $dados['cpfcnpj_vendedor'] = $nf->cnpj_vendedor; $dados['local'] = $this->up($c->cidade); 
         }
         return $dados;
     }
+    
     private function up($valor) { return mb_strtoupper((string)($valor ?? ''), 'UTF-8'); }
 }

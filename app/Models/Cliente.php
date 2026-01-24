@@ -24,4 +24,9 @@ class Cliente extends Authenticatable
     {
         return $this->hasMany(Embarcacao::class);
     }
+
+    public function simulados(): HasMany
+    {
+        return $this->hasMany(SimuladoResultado::class);
+    }
 }

@@ -32,12 +32,12 @@ class ClienteResource extends Resource
                             ->required()
                             ->unique(ignoreRecord: true)
                             ->maxLength(18),
-                        
+
                         Forms\Components\TextInput::make('rg')->label('RG'),
                         Forms\Components\TextInput::make('org_emissor')->label('Órgão Emissor'),
                         Forms\Components\DatePicker::make('dt_emissao')->label('Data Emissão RG'),
                         Forms\Components\DatePicker::make('data_nasc')->label('Nascimento'),
-                        
+
                         // --- ADICIONE ESTES DOIS CAMPOS AQUI ---
                         Forms\Components\TextInput::make('nacionalidade')
                             ->label('Nacionalidade')
@@ -62,9 +62,11 @@ class ClienteResource extends Resource
                             ->mask('99999-999')
                             ->live(onBlur: true)
                             ->afterStateUpdated(function ($state, Set $set) {
-                                if (!$state) return;
+                                if (!$state)
+                                    return;
                                 $cep = preg_replace('/[^0-9]/', '', $state);
-                                if (strlen($cep) !== 8) return;
+                                if (strlen($cep) !== 8)
+                                    return;
                                 $response = Http::get("https://viacep.com.br/ws/{$cep}/json/")->json();
                                 if (!isset($response['erro'])) {
                                     $set('logradouro', $response['logradouro'] ?? null);
@@ -73,7 +75,7 @@ class ClienteResource extends Resource
                                     $set('uf', $response['uf'] ?? null);
                                 }
                             }),
-                        
+
                         Forms\Components\TextInput::make('logradouro')->required(),
                         Forms\Components\TextInput::make('numero')->required(),
                         Forms\Components\TextInput::make('complemento'),
@@ -81,7 +83,7 @@ class ClienteResource extends Resource
                         Forms\Components\TextInput::make('cidade')->required(),
                         Forms\Components\TextInput::make('uf')->maxLength(2)->required(),
                     ]),
-                
+
                 Forms\Components\Section::make('Carteira Habilitação (CHA)')
                     ->columns(3)
                     ->schema([
@@ -96,16 +98,56 @@ class ClienteResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('nome')->searchable(),
-                Tables\Columns\TextColumn::make('cpfcnpj')->label('Documento'),
-                Tables\Columns\TextColumn::make('cidade'),
-                Tables\Columns\TextColumn::make('celular'),
+                Tables\Columns\TextColumn::make('nome')
+                    ->searchable()
+                    ->weight('bold'),
+
+                Tables\Columns\TextColumn::make('cpfcnpj')
+                    ->label('Documento')
+                    ->searchable(),
+
+                // 1. Total de Rodadas (Usa o relacionamento criado no passo 1)
+                Tables\Columns\TextColumn::make('simulados_count')
+                    ->counts('simulados')
+                    ->label('Simulados')
+                    ->alignCenter()
+                    ->badge()
+                    ->color('gray'),
+
+                // 2. Aprovados vs Reprovados (Cálculo via Query)
+                Tables\Columns\TextColumn::make('performance')
+                    ->label('Aprov / Reprov')
+                    ->state(function (Cliente $record): string {
+                        // Conta direto no banco de dados para ser rápido
+                        $aprovados = $record->simulados()->where('aprovado', true)->count();
+                        $reprovados = $record->simulados()->where('aprovado', false)->count();
+
+                        return "{$aprovados}  /  {$reprovados}";
+                    })
+                    ->alignCenter(),
+
+                // 3. Nota Média (Cálculo da Média)
+                Tables\Columns\TextColumn::make('media_notas')
+                    ->label('Nota Média')
+                    ->state(function (Cliente $record) {
+                        $media = $record->simulados()->avg('porcentagem');
+                        return $media !== null ? number_format($media, 1) . '%' : '-';
+                    })
+                    ->alignCenter()
+                    ->badge()
+                    ->color(function ($state) {
+                        if ($state === '-')
+                            return 'gray';
+                        // Remove o % para comparar
+                        $valor = (float) str_replace('%', '', $state);
+                        return $valor >= 50 ? 'success' : 'danger';
+                    }),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
             ]);
     }
-    
+
     public static function getPages(): array
     {
         return [

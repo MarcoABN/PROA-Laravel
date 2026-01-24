@@ -38,17 +38,32 @@ class Anexo2M implements AnexoInterface
     public function getDados($record, array $input): array
     {
         $embarcacao = $record;
+        
         $dados = [
-            'nomeembarcacao' => $this->up($embarcacao->nome_embarcacao), 'inscricao' => $this->up($embarcacao->num_inscricao),
+            'nomeembarcacao' => $this->up($embarcacao->nome_embarcacao), 
+            'inscricao' => $this->up($embarcacao->num_inscricao),
             'valor' => 'R$ ' . number_format($embarcacao->valor ?? 0, 2, ',', '.'),
-            'nomeproprietario' => $this->up($input['vendedor_nome']), 'cpfcnpjproprietario' => $input['vendedor_cpf'] ?? '',
-            'telefoneproprietario' => $input['vendedor_telefone'] ?? '', 'emailproprietario' => $this->up($input['vendedor_email']),
-            'rua' => $this->up($input['vendedor_logradouro']), 'bairro' => $this->up($input['vendedor_bairro']),
-            'nomecomprador' => $this->up($embarcacao->cliente->nome), 'cpfcnpjcomprador' => $embarcacao->cliente->cpfcnpj ?? '',
-            'telefone' => $embarcacao->cliente->celular ?? '', 'emailcomprador' => $this->up($embarcacao->cliente->email),
-            'logradourocomprador' => $this->up($embarcacao->cliente->logradouro), 'numerocomprador' => $embarcacao->cliente->numero ?? '',
-            'complementocomprador' => $this->up($embarcacao->cliente->complemento), 'bairrocomprador' => $this->up($embarcacao->cliente->bairro),
-            'cidadecomprador' => $this->up($embarcacao->cliente->cidade), 'cepcomprador' => $embarcacao->cliente->cep ?? '',
+            
+            // CORREÇÃO AQUI: Adicionado "?? ''" em todos os campos do $input
+            'nomeproprietario' => $this->up($input['vendedor_nome'] ?? ''), 
+            'cpfcnpjproprietario' => $input['vendedor_cpf'] ?? '',
+            'telefoneproprietario' => $input['vendedor_telefone'] ?? '', 
+            'emailproprietario' => $this->up($input['vendedor_email'] ?? ''),
+            'rua' => $this->up($input['vendedor_logradouro'] ?? ''), 
+            'bairro' => $this->up($input['vendedor_bairro'] ?? ''),
+            
+            // Dados do Comprador (Vêm do banco, então usamos ?? na propriedade do objeto se necessário)
+            'nomecomprador' => $this->up($embarcacao->cliente->nome), 
+            'cpfcnpjcomprador' => $embarcacao->cliente->cpfcnpj ?? '',
+            'telefone' => $embarcacao->cliente->celular ?? '', 
+            'emailcomprador' => $this->up($embarcacao->cliente->email),
+            'logradourocomprador' => $this->up($embarcacao->cliente->logradouro), 
+            'numerocomprador' => $embarcacao->cliente->numero ?? '',
+            'complementocomprador' => $this->up($embarcacao->cliente->complemento), 
+            'bairrocomprador' => $this->up($embarcacao->cliente->bairro),
+            'cidadecomprador' => $this->up($embarcacao->cliente->cidade), 
+            'cepcomprador' => $embarcacao->cliente->cep ?? '',
+            
             'localdata' => $this->up($embarcacao->cidade ?? 'Brasília') . ', ' . date('d/m/Y'),
         ];
 
@@ -64,5 +79,6 @@ class Anexo2M implements AnexoInterface
         }
         return $dados;
     }
+    
     private function up($valor) { return mb_strtoupper((string)($valor ?? ''), 'UTF-8'); }
 }
