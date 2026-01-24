@@ -24,9 +24,13 @@ use App\Anexos\Anexo2F212;
 use App\Anexos\Procuracao;
 use App\Models\Cliente;
 use App\Models\Embarcacao;
+use App\Models\Capitania; // <--- IMPORTANTE: Adicione o Model
 use Filament\Actions\Action;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
@@ -91,9 +95,8 @@ class Anexos extends Page implements HasForms
             ]);
     }
 
-    // --- HELPER PARA CRIAR BOTÕES ---
+    // ... (Outros métodos helpers e actions mantidos iguais) ...
 
-    // 1. Botão Padrão (Exige Embarcação)
     private function criarBotaoAnexo(string $classeAnexo, string $tituloBotao, string $cor = 'primary'): Action
     {
         $anexo = new $classeAnexo();
@@ -114,13 +117,11 @@ class Anexos extends Page implements HasForms
             });
     }
 
-    // 2. Botão para Clientes (CHA e Procurações)
     private function criarBotaoAnexoCliente(string $classeAnexo, string $tituloBotao, string $cor = 'success'): Action
     {
         $anexo = new $classeAnexo();
         $classeUrl = str_replace('\\', '-', $classeAnexo);
 
-        // AQUI ESTAVA O PROBLEMA: O nome gerado é '...Cliente', então a função deve terminar em '...ClienteAction'
         return Action::make('gerar' . class_basename($classeAnexo) . 'Cliente') 
             ->label($tituloBotao)
             ->icon('heroicon-o-user')
@@ -137,37 +138,90 @@ class Anexos extends Page implements HasForms
             });
     }
 
-    // --- AÇÕES CORRIGIDAS (Nomes devem bater com o Helper) ---
-
-    // Grupo CHA (Apenas Cliente)
-    // Renomeados para ...ClienteAction para o Filament encontrar a ação correta
+    // --- Actions existentes ...
     public function gerarAnexo3AClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo3A::class, 'Anexo 3A'); }
     public function gerarAnexo3BClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo3B::class, 'Anexo 3B'); }
     public function gerarAnexo5DClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo5D::class, 'Anexo 5D'); }
     public function gerarAnexo5EClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo5E::class, 'Anexo 5E'); }
     public function gerarAnexo5HClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo5H::class, 'Anexo 5H'); }
-    
-    // CORREÇÃO PRINCIPAL: O 2L de Cliente agora tem o nome correto
     public function gerarAnexo2LClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo2L::class, 'Anexo 2L'); }
-
-    // Procuração
     public function gerarProcuracaoClienteAction(): Action { return $this->criarBotaoAnexoCliente(Procuracao::class, 'Procuração', 'danger'); }
 
-    // Grupo TIE (Exige Embarcação - Nomes Mantidos pois usam criarBotaoAnexo padrão)
     public function gerarAnexo2DAction(): Action { return $this->criarBotaoAnexo(Anexo2D::class, 'Anexo 2D', 'info'); }
     public function gerarAnexo2EAction(): Action { return $this->criarBotaoAnexo(Anexo2E::class, 'Anexo 2E', 'info'); }
     public function gerarAnexo2JAction(): Action { return $this->criarBotaoAnexo(Anexo2J::class, 'Anexo 2J', 'info'); }
     public function gerarAnexo2KAction(): Action { return $this->criarBotaoAnexo(Anexo2K::class, 'Anexo 2K', 'info'); }
-    public function gerarAnexo2LAction(): Action { return $this->criarBotaoAnexo(Anexo2L::class, 'Anexo 2L', 'info'); } // Este é o 2L da Embarcação
+    public function gerarAnexo2LAction(): Action { return $this->criarBotaoAnexo(Anexo2L::class, 'Anexo 2L', 'info'); }
     public function gerarAnexo2MAction(): Action { return $this->criarBotaoAnexo(Anexo2M::class, 'Anexo 2M', 'info'); }
     public function gerarAnexo3CAction(): Action { return $this->criarBotaoAnexo(Anexo3C::class, 'Anexo 3C', 'info'); }
     public function gerarAnexo3DAction(): Action { return $this->criarBotaoAnexo(Anexo3D::class, 'Anexo 3D', 'info'); }
     
-    // Grupo Normam 212
     public function gerarAnexo1CAction(): Action { return $this->criarBotaoAnexo(Anexo1C::class, 'Anexo 1C', 'warning'); }
     public function gerarAnexo2AAction(): Action { return $this->criarBotaoAnexo(Anexo2A::class, 'Anexo 2A', 'warning'); }
     public function gerarAnexo2BAction(): Action { return $this->criarBotaoAnexo(Anexo2B::class, 'Anexo 2B', 'warning'); }
     public function gerarAnexo2D212Action(): Action { return $this->criarBotaoAnexo(Anexo2D212::class, 'Anexo 2D (212)', 'warning'); }
     public function gerarAnexo2E212Action(): Action { return $this->criarBotaoAnexo(Anexo2E212::class, 'Anexo 2E (212)', 'warning'); }
     public function gerarAnexo2F212Action(): Action { return $this->criarBotaoAnexo(Anexo2F212::class, 'Anexo 2F', 'warning'); }
+
+    public function gerarProcuracao02Action(): Action
+    {
+        return Action::make('gerarProcuracao02')
+            ->label('Procuração 02')
+            ->icon('heroicon-o-document-text')
+            ->color('danger')
+            ->disabled(fn() => empty($this->data['cliente_id']))
+            ->action(function (Anexos $livewire) {
+                $clienteId = $livewire->data['cliente_id'];
+                $embarcacaoId = $livewire->data['embarcacao_id'] ?? 'null';
+                $url = route('clientes.procuracao', ['id' => $clienteId, 'embarcacao_id' => $embarcacaoId]);
+                return $livewire->js("window.open('{$url}', '_blank');");
+            });
+    }
+
+    // --- ACTION ATUALIZADA: DEFESA DE INFRAÇÃO ---
+    public function gerarDefesaInfracaoAction(): Action
+    {
+        return Action::make('gerarDefesaInfracao')
+            ->label('Emitir')
+            ->modalHeading('Defesa de Infração')
+            ->icon('heroicon-o-shield-check')
+            ->color('danger')
+            ->disabled(fn() => empty($this->data['cliente_id']))
+            ->form([
+                // CAMPO NOVO: Seleção de Capitania
+                Select::make('capitania_id')
+                    ->label('Capitania')
+                    ->options(Capitania::query()->pluck('nome', 'id'))
+                    ->searchable()
+                    ->preload()
+                    ->required(),
+
+                TextInput::make('num_notificacao')
+                    ->label('Número da Notificação')
+                    ->required(),
+
+                DatePicker::make('data_notificacao')
+                    ->label('Data da Notificação')
+                    ->required(),
+
+                Textarea::make('justificativa')
+                    ->label('Justificativa da Ocorrência')
+                    ->rows(5)
+                    ->required(),
+            ])
+            ->action(function (array $data, Anexos $livewire) {
+                $clienteId = $livewire->data['cliente_id'];
+                $embarcacaoId = $livewire->data['embarcacao_id'] ?? 'null';
+
+                $url = route('clientes.defesa_infracao', [
+                    'id' => $clienteId,
+                    'embarcacao_id' => $embarcacaoId
+                ]);
+
+                // Adiciona os dados (incluindo capitania_id) na URL
+                $url .= '?' . http_build_query($data);
+
+                return $livewire->js("window.open('{$url}', '_blank');");
+            });
+    }
 }

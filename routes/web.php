@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ClienteController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PropostaController;
 use App\Http\Controllers\AnexoController;
@@ -46,6 +47,14 @@ Route::get('/propostas/{id}/imprimir', [PropostaController::class, 'imprimir'])-
 
 // ADICIONE ESTA LINHA (Rota do Recibo):
 Route::get('/propostas/{id}/imprimir-recibo', [PropostaController::class, 'imprimirRecibo'])->name('propostas.imprimir_recibo');
+
+Route::get('/clientes/{id}/procuracao/{embarcacao_id?}', [ClienteController::class, 'imprimirProcuracao'])
+    ->name('clientes.procuracao')
+    ->middleware('auth');
+    
+Route::get('/clientes/{id}/defesa-infracao/{embarcacao_id?}', [ClienteController::class, 'imprimirDefesa'])
+    ->name('clientes.defesa_infracao')
+    ->middleware('auth');
 
 /*
 Route::get('/gerar-sitemap', function () {

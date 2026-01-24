@@ -134,6 +134,16 @@
                 <x-slot name="heading"><span class="text-sm">Representação</span></x-slot>
                 {{ $this->gerarProcuracaoClienteAction }}
             </x-filament::section>
+
+            <x-filament::section class="h-full">
+                <x-slot name="heading"><span class="text-sm">Procuração 02</span></x-slot>
+                {{ $this->gerarProcuracao02Action }}
+            </x-filament::section>
+
+            <x-filament::section class="h-full">
+                <x-slot name="heading"><span class="text-sm">Defesa de Infração</span></x-slot>
+                {{ $this->gerarDefesaInfracaoAction }}
+            </x-filament::section>
         </div>
     </div>
 </x-filament-panels::page>

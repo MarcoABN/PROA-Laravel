@@ -4,11 +4,14 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ClienteResource\Pages;
 use App\Models\Cliente;
+use App\Services\ProcuracaoService; // Importação do Service
 use Filament\Forms;
+use Filament\Forms\Components\Select; // Importação do Select
 use Filament\Forms\Form;
 use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Actions\Action; // Importação da Action Customizada
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\HtmlString;
@@ -50,7 +53,6 @@ class ClienteResource extends Resource
                         Forms\Components\DatePicker::make('data_nasc')
                             ->label('Nascimento'),
 
-                        // Novos campos adicionados
                         Forms\Components\TextInput::make('nacionalidade')
                             ->label('Nacionalidade')
                             ->placeholder('Ex: Brasileira')
@@ -78,9 +80,8 @@ class ClienteResource extends Resource
                         Forms\Components\TextInput::make('cep')
                             ->label('CEP')
                             ->mask('99999-999')
-                            ->required() // Obrigatório conforme seu banco de dados
+                            ->required()
                             ->live(onBlur: true)
-                            // Ícone de Carregamento
                             ->helperText(new HtmlString('
                                 <div wire:loading wire:target="data.cep" class="text-primary-500 text-sm font-bold flex items-center gap-2 mt-1">
                                     <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -92,13 +93,9 @@ class ClienteResource extends Resource
                             '))
                             ->afterStateUpdated(function ($state, Set $set) {
                                 if (!$state) return;
-
-                                // Remove formatação para enviar para a API
                                 $cep = preg_replace('/[^0-9]/', '', $state);
-
                                 if (strlen($cep) !== 8) return;
 
-                                // Chama API
                                 $response = Http::get("https://viacep.com.br/ws/{$cep}/json/")->json();
 
                                 if (!isset($response['erro'])) {
@@ -106,7 +103,6 @@ class ClienteResource extends Resource
                                     $set('bairro', $response['bairro'] ?? null);
                                     $set('cidade', $response['localidade'] ?? null);
                                     $set('uf', $response['uf'] ?? null);
-                                    // $set('complemento', $response['complemento'] ?? null);
                                 }
                             }),
 
@@ -157,7 +153,6 @@ class ClienteResource extends Resource
                     ->label('Documento')
                     ->searchable(),
 
-                // 1. Total de Rodadas (Simulados Realizados)
                 Tables\Columns\TextColumn::make('simulados_count')
                     ->counts('simulados')
                     ->label('Simulados')
@@ -165,7 +160,6 @@ class ClienteResource extends Resource
                     ->badge()
                     ->color('gray'),
 
-                // 2. Aprovados vs Reprovados
                 Tables\Columns\TextColumn::make('performance')
                     ->label('Aprov / Reprov')
                     ->state(function (Cliente $record): string {
@@ -175,7 +169,6 @@ class ClienteResource extends Resource
                     })
                     ->alignCenter(),
 
-                // 3. Nota Média
                 Tables\Columns\TextColumn::make('media_notas')
                     ->label('Nota Média')
                     ->state(function (Cliente $record) {
@@ -192,6 +185,41 @@ class ClienteResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+
+                // --- NOVA ACTION: PROCURAÇÃO ---
+                Action::make('procuracao')
+                    ->label('Procuração')
+                    ->icon('heroicon-o-document-text')
+                    ->color('warning')
+                    ->form(function (Cliente $record) {
+                        // Verifica se o cliente tem embarcações
+                        $temBarcos = $record->embarcacoes()->exists();
+
+                        if (!$temBarcos) {
+                            return []; // Não exibe o Select se não houver barcos
+                        }
+
+                        return [
+                            Select::make('embarcacao_id')
+                                ->label('Incluir dados da Embarcação?')
+                                ->placeholder('Não incluir (Somente dados do cliente)')
+                                ->options($record->embarcacoes->pluck('nome_embarcacao', 'id'))
+                                ->searchable()
+                                ->preload()
+                                ->helperText('Selecione uma embarcação para preencher o nome e usar a cidade dela como local.'),
+                        ];
+                    })
+                    ->action(function (Cliente $record, array $data) {
+                        // Captura o ID da embarcação ou 'null' string se vier vazio
+                        $barcoId = $data['embarcacao_id'] ?? 'null';
+                        
+                        // Redireciona para a rota do Controller
+                        return redirect()->route('clientes.procuracao', [
+                            'id' => $record->id, 
+                            'embarcacao_id' => $barcoId
+                        ]);
+                    })
+                    ->openUrlInNewTab(), // Abre o PDF em nova aba
             ]);
     }
 
