@@ -111,8 +111,7 @@ class Anexos extends Page implements HasForms
                         ->button()
                         ->color('success')
                         ->close()
-                        // AQUI: chama o método registrarProcesso
-                        ->dispatch('registrarProcesso', [
+                        ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
                             'embarcacaoId' => $embarcacaoId,
@@ -121,11 +120,9 @@ class Anexos extends Page implements HasForms
                         ->label('Não')
                         ->color('gray')
                         ->close(),
-                ])
-                ->send();
+                ])->send();
         }
     }
-
 
     public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null): void
     {
