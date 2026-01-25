@@ -94,6 +94,14 @@ class Anexos extends Page implements HasForms
 
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
+        // 1. BLINDAGEM VISUAL: Verifica se já estamos criando esse processo agora (nos últimos 15s)
+        $cacheKey = "criando_processo_{$clienteId}_" . \Illuminate\Support\Str::slug($tipoServico);
+
+        if (cache()->has($cacheKey)) {
+            return; // Aborta! Já sabemos que está sendo criado, não exiba o alerta.
+        }
+
+        // 2. Verificação no Banco (Segue normal)
         $existe = \App\Models\Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
@@ -110,7 +118,7 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        ->close() // Fecha imediatamente a notificação de aviso
+                        ->close()
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -127,9 +135,15 @@ class Anexos extends Page implements HasForms
 
     public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null)
     {
+        // 1. Cria a chave única para este cliente + serviço
+        $cacheKey = "criando_processo_{$clienteId}_" . \Illuminate\Support\Str::slug($tipo);
+
+        // 2. Define a flag no Cache por 15 segundos (tempo de sobra para o banco processar)
+        cache()->put($cacheKey, true, now()->addSeconds(15));
+
         try {
             \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
-                // Blindagem de concorrência com Lock
+                // Blindagem de concorrência com Lock (Mantém sua proteção de banco)
                 $existe = \App\Models\Processo::where('cliente_id', $clienteId)
                     ->where('tipo_servico', $tipo)
                     ->whereNotIn('status', ['concluido', 'arquivado'])
@@ -159,15 +173,17 @@ class Anexos extends Page implements HasForms
                 ]);
             });
 
-            // Estratégia de Desacoplamento via JS
+            // 3. Estratégia de Desacoplamento via JS
             $embParam = $embarcacaoId ?? 'null';
             $this->js("
-                setTimeout(() => { 
-                    \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
-                }, 800);
-            ");
+            setTimeout(() => { 
+                \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
+            }, 800);
+        ");
 
         } catch (\Exception $e) {
+            // Se der erro, removemos a flag para permitir tentar de novo
+            cache()->forget($cacheKey);
             Notification::make()->danger()->title('Erro ao salvar')->send();
         }
     }
@@ -180,7 +196,10 @@ class Anexos extends Page implements HasForms
             ->exists();
 
         if ($processoExiste) {
-            // Nova notificação totalmente independente da anterior
+            // Limpa a flag de criação, pois o processo já nasceu oficialmente
+            $cacheKey = "criando_processo_{$clienteId}_" . \Illuminate\Support\Str::slug($tipo);
+            cache()->forget($cacheKey);
+
             Notification::make()
                 ->success()
                 ->title('Processo e andamento registrados!')
