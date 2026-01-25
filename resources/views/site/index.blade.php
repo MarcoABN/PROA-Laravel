@@ -28,8 +28,8 @@
       "@@type": "LocalBusiness",
       "name": "Campeão Náutica",
       "image": "{{ asset('images/logo_campeao.jpg') }}",
-      "@@id": "https://www.campeaonautica.com.br",
-      "url": "https://www.campeaonautica.com.br",
+      "@@id": "https://campeaonautica.com.br",
+      "url": "https://campeaonautica.com.br",
       "telephone": "+5562998599357",
       "address": {
         "@@type": "PostalAddress",
@@ -89,7 +89,7 @@
                 <a href="#sobre" class="hover:text-blue-600 transition">Sobre Nós</a>
                 <a href="https://www.instagram.com/campeao.despachantenautico10" target="_blank"
                     class="text-pink-600 hover:opacity-80 transition">Instagram</a>
-                <a href="https://www.campeaonautica.com.br/admin/login"
+                <a href="/admin/login"
                     class="text-slate-400 hover:text-blue-600 text-xs tracking-widest uppercase transition border-r border-slate-200 pr-8">
                     PROA
                 </a>
