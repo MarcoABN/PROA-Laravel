@@ -110,7 +110,7 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        ->close()
+                        ->close() // Fecha a notificação no lado do cliente (JS) imediatamente
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
