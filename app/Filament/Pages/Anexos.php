@@ -2,7 +2,7 @@
 
 namespace App\Filament\Pages;
 
-// Imports de Anexos - Todos Restaurados
+// Imports de Anexos preservados
 use App\Anexos\Anexo1C;
 use App\Anexos\Anexo2A;
 use App\Anexos\Anexo2B;
@@ -92,20 +92,15 @@ class Anexos extends Page implements HasForms
             ]);
     }
 
-    /**
-     * Verifica se existe processo ativo e sinaliza para o usuário.
-     * Corrigido para garantir o fechamento da notificação no front-end.
-     */
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
-        // Verificação inicial
         $existe = \App\Models\Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
         if (!$existe) {
-            Notification::make('aviso_registro_pendente') // ID para referência
+            Notification::make('aviso_registro_pendente')
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
@@ -115,9 +110,7 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        // 1. Fecha imediatamente a caixa de diálogo no navegador
-                        ->close()
-                        // 2. Chama o método de registro
+                        ->close() // Fecha imediatamente a notificação de aviso
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -135,8 +128,8 @@ class Anexos extends Page implements HasForms
     public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null)
     {
         try {
-            // Blindagem de Concorrência (Mantida, pois é vital em produção)
             \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
+                // Blindagem de concorrência com Lock
                 $existe = \App\Models\Processo::where('cliente_id', $clienteId)
                     ->where('tipo_servico', $tipo)
                     ->whereNotIn('status', ['concluido', 'arquivado'])
@@ -166,53 +159,36 @@ class Anexos extends Page implements HasForms
                 ]);
             });
 
-            // 3. LIMPEZA TOTAL: Força o fechamento de qualquer notificação residual
-            $this->dispatch('close-notifications');
-
-            // 4. ESTRATÉGIA DE DESACOPLAMENTO (A Mágica)
-            // Ao invés de mostrar sucesso agora, devolvemos um JS que espera 600ms 
-            // (tempo suficiente para a UI limpar o aviso antigo) e chama a conferência.
+            // Estratégia de Desacoplamento via JS
             $embParam = $embarcacaoId ?? 'null';
             $this->js("
-            setTimeout(() => { 
-                \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
-            }, 600);
-        ");
+                setTimeout(() => { 
+                    \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
+                }, 800);
+            ");
 
         } catch (\Exception $e) {
-            // Erros reais ainda devem ser mostrados
             Notification::make()->danger()->title('Erro ao salvar')->send();
         }
     }
 
-    /**
-     * Método chamado via JS após o delay, garantindo uma nova renderização limpa.
-     */
     public function confirmarEExibirSucesso($tipo, $clienteId, $embarcacaoId = null)
     {
-        // Verifica se o registro realmente existe (Double Check)
         $processoExiste = \App\Models\Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipo)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
         if ($processoExiste) {
-            // Agora sim, enviamos a notificação de sucesso em uma tela limpa
+            // Nova notificação totalmente independente da anterior
             Notification::make()
                 ->success()
                 ->title('Processo e andamento registrados!')
                 ->send();
-        } else {
-            // Caso raro: processamento lento do banco ou falha silenciosa
-            // Podemos tentar novamente ou avisar
-            Notification::make()
-                ->warning()
-                ->title('Aguardando confirmação...')
-                ->body('O processo foi enviado, mas ainda não apareceu na lista. Atualize a página em instantes.')
-                ->send();
         }
     }
 
+    // Métodos auxiliares de criação de botões e Actions de anexos permanecem os mesmos
     private function criarBotaoAnexo(string $classeAnexo, string $tituloBotao, string $tipoServico, string $cor = 'primary'): Action
     {
         $anexo = new $classeAnexo();
@@ -250,7 +226,6 @@ class Anexos extends Page implements HasForms
             });
     }
 
-    // --- GRUPOS DE ANEXOS ---
     public function gerarAnexo3AClienteAction(): Action
     {
         return $this->criarBotaoAnexoCliente(Anexo3A::class, 'Anexo 3A', Processo::TIPO_CHA);
@@ -334,18 +309,14 @@ class Anexos extends Page implements HasForms
         return $this->criarBotaoAnexo(Anexo2F212::class, 'Anexo 2F', Processo::TIPO_MOTO, 'warning');
     }
 
-    // --- REPRESENTAÇÃO (COR LARANJA / WARNING) ---
     public function gerarProcuracaoClienteAction(): Action
     {
         $anexo = new Procuracao();
         $classeUrl = str_replace('\\', '-', Procuracao::class);
         return Action::make('gerarProcuracaoCliente')
-            ->label('Representação')
-            ->icon('heroicon-o-user')
-            ->color('warning')
+            ->label('Representação')->icon('heroicon-o-user')->color('warning')
             ->disabled(fn() => empty($this->data['cliente_id']))
-            ->modalHeading($anexo->getTitulo())
-            ->form($anexo->getFormSchema())
+            ->modalHeading($anexo->getTitulo())->form($anexo->getFormSchema())
             ->action(function (array $data, Anexos $livewire) use ($classeUrl) {
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $livewire->data['cliente_id']]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
                 return $livewire->js("window.open('{$url}', '_blank');");
@@ -355,9 +326,7 @@ class Anexos extends Page implements HasForms
     public function gerarProcuracao02Action(): Action
     {
         return Action::make('gerarProcuracao02')
-            ->label('Representação')
-            ->icon('heroicon-o-document-text')
-            ->color('warning')
+            ->label('Representação')->icon('heroicon-o-document-text')->color('warning')
             ->disabled(fn() => empty($this->data['cliente_id']))
             ->action(fn(Anexos $livewire) => $livewire->js("window.open('" . route('clientes.procuracao', ['id' => $livewire->data['cliente_id'], 'embarcacao_id' => $livewire->data['embarcacao_id'] ?? 'null']) . "', '_blank');"));
     }
