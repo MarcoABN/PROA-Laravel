@@ -100,7 +100,10 @@ class Anexos extends Page implements HasForms
             ->exists();
 
         if (!$existe) {
-            Notification::make()
+            // Adicionar um identificador único para esta notificação
+            $notificationId = 'processo-nao-identificado-' . $clienteId . '-' . $tipoServico;
+
+            Notification::make($notificationId) // <- Adicionar ID específico
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
@@ -115,6 +118,7 @@ class Anexos extends Page implements HasForms
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
                             'embarcacaoId' => $embarcacaoId,
+                            'notificationId' => $notificationId, // <- Passar o ID para remover
                         ]),
                     NotificationAction::make('cancelar')
                         ->label('Não')
@@ -124,9 +128,25 @@ class Anexos extends Page implements HasForms
         }
     }
 
-    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null): void
+    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null, $notificationId = null): void
     {
         try {
+            // VERIFICAÇÃO DUPLICADA: Checar novamente antes de criar
+            $existeAgora = Processo::where('cliente_id', $clienteId)
+                ->where('tipo_servico', $tipo)
+                ->whereNotIn('status', ['concluido', 'arquivado'])
+                ->exists();
+
+            if ($existeAgora) {
+                // Se já existe, apenas notificar e sair
+                Notification::make()
+                    ->info()
+                    ->title('Processo já existe')
+                    ->body('Um processo ativo já foi registrado anteriormente.')
+                    ->send();
+                return;
+            }
+
             $prazo = now()->addDays(45);
             $user = auth()->user();
 
@@ -151,6 +171,11 @@ class Anexos extends Page implements HasForms
                     $prazo->format('d/m/Y')
                 ),
             ]);
+
+            // Remover a notificação específica se o ID foi fornecido
+            if ($notificationId) {
+                Notification::make($notificationId)->dismiss();
+            }
 
             Notification::make()->success()->title('Processo e andamento registrados!')->send();
         } catch (\Exception $e) {
