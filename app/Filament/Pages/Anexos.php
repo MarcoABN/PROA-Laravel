@@ -110,7 +110,7 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        ->close() // Fecha a notificação no lado do cliente (JS) imediatamente
+                        ->close() // Remove a notificação da UI imediatamente
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -120,7 +120,8 @@ class Anexos extends Page implements HasForms
                         ->label('Não')
                         ->color('gray')
                         ->close(),
-                ])->send();
+                ])
+                ->send();
         }
     }
 
@@ -152,7 +153,10 @@ class Anexos extends Page implements HasForms
                 ),
             ]);
 
-            Notification::make()->success()->title('Processo e andamento registrados!')->send();
+            Notification::make()
+                ->success()
+                ->title('Processo e andamento registrados!')
+                ->send();
         } catch (\Exception $e) {
             Notification::make()->danger()->title('Erro ao salvar')->body($e->getMessage())->send();
         }
