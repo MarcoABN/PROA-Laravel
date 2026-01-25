@@ -55,7 +55,13 @@ class Anexos extends Page implements HasForms
 
     public ?array $data = [];
 
-    // O listener aponta para o novo método blindado
+    /**
+     * Armazena chaves de verificações que já foram processadas (Sim ou Não).
+     * Isso impede que a mensagem reapareça após a ação do usuário, 
+     * mas permite que apareça novamente se mudar o cliente/serviço.
+     */
+    public array $checksIgnored = [];
+
     protected $listeners = ['executarRegistroProcesso' => 'registrarProcesso'];
 
     public function mount(): void
@@ -83,7 +89,11 @@ class Anexos extends Page implements HasForms
                             ->getOptionLabelUsing(fn($value) => ($c = Cliente::find($value)) ? "{$c->nome} - {$c->cpfcnpj}" : null)
                             ->required()
                             ->live()
-                            ->afterStateUpdated(fn(Set $set) => $set('embarcacao_id', null)),
+                            ->afterStateUpdated(function (Set $set) {
+                                $set('embarcacao_id', null);
+                                // Opcional: Limpar verificações ignoradas ao mudar o cliente para forçar rechecagem limpa
+                                // $this->checksIgnored = []; 
+                            }),
 
                         Select::make('embarcacao_id')
                             ->label('Embarcação')
@@ -97,75 +107,99 @@ class Anexos extends Page implements HasForms
     }
 
     /**
-     * Verifica se o processo existe.
-     * CORREÇÃO: Usa ID fixo na notificação e remove persistência 'hard' para evitar fantasmas.
+     * Verifica a existência do processo com proteção de estado.
      */
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
-        // 1. BLINDAGEM DE CACHE (Mantida para evitar loops)
-        $cacheKey = "processo_recente_{$clienteId}_" . \Illuminate\Support\Str::slug($tipoServico);
-        if (cache()->has($cacheKey)) {
+        // 1. GERAÇÃO DE CHAVE ÚNICA DE CONTEXTO
+        // Se o usuário mudar o cliente, o hash muda, permitindo nova verificação.
+        $checkKey = md5("check_{$clienteId}_{$tipoServico}");
+
+        // 2. BLINDAGEM DE ESTADO (Componente)
+        // Se já processamos essa chave nesta sessão do componente, aborta silenciosamente.
+        // Isso impede o retorno do "fantasma" após o refresh do Livewire.
+        if (in_array($checkKey, $this->checksIgnored)) {
             return;
         }
 
+        // 3. BLINDAGEM DE CACHE (Aplicação)
+        // Proteção extra para cliques ultra-rápidos ou múltiplas abas
+        if (Cache::has("ignore_{$checkKey}")) {
+            return;
+        }
+
+        // 4. VERIFICAÇÃO NO BANCO DE DADOS
         $existe = Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
         if (!$existe) {
-            // CRIAMOS UM ID ÚNICO E PREVISÍVEL PARA ESTA NOTIFICAÇÃO
-            $notificationId = 'check_proc_' . $clienteId . '_' . md5($tipoServico);
+            // ID determinístico para permitir fechamento programático
+            $notificationId = "notif_{$checkKey}";
 
-            Notification::make($notificationId) // <--- ID FIXO AQUI
+            Notification::make($notificationId)
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
-                // REMOVEMOS ->persistent()! 
-                // Usamos duration 'sticky' ou muito longa. Persistent tende a bugar em re-renders do Livewire.
-                ->duration(20000)
+                ->duration(15000) // Duração longa ao invés de persistent() para evitar bugs de sessão
                 ->actions([
                     NotificationAction::make('confirmar')
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        // Truque 1: Fecha imediatamente no front via Alpine antes de chamar o back
-                        ->extraAttributes(['x-on:click' => 'close'])
+                        // AQUI ESTÁ A MÁGICA VISUAL:
+                        // O x-on:click fecha o modal via JS instantaneamente antes do backend responder.
+                        ->extraAttributes(['x-on:click' => "\$dispatch('notifications.close', { id: '{$notificationId}' })"])
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
                             'embarcacaoId' => $embarcacaoId,
-                            'notificationId' => $notificationId, // Passamos o ID para matar ele depois
+                            'checkKey' => $checkKey,         // Passamos a chave para ignorar futuramente
+                            'notificationId' => $notificationId, // Passamos o ID para garantir limpeza
                         ]),
                     NotificationAction::make('cancelar')
                         ->label('Não')
                         ->color('gray')
-                        // Fecha explicitamente
-                        ->close(),
+                        // Ao cancelar, também adicionamos à lista para não perguntar de novo
+                        ->action(function () use ($checkKey, $notificationId) {
+                            $this->checksIgnored[] = $checkKey;
+                            $this->dispatch('notifications.close', id: $notificationId);
+                        }),
                 ])
                 ->send();
         }
     }
 
     /**
-     * Registra o processo e LIMPA a notificação anterior.
+     * Registra o processo com proteção de concorrência e limpeza de interface.
      */
-    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null, $notificationId = null): void
+    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null, $checkKey = null, $notificationId = null): void
     {
-        // 1. ATOMIC LOCK (Segurança contra clique duplo mantida)
-        $lockKey = "lock_criacao_{$clienteId}_" . \Illuminate\Support\Str::slug($tipo);
-        $lock = cache()->lock($lockKey, 10);
+        // 1. ATUALIZA ESTADO LOCAL IMEDIATAMENTE
+        // Adiciona à lista de ignorados para que qualquer re-renderização subsequente
+        // saiba que este alerta já foi resolvido.
+        if ($checkKey) {
+            $this->checksIgnored[] = $checkKey;
+            // Cache curto para garantir integridade entre requests muito próximos
+            Cache::put("ignore_{$checkKey}", true, 10);
+        }
+
+        // 2. ATOMIC LOCK (Proteção contra duplicação física)
+        $lockKey = "lock_create_{$clienteId}_" . Str::slug($tipo);
+        $lock = Cache::lock($lockKey, 10); // Trava de 10s
 
         if (!$lock->get()) {
-            return;
+            return; // Se já está executando, para aqui.
         }
 
         try {
             $user = auth()->user();
             $prazo = now()->addDays(45);
 
-            // 2. OPERAÇÃO DE BANCO
-            $processo = \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId, $user, $prazo) {
+            // 3. TRANSAÇÃO DE BANCO COM LOCK
+            $processo = DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId, $user, $prazo) {
+                // Verifica novamente dentro da transação para evitar Race Condition no DB
                 $existing = Processo::where('cliente_id', $clienteId)
                     ->where('tipo_servico', $tipo)
                     ->whereNotIn('status', ['concluido', 'arquivado'])
@@ -196,20 +230,16 @@ class Anexos extends Page implements HasForms
                 return $novo;
             });
 
-            // 3. SETA O CACHE PARA EVITAR QUE A MENSAGEM VOLTE
-            $cacheKeyRecente = "processo_recente_{$clienteId}_" . \Illuminate\Support\Str::slug($tipo);
-            cache()->put($cacheKeyRecente, true, now()->addSeconds(15));
-
-            // 4. LIMPEZA AGRESSIVA DA NOTIFICAÇÃO (O Segredo)
-            // Dispara evento para o frontend fechar a notificação pelo ID específico
+            // 4. GARANTIA DE LIMPEZA DA NOTIFICAÇÃO
+            // Comando backend para fechar a notificação específica
             if ($notificationId) {
                 $this->dispatch('notifications.close', id: $notificationId);
             }
 
-            // Backup: Fecha qualquer notificação aberta (limpa a tela para o sucesso)
+            // Backup: Fecha todas as notificações para limpar a tela
             $this->dispatch('close-notifications');
 
-            // 5. MENSAGEM DE SUCESSO
+            // 5. FEEDBACK AO USUÁRIO
             if ($processo->wasRecentlyCreated) {
                 Notification::make()
                     ->success()
@@ -218,23 +248,9 @@ class Anexos extends Page implements HasForms
             } else {
                 Notification::make()
                     ->info()
-                    ->title('Processo já identificado')
-                    ->body('O processo já existia e foi vinculado.')
+                    ->title('Processo já existente vinculado.')
                     ->send();
             }
-
-            // 6. TRUQUE FINAL VIA JS (Caso o Livewire falhe em limpar)
-            // Injeta um script minúsculo que busca o botão de fechar da notificação de erro e clica nele
-            $this->js("
-                setTimeout(() => {
-                    document.querySelectorAll('.fi-no-notification').forEach(el => {
-                        if(el.textContent.includes('Processo não identificado')) {
-                            el.querySelector('button[aria-label=\"Close\"]')?.click();
-                            el.remove(); // Remove do DOM se o botão falhar
-                        }
-                    });
-                }, 100);
-            ");
 
         } catch (\Exception $e) {
             Notification::make()->danger()->title('Erro ao salvar')->body($e->getMessage())->send();
@@ -243,7 +259,7 @@ class Anexos extends Page implements HasForms
         }
     }
 
-    // --- MÉTODOS AUXILIARES E ACTIONS DE ANEXOS ---
+    // --- MÉTODOS AUXILIARES E ACTIONS ---
 
     private function criarBotaoAnexo(string $classeAnexo, string $tituloBotao, string $tipoServico, string $cor = 'primary'): Action
     {
@@ -259,7 +275,6 @@ class Anexos extends Page implements HasForms
                 $clienteId = $livewire->data['cliente_id'];
                 $embarcacaoId = $livewire->data['embarcacao_id'];
 
-                // Dispara a verificação antes de abrir a janela
                 $livewire->verificarOuCriarProcesso($tipoServico, $clienteId, $embarcacaoId);
 
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $embarcacaoId]) . '?' . http_build_query($data);
@@ -280,7 +295,6 @@ class Anexos extends Page implements HasForms
             ->action(function (array $data, Anexos $livewire) use ($classeUrl, $tipoServico) {
                 $clienteId = $livewire->data['cliente_id'];
 
-                // Dispara a verificação antes de abrir a janela
                 $livewire->verificarOuCriarProcesso($tipoServico, $clienteId, null);
 
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $clienteId]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
@@ -386,7 +400,6 @@ class Anexos extends Page implements HasForms
             ->form($anexo->getFormSchema())
             ->action(function (array $data, Anexos $livewire) use ($classeUrl) {
                 // Ao abrir procuração, também criamos processo de Representação se não houver
-                // Nota: Assumi 'Representação' como tipo, ajuste se seu Enum for diferente.
                 $livewire->verificarOuCriarProcesso('Representação', $livewire->data['cliente_id'], null);
 
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $livewire->data['cliente_id']]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
