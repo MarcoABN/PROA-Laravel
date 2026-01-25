@@ -11,15 +11,16 @@ class SimuladoNaval extends Component
 {
     public $questoes = [];
     public $respostasUsuario = [];
-    public $modalidade; // 'aprendizado' ou 'real'
-    public $tempoRestante = 7200; // 2 horas
+    public $ordemAlternativas = []; // Mapeia id_da_questao => ['c', 'a', 'e', 'b', 'd']
+    public $modalidade; 
+    public $tempoRestante = 7200; // 120 min (2 horas)
     public $finalizado = false;
     public $resultado = null;
 
     public function mount($modalidade = 'aprendizado')
     {
         $this->modalidade = $modalidade;
-        $this->tempoRestante = ($modalidade === 'real') ? 7200 : null; // 60 min apenas se real
+        $this->tempoRestante = ($modalidade === 'real') ? 7200 : null;
 
         $this->questoes = Questao::where('ativo', true)
             ->inRandomOrder()
@@ -28,55 +29,65 @@ class SimuladoNaval extends Component
 
         foreach ($this->questoes as $q) {
             $this->respostasUsuario[$q->id] = null;
+
+            // Identifica quais alternativas estão preenchidas no banco (a até e)
+            $letrasDisponiveis = [];
+            foreach (['a', 'b', 'c', 'd', 'e'] as $l) {
+                $coluna = "alternativa_" . $l;
+                if (!empty($q->$coluna)) {
+                    $letrasDisponiveis[] = $l;
+                }
+            }
+
+            // Embaralha a ordem das chaves técnicas
+            shuffle($letrasDisponiveis);
+            $this->ordemAlternativas[$q->id] = $letrasDisponiveis;
         }
     }
 
-    public function responder($questaoId, $letra)
+    public function responder($questaoId, $letraOriginal)
     {
-        if ($this->finalizado)
-            return;
-        $this->respostasUsuario[$questaoId] = $letra;
+        if ($this->finalizado) return;
+        
+        // Armazena a letra original da coluna (a, b, c, d ou e) para bater com 'resposta_correta'
+        $this->respostasUsuario[$questaoId] = $letraOriginal;
     }
 
     public function finalizar()
     {
-        if ($this->finalizado)
-            return;
+        if ($this->finalizado) return;
 
         $totalQuestões = count($this->questoes);
         $acertos = 0;
 
         foreach ($this->questoes as $q) {
+            // Comparação direta entre a resposta salva e o campo do banco
             if (($this->respostasUsuario[$q->id] ?? null) === $q->resposta_correta) {
                 $acertos++;
             }
         }
 
-        // Cálculo simples dos erros
         $erros = $totalQuestões - $acertos;
-
         $porcentagem = ($totalQuestões > 0) ? ($acertos / $totalQuestões) * 100 : 0;
         $aprovado = $porcentagem >= 50;
 
-        // Salva no banco
         try {
             SimuladoResultado::create([
-                'cliente_id' => Auth::guard('cliente')->id(), // <--- Pega o ID do Cliente Logado
+                'cliente_id' => Auth::guard('cliente')->id(),
                 'modalidade' => $this->modalidade,
                 'acertos' => $acertos,
-                'erros' => $erros, // <--- Salvando erros
+                'erros' => $erros,
                 'total' => $totalQuestões,
                 'porcentagem' => $porcentagem,
                 'aprovado' => $aprovado
             ]);
         } catch (\Exception $e) {
-            // Em produção use Log::error($e);
-            // Isso evita que o aluno trave na tela de resultado se o banco falhar
+            // Silencioso para não travar a experiência do aluno
         }
 
         $this->resultado = [
             'acertos' => $acertos,
-            'erros' => $erros, // Disponível para a view
+            'erros' => $erros,
             'porcentagem' => $porcentagem,
             'aprovado' => $aprovado
         ];
@@ -91,11 +102,9 @@ class SimuladoNaval extends Component
 
     public function decrementarTempo()
     {
-        // Só executa se for modo real e ainda houver tempo
         if ($this->modalidade === 'real' && $this->tempoRestante > 0) {
             $this->tempoRestante--;
 
-            // Se o tempo acabar, finaliza o simulado automaticamente
             if ($this->tempoRestante === 0) {
                 $this->finalizar();
             }
