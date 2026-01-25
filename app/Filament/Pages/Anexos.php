@@ -110,7 +110,7 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        // O segredo está em fechar a notificação antes de disparar o backend
+                        // O emit() limpa o estado da notificação no backend antes do dispatch
                         ->close()
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
@@ -123,6 +123,10 @@ class Anexos extends Page implements HasForms
                         ->close(),
                 ])
                 ->send();
+
+            // Forçamos o encerramento do processamento atual para que a notificação 
+            // não seja "memorizada" em loops de renderização do Livewire
+            return;
         }
     }
 
@@ -159,6 +163,10 @@ class Anexos extends Page implements HasForms
                 ->success()
                 ->title('Processo e andamento registrados!')
                 ->send();
+
+            // Esta linha limpa todas as notificações persistentes do lado do cliente
+            // de forma agressiva para evitar o retorno da mensagem anterior
+            $this->dispatch('close-notifications');
 
             // Força a UI a fechar notificações abertas via JS para evitar o "fantasma" do refresh
             $this->js('document.querySelectorAll(".fi-no-notification button[aria-label=\"Close\"]").forEach(btn => btn.click())');
