@@ -110,7 +110,8 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        ->close() // Remove a notificação da UI imediatamente
+                        // O segredo está em fechar a notificação antes de disparar o backend
+                        ->close()
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -128,6 +129,7 @@ class Anexos extends Page implements HasForms
     public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null): void
     {
         try {
+            // Lógica de criação mantida
             $prazo = now()->addDays(45);
             $user = auth()->user();
 
@@ -146,17 +148,21 @@ class Anexos extends Page implements HasForms
                 'user_id' => $user->id,
                 'tipo' => 'movimentacao',
                 'descricao' => sprintf(
-                    "Processo de %s iniciado automaticamente por %s. Status inicial: Triagem. Prazo estimado: %s.",
+                    "Processo de %s iniciado automaticamente por %s.",
                     $tipo,
-                    $user->name,
-                    $prazo->format('d/m/Y')
+                    $user->name
                 ),
             ]);
 
+            // Nova Notificação que substitui a anterior
             Notification::make()
                 ->success()
                 ->title('Processo e andamento registrados!')
                 ->send();
+
+            // Força a UI a fechar notificações abertas via JS para evitar o "fantasma" do refresh
+            $this->js('document.querySelectorAll(".fi-no-notification button[aria-label=\"Close\"]").forEach(btn => btn.click())');
+
         } catch (\Exception $e) {
             Notification::make()->danger()->title('Erro ao salvar')->body($e->getMessage())->send();
         }
