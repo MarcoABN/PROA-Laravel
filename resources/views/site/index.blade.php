@@ -4,63 +4,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    {{-- SEO Básico --}}
-    <title>Campeão Náutica | Despachante Marítimo e Escola Naval em Goiânia</title>
-    <meta name="description" content="A Campeão Náutica é especialista em regularização de embarcações, habilitação de Arrais Amador e Motonauta. Mais de 20 anos de experiência como despachante naval em Goiânia.">
-    <meta name="keywords" content="despachante náutico, escola naval, arrais amador, motonauta, marinha do brasil, regularização de barcos, goiânia">
-    <link rel="canonical" href="{{ url()->current() }}">
-
-    {{-- Open Graph / Social Media (Funciona para WhatsApp/Instagram/Facebook) --}}
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ url()->current() }}">
-    <meta property="og:title" content="Campeão Náutica | Despachante Marítimo e Escola Naval">
-    <meta property="og:description" content="Regularize sua embarcação ou tire sua habilitação com especialistas. Mais de 20 anos de tradição.">
-    <meta property="og:image" content="{{ asset('images/logo_campeao.jpg') }}">
-
-    {{-- Schema.org Structured Data - Usando @@ para o Blade ignorar o símbolo --}}
-    <script type="application/ld+json">
-    {
-      "@@context": "https://schema.org",
-      "@@type": "LocalBusiness",
-      "name": "Campeão Náutica",
-      "image": "{{ asset('images/logo_campeao.jpg') }}",
-      "@@id": "https://www.campeaonautica.com.br",
-      "url": "https://www.campeaonautica.com.br",
-      "telephone": "+5562998599357",
-      "address": {
-        "@@type": "PostalAddress",
-        "streetAddress": "Avenida 24 de Outubro, 3047",
-        "addressLocality": "Goiânia",
-        "addressRegion": "GO",
-        "postalCode": "74435-090",
-        "addressCountry": "BR"
-      },
-      "geo": {
-        "@@type": "GeoCoordinates",
-        "latitude": -16.6710, 
-        "longitude": -49.2845
-      },
-      "openingHoursSpecification": {
-        "@@type": "OpeningHoursSpecification",
-        "dayOfWeek": [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday"
-        ],
-        "opens": "08:00",
-        "closes": "18:00"
-      }
-    }
-    </script>
+    <title>Campeão Náutica | Despachante Marítimo e Treinamentos</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 
     <style>
-        body { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', sans-serif;
+            scroll-behavior: smooth;
+        }
     </style>
 </head>
 
@@ -69,10 +23,11 @@
     <nav class="fixed w-full z-50 bg-white/95 backdrop-blur-md border-b border-slate-100">
         <div class="container mx-auto px-6 h-20 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <img src="{{ asset('images/logo_campeao.jpg') }}" alt="Logotipo Campeão Náutica - Despachante e Assessoria Naval"
+                <img src="{{ asset('images/logo_campeao.jpg') }}" alt="Logo Campeão Náutica"
                     class="h-12 w-auto rounded">
                 <div class="flex flex-col">
-                    <span class="text-lg font-extrabold tracking-tight text-blue-900 leading-none">CAMPEÃO NÁUTICA</span>
+                    <span class="text-lg font-extrabold tracking-tight text-blue-900 leading-none">CAMPEÃO
+                        NÁUTICA</span>
                     <span class="text-[10px] text-slate-500 font-bold tracking-widest uppercase">Assessoria Naval</span>
                 </div>
             </div>
@@ -97,7 +52,7 @@
     <header class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
         <div class="absolute inset-0 z-0">
             <img src="https://images.unsplash.com/photo-1567899834503-452b36873550?q=80&w=2070&auto=format&fit=crop"
-                class="w-full h-full object-cover opacity-20" alt="Embarcação em águas cristalinas - Campeão Náutica">
+                class="w-full h-full object-cover opacity-20" alt="Náutica">
             <div class="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-white"></div>
         </div>
 
@@ -169,10 +124,12 @@
 
     <footer class="bg-slate-900 text-slate-300 py-16">
         <div class="container mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left">
+
             <div>
                 <img src="{{ asset('images/logo_campeao.jpg') }}"
-                    class="h-16 mx-auto md:mx-0 rounded mb-4 brightness-90" alt="Campeão Náutica Assessoria Naval">
-                <p class="text-sm leading-relaxed">Referência em assessoria naval e regularização junto à Marinha do Brasil.</p>
+                    class="h-16 mx-auto md:mx-0 rounded mb-4 brightness-90">
+                <p class="text-sm leading-relaxed">Referência em assessoria naval e regularização junto à Marinha do
+                    Brasil.</p>
                 <div class="mt-6">
                     <a href="https://www.instagram.com/campeao.despachantenautico10" target="_blank"
                         class="inline-flex items-center gap-2 hover:text-pink-400 transition">
