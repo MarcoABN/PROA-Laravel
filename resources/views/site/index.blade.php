@@ -8,7 +8,7 @@
     {{-- SEO Básico --}}
     <title>Campeão Náutica | Despachante Marítimo e Escola Naval em Goiânia</title>
     <meta name="description"
-        content="A Campeão Náutica é especialista em regularização de embarcações, habilitação de Arrais Amador e Motonauta. Mais de 20 anos de experiência como despachante naval em Goiânia.">
+        content="⚓Campeão Náutica: Arrais, Motonauta e Regularização. Atendemos todo o Brasil. +20 anos de tradição, simulado online e recursos. Fale conosco: (62) 99859-9357.">
     <meta name="keywords"
         content="despachante náutico, escola naval, arrais amador, motonauta, marinha do brasil, regularização de barcos, goiânia">
     <link rel="canonical" href="{{ url()->current() }}">
