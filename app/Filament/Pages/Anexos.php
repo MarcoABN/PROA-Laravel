@@ -108,9 +108,6 @@ class Anexos extends Page implements HasForms
     /**
      * Verifica a existência do processo com feedback visual instantâneo.
      */
-    /**
-     * Verifica a existência do processo com feedback visual instantâneo e duração corrigida.
-     */
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
         // 1. GERAÇÃO DE CHAVE ÚNICA DE CONTEXTO
@@ -139,9 +136,9 @@ class Anexos extends Page implements HasForms
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
-                // ALTERAÇÃO 1: Reduzido para 7 segundos. 
+                // ALTERAÇÃO 1: Reduzido para 10 segundos. 
                 // É tempo suficiente para ler e clicar. Se o usuário não fizer nada, ela some logo.
-                ->duration(7000)
+                ->duration(10000)
                 ->actions([
                     NotificationAction::make('confirmar')
                         ->label('Sim, registrar')
