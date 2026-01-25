@@ -39,6 +39,9 @@ use Filament\Forms\Set;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use Filament\Notifications\Actions\Action as NotificationAction;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class Anexos extends Page implements HasForms
 {
@@ -52,11 +55,8 @@ class Anexos extends Page implements HasForms
 
     public ?array $data = [];
 
-    // LISTENERS ATUALIZADOS: Inclui o validador de sucesso
-    protected $listeners = [
-        'executarRegistroProcesso' => 'registrarProcesso',
-        'validarSucessoRegistro' => 'validarSucessoRegistro'
-    ];
+    // O listener aponta para o novo método blindado
+    protected $listeners = ['executarRegistroProcesso' => 'registrarProcesso'];
 
     public function mount(): void
     {
@@ -96,34 +96,32 @@ class Anexos extends Page implements HasForms
             ]);
     }
 
-    // --- LÓGICA DE CORREÇÃO (INÍCIO) ---
-
     /**
-     * Gera uma chave única para controle de cache/bloqueio
+     * Verifica se o processo existe.
+     * Implementa 'Cache Short-Circuit' para evitar reaparecimento do modal em produção.
      */
-    private function getCacheKey(string $tipo, $clienteId): string
-    {
-        return "lock_criacao_" . md5("{$clienteId}_{$tipo}");
-    }
-
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
-        // 1. SILENCIADOR: Verifica se já mandamos criar esse processo recentemente.
-        // Se existir a chave no cache, retornamos IMEDIATAMENTE.
-        // Isso impede que a mensagem "Processo não identificado" apareça enquanto o banco processa.
-        $cacheKey = $this->getCacheKey($tipoServico, $clienteId);
+        // 1. BLINDAGEM VISUAL:
+        // Verifica se acabamos de criar este processo nos últimos 15 segundos.
+        // Se sim, retorna imediatamente, assumindo que ele já existe, evitando o "fantasma" do modal.
+        $cacheKey = "processo_recente_{$clienteId}_" . Str::slug($tipoServico);
         
-        if (cache()->has($cacheKey)) {
-            return; 
+        if (Cache::has($cacheKey)) {
+            return;
         }
 
+        // 2. VERIFICAÇÃO PADRÃO NO BANCO
         $existe = Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
         if (!$existe) {
-            Notification::make()
+            // ID único para garantir controle da notificação
+            $notificationId = 'alert_' . $clienteId . '_' . md5($tipoServico);
+
+            Notification::make($notificationId)
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
@@ -133,8 +131,9 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        ->close() // Fecha visualmente na hora
-                        // Dispara o evento para iniciar o registro
+                        // 3. FECHAMENTO IMEDIATO NO FRONTEND:
+                        // O método ->close() remove o modal visualmente antes mesmo da requisição ir ao servidor.
+                        ->close()
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -144,32 +143,46 @@ class Anexos extends Page implements HasForms
                         ->label('Não')
                         ->color('gray')
                         ->close(),
-                ])->send();
+                ])
+                ->send();
         }
     }
 
+    /**
+     * Registra o processo com proteção contra concorrência (Race Condition).
+     */
     public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null): void
     {
-        // 2. ATIVAR BLOQUEIO: Define a flag no cache antes de qualquer coisa.
-        // Isso garante que se a tela atualizar, o método acima (verificarOuCriarProcesso) ficará em silêncio.
-        $cacheKey = $this->getCacheKey($tipo, $clienteId);
-        cache()->put($cacheKey, true, now()->addSeconds(60));
+        // 1. ATOMIC LOCK (TRAVA DE SERVIDOR):
+        // Garante que apenas UM clique seja processado por vez. Se o usuário clicar 2x rápido,
+        // ou se o JS reenviar a requisição, a segunda tentativa morre aqui.
+        $lockKey = "lock_criacao_{$clienteId}_" . Str::slug($tipo);
+        $lock = Cache::lock($lockKey, 10); // Trava válida por 10 segundos
+
+        // Tenta obter a trava. Se falhar (já tem um processo rodando), sai silenciosamente.
+        if (!$lock->get()) {
+            return;
+        }
 
         try {
-            \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
-                // Lock for Update para evitar duplicidade física no banco
-                $existe = Processo::where('cliente_id', $clienteId)
+            $user = auth()->user();
+            $prazo = now()->addDays(45);
+
+            // 2. TRANSAÇÃO COM LEITURA BLOQUEANTE (DB TRANSACTION):
+            $processo = DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId, $user, $prazo) {
+                // Verifica novamente DENTRO da transação com lockForUpdate.
+                // Isso impede que duas transações simultâneas criem registros duplicados.
+                $existing = Processo::where('cliente_id', $clienteId)
                     ->where('tipo_servico', $tipo)
                     ->whereNotIn('status', ['concluido', 'arquivado'])
                     ->lockForUpdate()
-                    ->exists();
+                    ->first();
 
-                if ($existe) return;
+                if ($existing) {
+                    return $existing; // Retorna o existente sem criar novo
+                }
 
-                $prazo = now()->addDays(45);
-                $user = auth()->user();
-
-                $processo = Processo::create([
+                $novoProcesso = Processo::create([
                     'cliente_id' => $clienteId,
                     'embarcacao_id' => $embarcacaoId,
                     'user_id' => $user->id,
@@ -180,89 +193,52 @@ class Anexos extends Page implements HasForms
                     'prazo_estimado' => $prazo,
                 ]);
 
-                $processo->andamentos()->create([
+                $novoProcesso->andamentos()->create([
                     'user_id' => $user->id,
                     'tipo' => 'movimentacao',
                     'descricao' => sprintf(
-                        "Processo de %s iniciado automaticamente por %s. Status inicial: Triagem. Prazo estimado: %s.",
+                        "Processo de %s iniciado automaticamente por %s.",
                         $tipo,
-                        $user->name,
-                        $prazo->format('d/m/Y')
+                        $user->name
                     ),
                 ]);
+
+                return $novoProcesso;
             });
 
-            // 3. INICIA O POLLING:
-            // Dispara JS para conferir o sucesso após 1 segundo.
-            $embParam = $embarcacaoId ?? 'null';
-            $this->js("
-                setTimeout(() => {
-                    Livewire.dispatch('validarSucessoRegistro', { 
-                        tipo: '{$tipo}', 
-                        clienteId: {$clienteId}, 
-                        embarcacaoId: {$embParam},
-                        tentativa: 1
-                    });
-                }, 1000);
-            ");
+            // 3. SINALIZADOR DE SUCESSO (CACHE):
+            // Define no cache que este processo foi criado. O método 'verificarOuCriarProcesso'
+            // lerá isso e não exibirá o modal novamente pelos próximos 15 segundos.
+            $cacheKeyRecente = "processo_recente_{$clienteId}_" . Str::slug($tipo);
+            Cache::put($cacheKeyRecente, true, now()->addSeconds(15));
 
-        } catch (\Exception $e) {
-            // Em caso de erro, liberamos o bloqueio para permitir nova tentativa
-            cache()->forget($cacheKey);
-            Notification::make()->danger()->title('Erro ao salvar')->body($e->getMessage())->send();
-        }
-    }
-
-    /**
-     * Método chamado periodicamente pelo JS para verificar se o registro concluiu.
-     */
-    public function validarSucessoRegistro($tipo, $clienteId, $embarcacaoId, $tentativa = 1)
-    {
-        $existe = Processo::where('cliente_id', $clienteId)
-            ->where('tipo_servico', $tipo)
-            ->whereNotIn('status', ['concluido', 'arquivado'])
-            ->exists();
-
-        if ($existe) {
-            // SUCESSO CONFIRMADO!
-            // Removemos o bloqueio de cache para manter o sistema limpo
-            $cacheKey = $this->getCacheKey($tipo, $clienteId);
-            cache()->forget($cacheKey);
-
-            Notification::make()
-                ->success()
-                ->title('Processo e andamento registrados!')
-                ->send();
-        } else {
-            // AINDA NÃO EXISTE (Latência): Tenta novamente
-            if ($tentativa <= 5) {
-                $prox = $tentativa + 1;
-                $embParam = $embarcacaoId ?? 'null';
-                $this->js("
-                    setTimeout(() => {
-                        Livewire.dispatch('validarSucessoRegistro', { 
-                            tipo: '{$tipo}', 
-                            clienteId: {$clienteId}, 
-                            embarcacaoId: {$embParam},
-                            tentativa: {$prox}
-                        });
-                    }, 1000);
-                ");
-            } else {
-                // TIMEOUT: Libera o cache e avisa
-                $cacheKey = $this->getCacheKey($tipo, $clienteId);
-                cache()->forget($cacheKey);
-                
+            // Feedback ao usuário
+            if ($processo->wasRecentlyCreated) {
                 Notification::make()
-                    ->warning()
-                    ->title('Aguardando sincronização...')
-                    ->body('O registro foi enviado. Verifique a lista de processos em instantes.')
+                    ->success()
+                    ->title('Processo e andamento registrados!')
+                    ->send();
+            } else {
+                // Caso a trava tenha funcionado e recuperado um registro existente
+                Notification::make()
+                    ->info()
+                    ->title('Processo já identificado')
+                    ->body('O processo já estava registrado.')
                     ->send();
             }
+
+            // Limpeza forçada de notificações na interface
+            $this->dispatch('close-notifications');
+
+        } catch (\Exception $e) {
+            Notification::make()->danger()->title('Erro ao salvar')->body($e->getMessage())->send();
+        } finally {
+            // Libera a trava para permitir futuras interações
+            $lock->release();
         }
     }
 
-    // --- LÓGICA DE CORREÇÃO (FIM) ---
+    // --- MÉTODOS AUXILIARES E ACTIONS DE ANEXOS ---
 
     private function criarBotaoAnexo(string $classeAnexo, string $tituloBotao, string $tipoServico, string $cor = 'primary'): Action
     {
@@ -277,8 +253,11 @@ class Anexos extends Page implements HasForms
             ->action(function (array $data, Anexos $livewire) use ($classeUrl, $tipoServico) {
                 $clienteId = $livewire->data['cliente_id'];
                 $embarcacaoId = $livewire->data['embarcacao_id'];
-                $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $embarcacaoId]) . '?' . http_build_query($data);
+                
+                // Dispara a verificação antes de abrir a janela
                 $livewire->verificarOuCriarProcesso($tipoServico, $clienteId, $embarcacaoId);
+                
+                $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $embarcacaoId]) . '?' . http_build_query($data);
                 return $livewire->js("window.open('{$url}', '_blank');");
             });
     }
@@ -295,93 +274,38 @@ class Anexos extends Page implements HasForms
             ->form($anexo->getFormSchema())
             ->action(function (array $data, Anexos $livewire) use ($classeUrl, $tipoServico) {
                 $clienteId = $livewire->data['cliente_id'];
-                $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $clienteId]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
+                
+                // Dispara a verificação antes de abrir a janela
                 $livewire->verificarOuCriarProcesso($tipoServico, $clienteId, null);
+                
+                $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $clienteId]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
                 return $livewire->js("window.open('{$url}', '_blank');");
             });
     }
 
-    // --- GRUPOS CHA, TIE, MOTOAQUÁTICA (MANTIDOS) ---
-    public function gerarAnexo3AClienteAction(): Action
-    {
-        return $this->criarBotaoAnexoCliente(Anexo3A::class, 'Anexo 3A', Processo::TIPO_CHA);
-    }
-    public function gerarAnexo3BClienteAction(): Action
-    {
-        return $this->criarBotaoAnexoCliente(Anexo3B::class, 'Anexo 3B', Processo::TIPO_CHA);
-    }
-    public function gerarAnexo5DClienteAction(): Action
-    {
-        return $this->criarBotaoAnexoCliente(Anexo5D::class, 'Anexo 5D', Processo::TIPO_CHA);
-    }
-    public function gerarAnexo5EClienteAction(): Action
-    {
-        return $this->criarBotaoAnexoCliente(Anexo5E::class, 'Anexo 5E', Processo::TIPO_CHA);
-    }
-    public function gerarAnexo5HClienteAction(): Action
-    {
-        return $this->criarBotaoAnexoCliente(Anexo5H::class, 'Anexo 5H', Processo::TIPO_CHA);
-    }
-    public function gerarAnexo2LClienteAction(): Action
-    {
-        return $this->criarBotaoAnexoCliente(Anexo2L::class, 'Anexo 2L', Processo::TIPO_CHA);
-    }
-    public function gerarAnexo2DAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2D::class, 'Anexo 2D', Processo::TIPO_TIE, 'info');
-    }
-    public function gerarAnexo2EAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2E::class, 'Anexo 2E', Processo::TIPO_TIE, 'info');
-    }
-    public function gerarAnexo2JAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2J::class, 'Anexo 2J', Processo::TIPO_TIE, 'info');
-    }
-    public function gerarAnexo2KAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2K::class, 'Anexo 2K', Processo::TIPO_TIE, 'info');
-    }
-    public function gerarAnexo2LAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2L::class, 'Anexo 2L', Processo::TIPO_TIE, 'info');
-    }
-    public function gerarAnexo2MAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2M::class, 'Anexo 2M', Processo::TIPO_TIE, 'info');
-    }
-    public function gerarAnexo3CAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo3C::class, 'Anexo 3C', Processo::TIPO_TIE, 'info');
-    }
-    public function gerarAnexo3DAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo3D::class, 'Anexo 3D', Processo::TIPO_TIE, 'info');
-    }
-    public function gerarAnexo1CAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo1C::class, 'Anexo 1C', Processo::TIPO_MOTO, 'warning');
-    }
-    public function gerarAnexo2AAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2A::class, 'Anexo 2A', Processo::TIPO_MOTO, 'warning');
-    }
-    public function gerarAnexo2BAction(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2B::class, 'Anexo 2B', Processo::TIPO_MOTO, 'warning');
-    }
-    public function gerarAnexo2D212Action(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2D212::class, 'Anexo 2D (212)', Processo::TIPO_MOTO, 'warning');
-    }
-    public function gerarAnexo2E212Action(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2E212::class, 'Anexo 2E (212)', Processo::TIPO_MOTO, 'warning');
-    }
-    public function gerarAnexo2F212Action(): Action
-    {
-        return $this->criarBotaoAnexo(Anexo2F212::class, 'Anexo 2F', Processo::TIPO_MOTO, 'warning');
-    }
+    // --- GRUPOS CHA, TIE, MOTOAQUÁTICA ---
+    public function gerarAnexo3AClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo3A::class, 'Anexo 3A', Processo::TIPO_CHA); }
+    public function gerarAnexo3BClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo3B::class, 'Anexo 3B', Processo::TIPO_CHA); }
+    public function gerarAnexo5DClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo5D::class, 'Anexo 5D', Processo::TIPO_CHA); }
+    public function gerarAnexo5EClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo5E::class, 'Anexo 5E', Processo::TIPO_CHA); }
+    public function gerarAnexo5HClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo5H::class, 'Anexo 5H', Processo::TIPO_CHA); }
+    public function gerarAnexo2LClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo2L::class, 'Anexo 2L', Processo::TIPO_CHA); }
+
+    public function gerarAnexo2DAction(): Action { return $this->criarBotaoAnexo(Anexo2D::class, 'Anexo 2D', Processo::TIPO_TIE, 'info'); }
+    public function gerarAnexo2EAction(): Action { return $this->criarBotaoAnexo(Anexo2E::class, 'Anexo 2E', Processo::TIPO_TIE, 'info'); }
+    public function gerarAnexo2JAction(): Action { return $this->criarBotaoAnexo(Anexo2J::class, 'Anexo 2J', Processo::TIPO_TIE, 'info'); }
+    public function gerarAnexo2KAction(): Action { return $this->criarBotaoAnexo(Anexo2K::class, 'Anexo 2K', Processo::TIPO_TIE, 'info'); }
+    public function gerarAnexo2LAction(): Action { return $this->criarBotaoAnexo(Anexo2L::class, 'Anexo 2L', Processo::TIPO_TIE, 'info'); }
+    public function gerarAnexo2MAction(): Action { return $this->criarBotaoAnexo(Anexo2M::class, 'Anexo 2M', Processo::TIPO_TIE, 'info'); }
+    public function gerarAnexo3CAction(): Action { return $this->criarBotaoAnexo(Anexo3C::class, 'Anexo 3C', Processo::TIPO_TIE, 'info'); }
+    public function gerarAnexo3DAction(): Action { return $this->criarBotaoAnexo(Anexo3D::class, 'Anexo 3D', Processo::TIPO_TIE, 'info'); }
+
+    public function gerarAnexo1CAction(): Action { return $this->criarBotaoAnexo(Anexo1C::class, 'Anexo 1C', Processo::TIPO_MOTO, 'warning'); }
+    public function gerarAnexo2AAction(): Action { return $this->criarBotaoAnexo(Anexo2A::class, 'Anexo 2A', Processo::TIPO_MOTO, 'warning'); }
+    public function gerarAnexo2BAction(): Action { return $this->criarBotaoAnexo(Anexo2B::class, 'Anexo 2B', Processo::TIPO_MOTO, 'warning'); }
+    public function gerarAnexo2D212Action(): Action { return $this->criarBotaoAnexo(Anexo2D212::class, 'Anexo 2D (212)', Processo::TIPO_MOTO, 'warning'); }
+    public function gerarAnexo2E212Action(): Action { return $this->criarBotaoAnexo(Anexo2E212::class, 'Anexo 2E (212)', Processo::TIPO_MOTO, 'warning'); }
+    public function gerarAnexo2F212Action(): Action { return $this->criarBotaoAnexo(Anexo2F212::class, 'Anexo 2F', Processo::TIPO_MOTO, 'warning'); }
 
     // --- GRUPO: ADMINISTRATIVOS ---
     public function gerarProcuracaoClienteAction(): Action
@@ -396,6 +320,10 @@ class Anexos extends Page implements HasForms
             ->modalHeading($anexo->getTitulo())
             ->form($anexo->getFormSchema())
             ->action(function (array $data, Anexos $livewire) use ($classeUrl) {
+                // Ao abrir procuração, também criamos processo de Representação se não houver
+                // Nota: Assumi 'Representação' como tipo, ajuste se seu Enum for diferente.
+                $livewire->verificarOuCriarProcesso('Representação', $livewire->data['cliente_id'], null);
+
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $livewire->data['cliente_id']]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
                 return $livewire->js("window.open('{$url}', '_blank');");
             });
@@ -408,12 +336,21 @@ class Anexos extends Page implements HasForms
             ->icon('heroicon-o-document-text')
             ->color('danger')
             ->disabled(fn() => empty($this->data['cliente_id']))
-            ->action(fn(Anexos $livewire) => $livewire->js("window.open('" . route('clientes.procuracao', ['id' => $livewire->data['cliente_id'], 'embarcacao_id' => $livewire->data['embarcacao_id'] ?? 'null']) . "', '_blank');"));
+            ->action(function (Anexos $livewire) {
+                $livewire->verificarOuCriarProcesso('Representação', $livewire->data['cliente_id'], $livewire->data['embarcacao_id'] ?? null);
+                
+                $url = route('clientes.procuracao', ['id' => $livewire->data['cliente_id'], 'embarcacao_id' => $livewire->data['embarcacao_id'] ?? 'null']);
+                return $livewire->js("window.open('{$url}', '_blank');");
+            });
     }
 
     public function gerarDefesaInfracaoAction(): Action
     {
-        return Action::make('gerarDefesaInfracao')->label('Emitir')->modalHeading('Defesa de Infração')->icon('heroicon-o-shield-check')->color('danger')
+        return Action::make('gerarDefesaInfracao')
+            ->label('Emitir')
+            ->modalHeading('Defesa de Infração')
+            ->icon('heroicon-o-shield-check')
+            ->color('danger')
             ->disabled(fn() => empty($this->data['cliente_id']))
             ->form([
                 Select::make('capitania_id')->label('Capitania')->options(Capitania::query()->pluck('nome', 'id'))->searchable()->preload()->required(),
@@ -424,8 +361,10 @@ class Anexos extends Page implements HasForms
             ->action(function (array $data, Anexos $livewire) {
                 $clienteId = $livewire->data['cliente_id'];
                 $embarcacaoId = $livewire->data['embarcacao_id'] ?? null;
-                $url = route('clientes.defesa_infracao', ['id' => $clienteId, 'embarcacao_id' => $embarcacaoId ?? 'null']) . '?' . http_build_query($data);
+                
                 $livewire->verificarOuCriarProcesso(Processo::TIPO_DEFESA, $clienteId, $embarcacaoId);
+
+                $url = route('clientes.defesa_infracao', ['id' => $clienteId, 'embarcacao_id' => $embarcacaoId ?? 'null']) . '?' . http_build_query($data);
                 return $livewire->js("window.open('{$url}', '_blank');");
             });
     }
