@@ -110,9 +110,7 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        // 1. Fechamos no navegador via JS para feedback instantâneo
-                        ->extraAttributes(['x-on:click' => 'close'])
-                        // 2. Disparamos o evento para o Livewire
+                        ->close() // Fecha a notificação no lado do cliente (JS) imediatamente
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -122,42 +120,45 @@ class Anexos extends Page implements HasForms
                         ->label('Não')
                         ->color('gray')
                         ->close(),
-                ])
-                ->send();
+                ])->send();
         }
     }
 
     public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null): void
     {
-        // Proteção contra duplicidade em produção (Idempotência)
-        $lockKey = "registro_processo_{$clienteId}_" . str($tipo)->slug();
-        if (!cache()->add($lockKey, true, 10)) {
-            return; // Se já houver um registro em andamento nos últimos 10s, ignora o segundo clique
-        }
-
         try {
-            $user = auth()->user();
+            \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
+                // LOCK: Impede que outra requisição consulte este cliente/tipo simultaneamente
+                $existe = \App\Models\Processo::where('cliente_id', $clienteId)
+                    ->where('tipo_servico', $tipo)
+                    ->whereNotIn('status', ['concluido', 'arquivado'])
+                    ->lockForUpdate()
+                    ->exists();
 
-            $processo = Processo::create([
-                'cliente_id' => $clienteId,
-                'embarcacao_id' => $embarcacaoId,
-                'user_id' => $user->id,
-                'titulo' => "Cadastro automático",
-                'tipo_servico' => $tipo,
-                'status' => 'triagem',
-                'prioridade' => 'normal',
-                'prazo_estimado' => now()->addDays(45),
-            ]);
+                if ($existe) {
+                    return; // Aborta silenciosamente se já foi criado pela requisição anterior
+                }
 
-            $processo->andamentos()->create([
-                'user_id' => $user->id,
-                'tipo' => 'movimentacao',
-                'descricao' => "Processo iniciado automaticamente por {$user->name}.",
-            ]);
+                $user = auth()->user();
+                $processo = \App\Models\Processo::create([
+                    'cliente_id' => $clienteId,
+                    'embarcacao_id' => $embarcacaoId,
+                    'user_id' => $user->id,
+                    'titulo' => "Cadastro automático",
+                    'tipo_servico' => $tipo,
+                    'status' => 'triagem',
+                    'prioridade' => 'normal',
+                    'prazo_estimado' => now()->addDays(45),
+                ]);
 
-            // 3. Forçamos o fechamento de TODAS as notificações de aviso antes de mandar a de sucesso
-            $this->dispatch('close-notifications');
+                $processo->andamentos()->create([
+                    'user_id' => $user->id,
+                    'tipo' => 'movimentacao',
+                    'descricao' => "Processo de {$tipo} iniciado automaticamente.",
+                ]);
+            });
 
+            // Notificação de sucesso só é enviada após a transação confirmar
             Notification::make()
                 ->success()
                 ->title('Processo e andamento registrados!')
@@ -165,8 +166,6 @@ class Anexos extends Page implements HasForms
 
         } catch (\Exception $e) {
             Notification::make()->danger()->title('Erro ao salvar')->send();
-        } finally {
-            cache()->forget($lockKey);
         }
     }
 
