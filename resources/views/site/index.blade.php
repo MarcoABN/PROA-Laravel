@@ -5,13 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Campeão Náutica | Despachante Marítimo e Treinamentos</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-    
+
     <style>
-        body { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', sans-serif;
+            scroll-behavior: smooth;
+        }
     </style>
 </head>
 
@@ -20,18 +23,26 @@
     <nav class="fixed w-full z-50 bg-white/95 backdrop-blur-md border-b border-slate-100">
         <div class="container mx-auto px-6 h-20 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <img src="{{ asset('images/logo_campeao.jpg') }}" alt="Logo Campeão Náutica" class="h-12 w-auto rounded">
+                <img src="{{ asset('images/logo_campeao.jpg') }}" alt="Logo Campeão Náutica"
+                    class="h-12 w-auto rounded">
                 <div class="flex flex-col">
-                    <span class="text-lg font-extrabold tracking-tight text-blue-900 leading-none">CAMPEÃO NÁUTICA</span>
+                    <span class="text-lg font-extrabold tracking-tight text-blue-900 leading-none">CAMPEÃO
+                        NÁUTICA</span>
                     <span class="text-[10px] text-slate-500 font-bold tracking-widest uppercase">Assessoria Naval</span>
                 </div>
             </div>
-            
+
             <div class="hidden md:flex items-center gap-8 font-medium">
                 <a href="#servicos" class="hover:text-blue-600 transition">Serviços</a>
                 <a href="#sobre" class="hover:text-blue-600 transition">Sobre Nós</a>
-                <a href="https://www.instagram.com/campeao.despachantenautico10" target="_blank" class="text-pink-600 hover:opacity-80 transition">Instagram</a>
-                <a href="/login" class="bg-blue-600 text-white px-6 py-2.5 rounded-full hover:bg-blue-700 transition shadow-md shadow-blue-200">
+                <a href="https://www.instagram.com/campeao.despachantenautico10" target="_blank"
+                    class="text-pink-600 hover:opacity-80 transition">Instagram</a>
+                <a href="https://www.campeaonautica.com.br/admin/login"
+                    class="text-slate-400 hover:text-blue-600 text-xs tracking-widest uppercase transition border-r border-slate-200 pr-8">
+                    PROA
+                </a>
+                <a href="/login"
+                    class="bg-blue-600 text-white px-6 py-2.5 rounded-full hover:bg-blue-700 transition shadow-md shadow-blue-200">
                     Área do Cliente
                 </a>
             </div>
@@ -40,8 +51,8 @@
 
     <header class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
         <div class="absolute inset-0 z-0">
-            <img src="https://images.unsplash.com/photo-1567899834503-452b36873550?q=80&w=2070&auto=format&fit=crop" 
-                 class="w-full h-full object-cover opacity-20" alt="Náutica">
+            <img src="https://images.unsplash.com/photo-1567899834503-452b36873550?q=80&w=2070&auto=format&fit=crop"
+                class="w-full h-full object-cover opacity-20" alt="Náutica">
             <div class="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-white"></div>
         </div>
 
@@ -57,10 +68,12 @@
                     Soluções completas na regularização de sua embarcação ou habilitação junto à Marinha do Brasil.
                 </p>
                 <div class="mt-10 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                    <a href="https://wa.me/5562998599357" class="px-8 py-4 bg-green-500 text-white rounded-xl font-bold text-lg hover:bg-green-600 transition shadow-xl shadow-green-200 flex items-center justify-center gap-2">
+                    <a href="https://wa.me/5562998599357"
+                        class="px-8 py-4 bg-green-500 text-white rounded-xl font-bold text-lg hover:bg-green-600 transition shadow-xl shadow-green-200 flex items-center justify-center gap-2">
                         WhatsApp (62) 99859-9357
                     </a>
-                    <a href="/login" class="px-8 py-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-lg hover:bg-slate-50 transition">
+                    <a href="/login"
+                        class="px-8 py-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-lg hover:bg-slate-50 transition">
                         Simulador de Provas
                     </a>
                 </div>
@@ -77,17 +90,17 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 @forelse($servicos as $servico)
-                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-xl transition-all">
-                    <h3 class="text-2xl font-bold text-slate-900 mb-4">{{ $servico->nome }}</h3>
-                    <p class="text-slate-600 leading-relaxed">{{ $servico->descricao }}</p>
-                    <div class="mt-8 pt-6 border-t border-slate-50">
-                        <a href="https://wa.me/5562998599357" class="text-blue-600 font-bold hover:underline">
-                            Solicitar Orçamento →
-                        </a>
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-xl transition-all">
+                        <h3 class="text-2xl font-bold text-slate-900 mb-4">{{ $servico->nome }}</h3>
+                        <p class="text-slate-600 leading-relaxed">{{ $servico->descricao }}</p>
+                        <div class="mt-8 pt-6 border-t border-slate-50">
+                            <a href="https://wa.me/5562998599357" class="text-blue-600 font-bold hover:underline">
+                                Solicitar Orçamento →
+                            </a>
+                        </div>
                     </div>
-                </div>
                 @empty
-                <div class="col-span-full text-center py-10">Nenhum serviço cadastrado.</div>
+                    <div class="col-span-full text-center py-10">Nenhum serviço cadastrado.</div>
                 @endforelse
             </div>
         </div>
@@ -97,7 +110,8 @@
         <div class="container mx-auto px-6 max-w-4xl text-center">
             <h2 class="text-3xl font-bold mb-8 text-blue-900 uppercase tracking-wide">Sobre Nós</h2>
             <p class="text-xl text-slate-600 leading-relaxed italic">
-                "Campeão Náutica e Assessoria Naval: Especialistas em tornar sua experiência náutica mais segura e sem burocracia há mais de duas décadas."
+                "Campeão Náutica e Assessoria Naval: Especialistas em tornar sua experiência náutica mais segura e sem
+                burocracia há mais de duas décadas."
             </p>
             <div class="mt-12 p-8 bg-blue-50 rounded-2xl inline-block text-left">
                 <p class="font-bold text-blue-900">CNPJ: 53.775.360/0001-21</p>
@@ -110,12 +124,15 @@
 
     <footer class="bg-slate-900 text-slate-300 py-16">
         <div class="container mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left">
-            
+
             <div>
-                <img src="{{ asset('images/logo_campeao.jpg') }}" class="h-16 mx-auto md:mx-0 rounded mb-4 brightness-90">
-                <p class="text-sm leading-relaxed">Referência em assessoria naval e regularização junto à Marinha do Brasil.</p>
+                <img src="{{ asset('images/logo_campeao.jpg') }}"
+                    class="h-16 mx-auto md:mx-0 rounded mb-4 brightness-90">
+                <p class="text-sm leading-relaxed">Referência em assessoria naval e regularização junto à Marinha do
+                    Brasil.</p>
                 <div class="mt-6">
-                    <a href="https://www.instagram.com/campeao.despachantenautico10" target="_blank" class="inline-flex items-center gap-2 hover:text-pink-400 transition">
+                    <a href="https://www.instagram.com/campeao.despachantenautico10" target="_blank"
+                        class="inline-flex items-center gap-2 hover:text-pink-400 transition">
                         <span>Instagram: @campeao.despachantenautico10</span>
                     </a>
                 </div>
@@ -135,17 +152,19 @@
                 <h4 class="text-white font-bold mb-6 uppercase tracking-wider">Acesso Rápido</h4>
                 <div class="flex flex-col gap-4 text-sm">
                     <a href="/login" class="text-blue-400 hover:text-white transition">Área do Cliente (Simulador)</a>
-                    <a href="https://wa.me/5562998599357" class="bg-blue-800/30 p-3 rounded-lg border border-blue-800/50 hover:bg-blue-800/50 transition">
+                    <a href="https://wa.me/5562998599357"
+                        class="bg-blue-800/30 p-3 rounded-lg border border-blue-800/50 hover:bg-blue-800/50 transition">
                         Fale com um Despachante
                     </a>
                 </div>
             </div>
         </div>
-        
+
         <div class="container mx-auto px-6 mt-16 pt-8 border-t border-slate-800 text-center text-xs text-slate-500">
             &copy; 2026 Campeão Náutica | CNPJ 53.775.360/0001-21 | Goiânia - GO
         </div>
     </footer>
 
 </body>
+
 </html>
