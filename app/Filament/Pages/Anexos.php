@@ -105,8 +105,7 @@ class Anexos extends Page implements HasForms
             ->exists();
 
         if (!$existe) {
-            // Criamos a notificação com um ID FIXO ('check_processo_pendente')
-            Notification::make('check_processo_pendente')
+            Notification::make('aviso_registro_pendente') // ID para referência
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
@@ -116,8 +115,9 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        // Fecha visualmente no JS imediatamente ao clicar
+                        // 1. Fecha imediatamente a caixa de diálogo no navegador
                         ->close()
+                        // 2. Chama o método de registro
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -132,19 +132,19 @@ class Anexos extends Page implements HasForms
         }
     }
 
-    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null): void
+    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null)
     {
         try {
-            // 1. BLINDAGEM NO BANCO (Evita registro duplicado em produção)
+            // Blindagem de Concorrência (Mantida, pois é vital em produção)
             \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
                 $existe = \App\Models\Processo::where('cliente_id', $clienteId)
                     ->where('tipo_servico', $tipo)
                     ->whereNotIn('status', ['concluido', 'arquivado'])
-                    ->lockForUpdate() // <--- TRAVA O BANCO PARA EVITAR DUPLICIDADE
+                    ->lockForUpdate()
                     ->exists();
 
                 if ($existe) {
-                    return; // Se já existe (clique duplo), para aqui.
+                    return;
                 }
 
                 $user = auth()->user();
@@ -166,18 +166,50 @@ class Anexos extends Page implements HasForms
                 ]);
             });
 
-            // 2. LIMPEZA DA UI (Remove a mensagem antiga e mostra a nova)
+            // 3. LIMPEZA TOTAL: Força o fechamento de qualquer notificação residual
+            $this->dispatch('close-notifications');
 
-            // Comando específico para fechar a notificação de aviso pelo ID que criamos
-            $this->dispatch('notifications.close', id: 'check_processo_pendente');
+            // 4. ESTRATÉGIA DE DESACOPLAMENTO (A Mágica)
+            // Ao invés de mostrar sucesso agora, devolvemos um JS que espera 600ms 
+            // (tempo suficiente para a UI limpar o aviso antigo) e chama a conferência.
+            $embParam = $embarcacaoId ?? 'null';
+            $this->js("
+            setTimeout(() => { 
+                \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
+            }, 600);
+        ");
 
+        } catch (\Exception $e) {
+            // Erros reais ainda devem ser mostrados
+            Notification::make()->danger()->title('Erro ao salvar')->send();
+        }
+    }
+
+    /**
+     * Método chamado via JS após o delay, garantindo uma nova renderização limpa.
+     */
+    public function confirmarEExibirSucesso($tipo, $clienteId, $embarcacaoId = null)
+    {
+        // Verifica se o registro realmente existe (Double Check)
+        $processoExiste = \App\Models\Processo::where('cliente_id', $clienteId)
+            ->where('tipo_servico', $tipo)
+            ->whereNotIn('status', ['concluido', 'arquivado'])
+            ->exists();
+
+        if ($processoExiste) {
+            // Agora sim, enviamos a notificação de sucesso em uma tela limpa
             Notification::make()
                 ->success()
                 ->title('Processo e andamento registrados!')
                 ->send();
-
-        } catch (\Exception $e) {
-            Notification::make()->danger()->title('Erro ao salvar')->send();
+        } else {
+            // Caso raro: processamento lento do banco ou falha silenciosa
+            // Podemos tentar novamente ou avisar
+            Notification::make()
+                ->warning()
+                ->title('Aguardando confirmação...')
+                ->body('O processo foi enviado, mas ainda não apareceu na lista. Atualize a página em instantes.')
+                ->send();
         }
     }
 
