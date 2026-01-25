@@ -29,6 +29,7 @@ use App\Models\Cliente;
 use App\Models\Embarcacao;
 use App\Models\Capitania;
 use App\Models\Processo;
+use Cache;
 use Filament\Actions\Action;
 use Filament\Forms\Components\{Section, Select, Textarea, TextInput, DatePicker};
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -39,6 +40,7 @@ use Filament\Forms\Set;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use Filament\Notifications\Actions\Action as NotificationAction;
+use Illuminate\Support\Facades\DB;
 
 class Anexos extends Page implements HasForms
 {
@@ -99,11 +101,12 @@ class Anexos extends Page implements HasForms
 
         // 2. Se a trava existe, significa que o clique "Sim" já foi processado e está rodando.
         // Retornamos imediatamente para não exibir a mensagem novamente.
-        if (cache()->has($cacheKey)) {
+        if (Cache::has($cacheKey)) {
             return;
         }
 
-        $existe = \App\Models\Processo::where('cliente_id', $clienteId)
+        // 3. Verifica se já existe processo ativo
+        $existe = Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
@@ -119,9 +122,7 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        // Fecha imediatamente no navegador
                         ->close()
-                        // Dispara o evento para o PRÓPRIO componente (seguro)
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -136,17 +137,29 @@ class Anexos extends Page implements HasForms
         }
     }
 
+    // Listener chamado pelo dispatch 'executarRegistroProcesso'
+    public function executarRegistroProcesso(string $tipo, $clienteId, $embarcacaoId = null)
+    {
+        $this->registrarProcesso($tipo, $clienteId, $embarcacaoId);
+    }
+
     public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null)
     {
         // 1. TRAVA IMEDIATA: Define que este processo está sendo criado AGORA.
-        // Validade de 10 segundos (tempo de sobra para transação e delay).
+        // Validade maior para lidar com latência em PROD.
         $cacheKey = "criando_processo_" . md5($clienteId . $tipo);
-        cache()->put($cacheKey, true, now()->addSeconds(10));
+
+        // Se já tiver trava (outra chamada em andamento), não faz nada.
+        if (Cache::has($cacheKey)) {
+            return;
+        }
+
+        Cache::put($cacheKey, true, now()->addSeconds(30));
 
         try {
-            \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
-                // Lock de Banco (Mantém a segurança física dos dados)
-                $existe = \App\Models\Processo::where('cliente_id', $clienteId)
+            DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
+
+                $existe = Processo::where('cliente_id', $clienteId)
                     ->where('tipo_servico', $tipo)
                     ->whereNotIn('status', ['concluido', 'arquivado'])
                     ->lockForUpdate()
@@ -157,7 +170,8 @@ class Anexos extends Page implements HasForms
                 }
 
                 $user = auth()->user();
-                $processo = \App\Models\Processo::create([
+
+                $processo = Processo::create([
                     'cliente_id' => $clienteId,
                     'embarcacao_id' => $embarcacaoId,
                     'user_id' => $user->id,
@@ -175,49 +189,51 @@ class Anexos extends Page implements HasForms
                 ]);
             });
 
-            // 2. Limpeza visual forçada (garante que o aviso sumiu)
+            // 2. Limpa visualmente qualquer notificação pendente
             $this->dispatch('close-notifications');
 
-            // 3. Agendamento da Confirmação
-            // Damos 500ms para o banco commitar e a UI limpar
+            // 3. Agenda a confirmação após pequeno delay (commit + UI)
             $embParam = $embarcacaoId ?? 'null';
             $this->js("
-            setTimeout(() => { 
-                \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
-            }, 500);
-        ");
-
+                setTimeout(() => {
+                    \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
+                }, 800);
+            ");
         } catch (\Exception $e) {
-            // Se falhar, soltamos a trava para permitir nova tentativa
-            cache()->forget($cacheKey);
-            Notification::make()->danger()->title('Erro ao salvar: ' . $e->getMessage())->send();
+            Cache::forget($cacheKey);
+
+            Notification::make()
+                ->danger()
+                ->title('Erro ao salvar: ' . $e->getMessage())
+                ->send();
         }
     }
 
     public function confirmarEExibirSucesso($tipo, $clienteId, $embarcacaoId = null)
     {
-        $processoExiste = \App\Models\Processo::where('cliente_id', $clienteId)
+        $processoExiste = Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipo)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
+        $cacheKey = "criando_processo_" . md5($clienteId . $tipo);
+
         if ($processoExiste) {
             // Limpa a trava, pois o processo já existe oficialmente no banco
-            $cacheKey = "criando_processo_" . md5($clienteId . $tipo);
-            cache()->forget($cacheKey);
+            Cache::forget($cacheKey);
 
             Notification::make()
                 ->success()
                 ->title('Processo e andamento registrados!')
                 ->send();
         } else {
-            // Fallback caso o banco esteja muito lento: tenta de novo em 1s
+            // Fallback simples: tenta de novo em 1s (latência)
             $embParam = $embarcacaoId ?? 'null';
             $this->js("
-            setTimeout(() => { 
-                \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
-            }, 1000);
-        ");
+                setTimeout(() => {
+                    \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
+                }, 1000);
+            ");
         }
     }
 
