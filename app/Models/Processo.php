@@ -12,6 +12,13 @@ class Processo extends Model
 {
     protected $guarded = [];
 
+    // Constantes para padronização dos tipos de serviço
+    const TIPO_CHA = 'Habilitação (CHA)';
+    const TIPO_TIE = 'Embarcação (TIE)';
+    const TIPO_MOTO = 'Motoaquática (TIE)';
+    const TIPO_DEFESA = 'Defesa De Infração';
+    const TIPO_OUTROS = 'Outros';
+
     protected $casts = [
         'prazo_estimado' => 'date',
     ];
@@ -25,17 +32,12 @@ class Processo extends Model
         return $this->hasMany(ProcessoAndamento::class)->latest(); 
     }
 
-    /**
-     * Lógica Automática (Audit Trail)
-     * Monitora alterações em campos críticos e gera histórico.
-     */
     protected static function booted()
     {
         static::updating(function ($processo) {
             $user = Auth::user();
-            if (!$user) return; // Se for rodado via sistema/cron sem usuário, ignora ou ajusta
+            if (!$user) return;
 
-            // Mapa de Labels para ficar bonito no texto (Ex: 'analise' vira 'Em Análise')
             $labels = [
                 'status' => [
                     'triagem' => 'Triagem', 'analise' => 'Em Análise', 'aguardando_cliente' => 'Aguardando Cliente',
@@ -46,19 +48,17 @@ class Processo extends Model
                 ]
             ];
 
-            // 1. Monitora Status
             if ($processo->isDirty('status')) {
                 $antigo = $labels['status'][$processo->getOriginal('status')] ?? $processo->getOriginal('status');
                 $novo = $labels['status'][$processo->status] ?? $processo->status;
                 
                 $processo->andamentos()->create([
                     'user_id' => $user->id,
-                    'tipo' => 'mudanca_status', // Usamos um tipo específico para destacar visualmente se quiser depois
+                    'tipo' => 'mudanca_status',
                     'descricao' => "Alterou o Status de '{$antigo}' para '{$novo}'.",
                 ]);
             }
 
-            // 2. Monitora Prioridade
             if ($processo->isDirty('prioridade')) {
                 $antigo = $labels['prioridade'][$processo->getOriginal('prioridade')] ?? $processo->getOriginal('prioridade');
                 $novo = $labels['prioridade'][$processo->prioridade] ?? $processo->prioridade;
@@ -70,9 +70,7 @@ class Processo extends Model
                 ]);
             }
 
-            // 3. Monitora Prazo
             if ($processo->isDirty('prazo_estimado')) {
-                // Formata datas para d/m/Y para ficar legível
                 $antigo = $processo->getOriginal('prazo_estimado') ? Carbon::parse($processo->getOriginal('prazo_estimado'))->format('d/m/Y') : 'Não definido';
                 $novo = $processo->prazo_estimado ? Carbon::parse($processo->prazo_estimado)->format('d/m/Y') : 'Não definido';
 

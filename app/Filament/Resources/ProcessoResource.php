@@ -28,9 +28,19 @@ class ProcessoResource extends Resource
                         Forms\Components\Section::make('Dados do Processo')
                             ->schema([
                                 Forms\Components\TextInput::make('titulo')
-                                    ->label('Título do Serviço')
-                                    ->required()
-                                    ->columnSpanFull(),
+                                    ->label('Título/Identificação')
+                                    ->required(),
+
+                                Forms\Components\Select::make('tipo_servico')
+                                    ->label('Tipo de Serviço')
+                                    ->options([
+                                        Processo::TIPO_CHA => Processo::TIPO_CHA,
+                                        Processo::TIPO_TIE => Processo::TIPO_TIE,
+                                        Processo::TIPO_MOTO => Processo::TIPO_MOTO,
+                                        Processo::TIPO_DEFESA => Processo::TIPO_DEFESA,
+                                        Processo::TIPO_OUTROS => Processo::TIPO_OUTROS,
+                                    ])
+                                    ->required(),
 
                                 Forms\Components\Select::make('cliente_id')
                                     ->relationship('cliente', 'nome')
@@ -44,8 +54,7 @@ class ProcessoResource extends Resource
                                     ->label('Embarcação (Opcional)')
                                     ->options(function (Forms\Get $get) {
                                         $clienteId = $get('cliente_id');
-                                        if (!$clienteId)
-                                            return [];
+                                        if (!$clienteId) return [];
                                         return \App\Models\Embarcacao::where('cliente_id', $clienteId)
                                             ->pluck('nome_embarcacao', 'id');
                                     })
@@ -69,7 +78,7 @@ class ProcessoResource extends Resource
                                         'arquivado' => 'Arquivado',
                                     ])
                                     ->default('triagem')
-                                    ->required(), // A lógica de log automático no Model cuidará do registro
+                                    ->required(),
 
                                 Forms\Components\Select::make('prioridade')
                                     ->options([
@@ -81,11 +90,10 @@ class ProcessoResource extends Resource
                                     ->default('normal')
                                     ->required(),
 
-                                // ALTERAÇÃO 1: Formatação da data
                                 Forms\Components\DatePicker::make('prazo_estimado')
                                     ->label('Prazo Legal/Estimado')
-                                    ->displayFormat('d M, Y') // Exibe: 24 Jan, 2026
-                                    ->native(false), // Importante ser false para o displayFormat funcionar bem
+                                    ->displayFormat('d/m/Y')
+                                    ->native(false),
 
                                 Forms\Components\Hidden::make('user_id')
                                     ->default(auth()->id()),
@@ -99,10 +107,12 @@ class ProcessoResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('titulo')
+                Tables\Columns\TextColumn::make('tipo_servico')
+                    ->label('Serviço / Cliente')
                     ->searchable()
                     ->weight('bold')
-                    ->description(fn(Processo $record) => $record->cliente->nome),
+                    ->formatStateUsing(fn (Processo $record) => "{$record->tipo_servico} - {$record->cliente->nome}")
+                    ->description(fn (Processo $record) => $record->titulo),
 
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
@@ -138,23 +148,19 @@ class ProcessoResource extends Resource
                 Tables\Columns\TextColumn::make('prazo_estimado')
                     ->date('d/m/Y')
                     ->sortable()
-                    ->color(
-                        fn(Processo $record) =>
-                            // Se existe prazo, já passou de hoje (começo do dia) E não está finalizado:
-                        ($record->prazo_estimado && $record->prazo_estimado < now()->startOfDay() && !in_array($record->status, ['concluido', 'arquivado']))
-                        ? 'danger' // Fica Vermelho
-                        : 'gray'   // Fica Cinza (Padrão)
-                    )
-                    ->description(function (Processo $record) {
-                        if (!$record->prazo_estimado)
-                            return null;
-                        return $record->prazo_estimado->diffForHumans();
-                    }),
+                    ->color(fn(Processo $record) => ($record->prazo_estimado && $record->prazo_estimado < now()->startOfDay() && !in_array($record->status, ['concluido', 'arquivado'])) ? 'danger' : 'gray')
+                    ->description(fn(Processo $record) => $record->prazo_estimado?->diffForHumans()),
             ])
             ->defaultSort('created_at', 'desc')
-            // ALTERAÇÃO 2: Filtros Completos
             ->filters([
-                // Filtro de Status
+                Tables\Filters\SelectFilter::make('tipo_servico')
+                    ->label('Tipo de Serviço')
+                    ->options([
+                        Processo::TIPO_CHA => Processo::TIPO_CHA,
+                        Processo::TIPO_TIE => Processo::TIPO_TIE,
+                        Processo::TIPO_MOTO => Processo::TIPO_MOTO,
+                        Processo::TIPO_DEFESA => Processo::TIPO_DEFESA,
+                    ]),
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
                         'triagem' => 'Triagem',
@@ -164,31 +170,17 @@ class ProcessoResource extends Resource
                         'exigencia' => 'Com Exigência',
                         'concluido' => 'Concluído',
                     ]),
-
-                // Filtro de Prioridade
-                Tables\Filters\SelectFilter::make('prioridade')
-                    ->options([
-                        'normal' => 'Normal',
-                        'alta' => 'Alta',
-                        'urgente' => 'Urgente',
-                    ]),
-
-                // Filtro de Vencidos (Customizado)
-                Tables\Filters\Filter::make('vencidos')
-                    ->label('Apenas Vencidos')
-                    ->query(fn(Builder $query) => $query->whereDate('prazo_estimado', '<', now()))
-                    ->toggle(), // Aparece como um switch "On/Off"
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
             ]);
     }
 
-    // ... resto dos métodos (getRelations, getPages) iguais ...
     public static function getRelations(): array
     {
         return [RelationManagers\AndamentosRelationManager::class];
     }
+
     public static function getPages(): array
     {
         return [
