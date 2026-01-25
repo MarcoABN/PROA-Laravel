@@ -39,16 +39,21 @@
                 </h3>
 
                 <div class="grid grid-cols-1 gap-1.5">
-                    @foreach(['a', 'b', 'c', 'd'] as $letra)
+                    {{-- Alterado de ['a', 'b', 'c', 'd'] para incluir o 'e' --}}
+                    @foreach(['a', 'b', 'c', 'd', 'e'] as $letra)
                         @php $coluna = "alternativa_" . $letra; @endphp
-                        <button wire:click="responder({{ $q->id }}, '{{ $letra }}')" class="w-full text-left p-2.5 rounded-lg border text-sm transition-all
-                                        {{ ($respostasUsuario[$q->id] ?? null) === $letra ? 'border-slate-800 bg-slate-100 font-bold' : 'border-gray-100 hover:border-slate-300' }}
-                                        @if($modalidade === 'aprendizado' && isset($respostasUsuario[$q->id]))
-                                            {{ $letra === $q->resposta_correta ? 'border-green-500 bg-green-50 text-green-700' : '' }}
-                                            {{ $respostasUsuario[$q->id] === $letra && $letra !== $q->resposta_correta ? 'border-red-500 bg-red-50 text-red-700' : '' }}
-                                        @endif">
-                            <span class="uppercase">{{ $letra }})</span> {{ $q->$coluna }}
-                        </button>
+
+                        {{-- Verifica se a alternativa existe no objeto para evitar botões vazios --}}
+                        @if(!empty($q->$coluna))
+                            <button wire:click="responder({{ $q->id }}, '{{ $letra }}')" class="w-full text-left p-2.5 rounded-lg border text-sm transition-all
+                            {{ ($respostasUsuario[$q->id] ?? null) === $letra ? 'border-slate-800 bg-slate-100 font-bold' : 'border-gray-100 hover:border-slate-300' }}
+                            @if($modalidade === 'aprendizado' && isset($respostasUsuario[$q->id]))
+                                {{ $letra === $q->resposta_correta ? 'border-green-500 bg-green-50 text-green-700' : '' }}
+                                {{ $respostasUsuario[$q->id] === $letra && $letra !== $q->resposta_correta ? 'border-red-500 bg-red-50 text-red-700' : '' }}
+                            @endif">
+                                <span class="uppercase">{{ $letra }})</span> {{ $q->$coluna }}
+                            </button>
+                        @endif
                     @endforeach
                 </div>
 
