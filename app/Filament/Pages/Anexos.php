@@ -110,30 +110,34 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        // O emit() limpa o estado da notificação no backend antes do dispatch
                         ->close()
-                        ->dispatch('executarRegistroProcesso', [
-                            'tipo' => $tipoServico,
-                            'clienteId' => $clienteId,
-                            'embarcacaoId' => $embarcacaoId,
-                        ]),
+                        // Usamos uma Closure direta para evitar que o Livewire precise
+                        // disparar um evento global que cause o refresh indesejado.
+                        ->action(function () use ($tipoServico, $clienteId, $embarcacaoId) {
+                            $this->registrarProcesso($tipoServico, $clienteId, $embarcacaoId);
+                        }),
                     NotificationAction::make('cancelar')
                         ->label('Não')
                         ->color('gray')
                         ->close(),
                 ])
                 ->send();
-
-            // Forçamos o encerramento do processamento atual para que a notificação 
-            // não seja "memorizada" em loops de renderização do Livewire
-            return;
         }
     }
 
     public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null): void
     {
         try {
-            // Lógica de criação mantida
+            // Trava de segurança: Verifica novamente se o processo foi criado 
+            // nos últimos segundos para impedir o clique duplo de produção.
+            $jaCriado = Processo::where('cliente_id', $clienteId)
+                ->where('tipo_servico', $tipo)
+                ->where('created_at', '>=', now()->subSeconds(5))
+                ->exists();
+
+            if ($jaCriado)
+                return;
+
             $prazo = now()->addDays(45);
             $user = auth()->user();
 
@@ -151,28 +155,16 @@ class Anexos extends Page implements HasForms
             $processo->andamentos()->create([
                 'user_id' => $user->id,
                 'tipo' => 'movimentacao',
-                'descricao' => sprintf(
-                    "Processo de %s iniciado automaticamente por %s.",
-                    $tipo,
-                    $user->name
-                ),
+                'descricao' => "Processo iniciado automaticamente.",
             ]);
 
-            // Nova Notificação que substitui a anterior
             Notification::make()
                 ->success()
                 ->title('Processo e andamento registrados!')
                 ->send();
 
-            // Esta linha limpa todas as notificações persistentes do lado do cliente
-            // de forma agressiva para evitar o retorno da mensagem anterior
-            $this->dispatch('close-notifications');
-
-            // Força a UI a fechar notificações abertas via JS para evitar o "fantasma" do refresh
-            $this->js('document.querySelectorAll(".fi-no-notification button[aria-label=\"Close\"]").forEach(btn => btn.click())');
-
         } catch (\Exception $e) {
-            Notification::make()->danger()->title('Erro ao salvar')->body($e->getMessage())->send();
+            Notification::make()->danger()->title('Erro ao salvar')->send();
         }
     }
 
