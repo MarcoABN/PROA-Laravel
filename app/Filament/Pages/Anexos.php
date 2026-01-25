@@ -100,7 +100,7 @@ class Anexos extends Page implements HasForms
             ->exists();
 
         if (!$existe) {
-            Notification::make('aviso_registro_pendente') 
+            Notification::make('aviso_registro_pendente')
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
@@ -226,30 +226,91 @@ class Anexos extends Page implements HasForms
             });
     }
 
-    public function gerarAnexo3AClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo3A::class, 'Anexo 3A', Processo::TIPO_CHA); }
-    public function gerarAnexo3BClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo3B::class, 'Anexo 3B', Processo::TIPO_CHA); }
-    public function gerarAnexo5DClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo5D::class, 'Anexo 5D', Processo::TIPO_CHA); }
-    public function gerarAnexo5EClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo5E::class, 'Anexo 5E', Processo::TIPO_CHA); }
-    public function gerarAnexo5HClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo5H::class, 'Anexo 5H', Processo::TIPO_CHA); }
-    public function gerarAnexo2LClienteAction(): Action { return $this->criarBotaoAnexoCliente(Anexo2L::class, 'Anexo 2L', Processo::TIPO_CHA); }
+    public function gerarAnexo3AClienteAction(): Action
+    {
+        return $this->criarBotaoAnexoCliente(Anexo3A::class, 'Anexo 3A', Processo::TIPO_CHA);
+    }
+    public function gerarAnexo3BClienteAction(): Action
+    {
+        return $this->criarBotaoAnexoCliente(Anexo3B::class, 'Anexo 3B', Processo::TIPO_CHA);
+    }
+    public function gerarAnexo5DClienteAction(): Action
+    {
+        return $this->criarBotaoAnexoCliente(Anexo5D::class, 'Anexo 5D', Processo::TIPO_CHA);
+    }
+    public function gerarAnexo5EClienteAction(): Action
+    {
+        return $this->criarBotaoAnexoCliente(Anexo5E::class, 'Anexo 5E', Processo::TIPO_CHA);
+    }
+    public function gerarAnexo5HClienteAction(): Action
+    {
+        return $this->criarBotaoAnexoCliente(Anexo5H::class, 'Anexo 5H', Processo::TIPO_CHA);
+    }
+    public function gerarAnexo2LClienteAction(): Action
+    {
+        return $this->criarBotaoAnexoCliente(Anexo2L::class, 'Anexo 2L', Processo::TIPO_CHA);
+    }
 
-    public function gerarAnexo2DAction(): Action { return $this->criarBotaoAnexo(Anexo2D::class, 'Anexo 2D', Processo::TIPO_TIE, 'info'); }
-    public function gerarAnexo2EAction(): Action { return $this->criarBotaoAnexo(Anexo2E::class, 'Anexo 2E', Processo::TIPO_TIE, 'info'); }
-    public function gerarAnexo2JAction(): Action { return $this->criarBotaoAnexo(Anexo2J::class, 'Anexo 2J', Processo::TIPO_TIE, 'info'); }
-    public function gerarAnexo2KAction(): Action { return $this->criarBotaoAnexo(Anexo2K::class, 'Anexo 2K', Processo::TIPO_TIE, 'info'); }
-    public function gerarAnexo2LAction(): Action { return $this->criarBotaoAnexo(Anexo2L::class, 'Anexo 2L', Processo::TIPO_TIE, 'info'); }
-    public function gerarAnexo2MAction(): Action { return $this->criarBotaoAnexo(Anexo2M::class, 'Anexo 2M', Processo::TIPO_TIE, 'info'); }
-    public function gerarAnexo3CAction(): Action { return $this->criarBotaoAnexo(Anexo3C::class, 'Anexo 3C', Processo::TIPO_TIE, 'info'); }
-    public function gerarAnexo3DAction(): Action { return $this->criarBotaoAnexo(Anexo3D::class, 'Anexo 3D', Processo::TIPO_TIE, 'info'); }
+    public function gerarAnexo2DAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2D::class, 'Anexo 2D', Processo::TIPO_TIE, 'info');
+    }
+    public function gerarAnexo2EAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2E::class, 'Anexo 2E', Processo::TIPO_TIE, 'info');
+    }
+    public function gerarAnexo2JAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2J::class, 'Anexo 2J', Processo::TIPO_TIE, 'info');
+    }
+    public function gerarAnexo2KAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2K::class, 'Anexo 2K', Processo::TIPO_TIE, 'info');
+    }
+    public function gerarAnexo2LAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2L::class, 'Anexo 2L', Processo::TIPO_TIE, 'info');
+    }
+    public function gerarAnexo2MAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2M::class, 'Anexo 2M', Processo::TIPO_TIE, 'info');
+    }
+    public function gerarAnexo3CAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo3C::class, 'Anexo 3C', Processo::TIPO_TIE, 'info');
+    }
+    public function gerarAnexo3DAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo3D::class, 'Anexo 3D', Processo::TIPO_TIE, 'info');
+    }
 
-    public function gerarAnexo1CAction(): Action { return $this->criarBotaoAnexo(Anexo1C::class, 'Anexo 1C', Processo::TIPO_MOTO, 'warning'); }
-    public function gerarAnexo2AAction(): Action { return $this->criarBotaoAnexo(Anexo2A::class, 'Anexo 2A', Processo::TIPO_MOTO, 'warning'); }
-    public function gerarAnexo2BAction(): Action { return $this->criarBotaoAnexo(Anexo2B::class, 'Anexo 2B', Processo::TIPO_MOTO, 'warning'); }
-    public function gerarAnexo2D212Action(): Action { return $this->criarBotaoAnexo(Anexo2D212::class, 'Anexo 2D (212)', Processo::TIPO_MOTO, 'warning'); }
-    public function gerarAnexo2E212Action(): Action { return $this->criarBotaoAnexo(Anexo2E212::class, 'Anexo 2E (212)', Processo::TIPO_MOTO, 'warning'); }
-    public function gerarAnexo2F212Action(): Action { return $this->criarBotaoAnexo(Anexo2F212::class, 'Anexo 2F', Processo::TIPO_MOTO, 'warning'); }
+    public function gerarAnexo1CAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo1C::class, 'Anexo 1C', Processo::TIPO_MOTO, 'warning');
+    }
+    public function gerarAnexo2AAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2A::class, 'Anexo 2A', Processo::TIPO_MOTO, 'warning');
+    }
+    public function gerarAnexo2BAction(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2B::class, 'Anexo 2B', Processo::TIPO_MOTO, 'warning');
+    }
+    public function gerarAnexo2D212Action(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2D212::class, 'Anexo 2D (212)', Processo::TIPO_MOTO, 'warning');
+    }
+    public function gerarAnexo2E212Action(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2E212::class, 'Anexo 2E (212)', Processo::TIPO_MOTO, 'warning');
+    }
+    public function gerarAnexo2F212Action(): Action
+    {
+        return $this->criarBotaoAnexo(Anexo2F212::class, 'Anexo 2F', Processo::TIPO_MOTO, 'warning');
+    }
 
-    public function gerarProcuracaoClienteAction(): Action {
+    public function gerarProcuracaoClienteAction(): Action
+    {
         $anexo = new Procuracao();
         $classeUrl = str_replace('\\', '-', Procuracao::class);
         return Action::make('gerarProcuracaoCliente')
@@ -262,14 +323,16 @@ class Anexos extends Page implements HasForms
             });
     }
 
-    public function gerarProcuracao02Action(): Action {
+    public function gerarProcuracao02Action(): Action
+    {
         return Action::make('gerarProcuracao02')
             ->label('Representação')->icon('heroicon-o-document-text')->color('warning')
             ->disabled(fn() => empty($this->data['cliente_id']))
             ->action(fn(Anexos $livewire) => $livewire->js("window.open('" . route('clientes.procuracao', ['id' => $livewire->data['cliente_id'], 'embarcacao_id' => $livewire->data['embarcacao_id'] ?? 'null']) . "', '_blank');"));
     }
 
-    public function gerarDefesaInfracaoAction(): Action {
+    public function gerarDefesaInfracaoAction(): Action
+    {
         return Action::make('gerarDefesaInfracao')->label('Emitir')->modalHeading('Defesa de Infração')->icon('heroicon-o-shield-check')->color('danger')
             ->disabled(fn() => empty($this->data['cliente_id']))
             ->form([
