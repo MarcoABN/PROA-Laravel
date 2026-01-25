@@ -2,7 +2,7 @@
 
 namespace App\Filament\Pages;
 
-// Imports de Anexos preservados
+// Imports de Anexos - Todos Restaurados
 use App\Anexos\Anexo1C;
 use App\Anexos\Anexo2A;
 use App\Anexos\Anexo2B;
@@ -29,7 +29,6 @@ use App\Models\Cliente;
 use App\Models\Embarcacao;
 use App\Models\Capitania;
 use App\Models\Processo;
-use Cache;
 use Filament\Actions\Action;
 use Filament\Forms\Components\{Section, Select, Textarea, TextInput, DatePicker};
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -40,7 +39,6 @@ use Filament\Forms\Set;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use Filament\Notifications\Actions\Action as NotificationAction;
-use Illuminate\Support\Facades\DB;
 
 class Anexos extends Page implements HasForms
 {
@@ -96,23 +94,13 @@ class Anexos extends Page implements HasForms
 
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
-        // 1. Gera a chave de controle
-        $cacheKey = "criando_processo_" . md5($clienteId . $tipoServico);
-
-        // 2. Se a trava existe, significa que o clique "Sim" já foi processado e está rodando.
-        // Retornamos imediatamente para não exibir a mensagem novamente.
-        if (Cache::has($cacheKey)) {
-            return;
-        }
-
-        // 3. Verifica se já existe processo ativo
         $existe = Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
         if (!$existe) {
-            Notification::make('aviso_registro_pendente')
+            Notification::make()
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
@@ -132,112 +120,44 @@ class Anexos extends Page implements HasForms
                         ->label('Não')
                         ->color('gray')
                         ->close(),
-                ])
-                ->send();
+                ])->send();
         }
     }
 
-    // Listener chamado pelo dispatch 'executarRegistroProcesso'
-    public function executarRegistroProcesso(string $tipo, $clienteId, $embarcacaoId = null)
+    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null): void
     {
-        $this->registrarProcesso($tipo, $clienteId, $embarcacaoId);
-    }
-
-    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null)
-    {
-        // 1. TRAVA IMEDIATA: Define que este processo está sendo criado AGORA.
-        // Validade maior para lidar com latência em PROD.
-        $cacheKey = "criando_processo_" . md5($clienteId . $tipo);
-
-        // Se já tiver trava (outra chamada em andamento), não faz nada.
-        if (Cache::has($cacheKey)) {
-            return;
-        }
-
-        Cache::put($cacheKey, true, now()->addSeconds(30));
-
         try {
-            DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
+            $prazo = now()->addDays(45);
+            $user = auth()->user();
 
-                $existe = Processo::where('cliente_id', $clienteId)
-                    ->where('tipo_servico', $tipo)
-                    ->whereNotIn('status', ['concluido', 'arquivado'])
-                    ->lockForUpdate()
-                    ->exists();
+            $processo = Processo::create([
+                'cliente_id' => $clienteId,
+                'embarcacao_id' => $embarcacaoId,
+                'user_id' => $user->id,
+                'titulo' => "Cadastro automático",
+                'tipo_servico' => $tipo,
+                'status' => 'triagem',
+                'prioridade' => 'normal',
+                'prazo_estimado' => $prazo,
+            ]);
 
-                if ($existe) {
-                    return;
-                }
+            $processo->andamentos()->create([
+                'user_id' => $user->id,
+                'tipo' => 'movimentacao',
+                'descricao' => sprintf(
+                    "Processo de %s iniciado automaticamente por %s. Status inicial: Triagem. Prazo estimado: %s.",
+                    $tipo,
+                    $user->name,
+                    $prazo->format('d/m/Y')
+                ),
+            ]);
 
-                $user = auth()->user();
-
-                $processo = Processo::create([
-                    'cliente_id' => $clienteId,
-                    'embarcacao_id' => $embarcacaoId,
-                    'user_id' => $user->id,
-                    'titulo' => "Cadastro automático",
-                    'tipo_servico' => $tipo,
-                    'status' => 'triagem',
-                    'prioridade' => 'normal',
-                    'prazo_estimado' => now()->addDays(45),
-                ]);
-
-                $processo->andamentos()->create([
-                    'user_id' => $user->id,
-                    'tipo' => 'movimentacao',
-                    'descricao' => "Processo iniciado automaticamente.",
-                ]);
-            });
-
-            // 2. Limpa visualmente qualquer notificação pendente
-            $this->dispatch('close-notifications');
-
-            // 3. Agenda a confirmação após pequeno delay (commit + UI)
-            $embParam = $embarcacaoId ?? 'null';
-            $this->js("
-                setTimeout(() => {
-                    \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
-                }, 800);
-            ");
+            Notification::make()->success()->title('Processo e andamento registrados!')->send();
         } catch (\Exception $e) {
-            Cache::forget($cacheKey);
-
-            Notification::make()
-                ->danger()
-                ->title('Erro ao salvar: ' . $e->getMessage())
-                ->send();
+            Notification::make()->danger()->title('Erro ao salvar')->body($e->getMessage())->send();
         }
     }
 
-    public function confirmarEExibirSucesso($tipo, $clienteId, $embarcacaoId = null)
-    {
-        $processoExiste = Processo::where('cliente_id', $clienteId)
-            ->where('tipo_servico', $tipo)
-            ->whereNotIn('status', ['concluido', 'arquivado'])
-            ->exists();
-
-        $cacheKey = "criando_processo_" . md5($clienteId . $tipo);
-
-        if ($processoExiste) {
-            // Limpa a trava, pois o processo já existe oficialmente no banco
-            Cache::forget($cacheKey);
-
-            Notification::make()
-                ->success()
-                ->title('Processo e andamento registrados!')
-                ->send();
-        } else {
-            // Fallback simples: tenta de novo em 1s (latência)
-            $embParam = $embarcacaoId ?? 'null';
-            $this->js("
-                setTimeout(() => {
-                    \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
-                }, 1000);
-            ");
-        }
-    }
-
-    // Métodos auxiliares de criação de botões e Actions de anexos permanecem os mesmos
     private function criarBotaoAnexo(string $classeAnexo, string $tituloBotao, string $tipoServico, string $cor = 'primary'): Action
     {
         $anexo = new $classeAnexo();
@@ -275,6 +195,7 @@ class Anexos extends Page implements HasForms
             });
     }
 
+    // --- GRUPOS CHA, TIE, MOTOAQUÁTICA (MANTIDOS) ---
     public function gerarAnexo3AClienteAction(): Action
     {
         return $this->criarBotaoAnexoCliente(Anexo3A::class, 'Anexo 3A', Processo::TIPO_CHA);
@@ -299,7 +220,6 @@ class Anexos extends Page implements HasForms
     {
         return $this->criarBotaoAnexoCliente(Anexo2L::class, 'Anexo 2L', Processo::TIPO_CHA);
     }
-
     public function gerarAnexo2DAction(): Action
     {
         return $this->criarBotaoAnexo(Anexo2D::class, 'Anexo 2D', Processo::TIPO_TIE, 'info');
@@ -332,7 +252,6 @@ class Anexos extends Page implements HasForms
     {
         return $this->criarBotaoAnexo(Anexo3D::class, 'Anexo 3D', Processo::TIPO_TIE, 'info');
     }
-
     public function gerarAnexo1CAction(): Action
     {
         return $this->criarBotaoAnexo(Anexo1C::class, 'Anexo 1C', Processo::TIPO_MOTO, 'warning');
@@ -358,14 +277,18 @@ class Anexos extends Page implements HasForms
         return $this->criarBotaoAnexo(Anexo2F212::class, 'Anexo 2F', Processo::TIPO_MOTO, 'warning');
     }
 
+    // --- GRUPO: ADMINISTRATIVOS (Padronizados para Laranja / Representação) ---
     public function gerarProcuracaoClienteAction(): Action
     {
         $anexo = new Procuracao();
         $classeUrl = str_replace('\\', '-', Procuracao::class);
         return Action::make('gerarProcuracaoCliente')
-            ->label('Representação')->icon('heroicon-o-user')->color('warning')
+            ->label('Representação')
+            ->icon('heroicon-o-user')
+            ->color('danger') // Alterado para laranja
             ->disabled(fn() => empty($this->data['cliente_id']))
-            ->modalHeading($anexo->getTitulo())->form($anexo->getFormSchema())
+            ->modalHeading($anexo->getTitulo())
+            ->form($anexo->getFormSchema())
             ->action(function (array $data, Anexos $livewire) use ($classeUrl) {
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $livewire->data['cliente_id']]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
                 return $livewire->js("window.open('{$url}', '_blank');");
@@ -375,7 +298,9 @@ class Anexos extends Page implements HasForms
     public function gerarProcuracao02Action(): Action
     {
         return Action::make('gerarProcuracao02')
-            ->label('Representação')->icon('heroicon-o-document-text')->color('warning')
+            ->label('Representação') // Alterado para manter o padrão
+            ->icon('heroicon-o-document-text')
+            ->color('danger') // Alterado para laranja
             ->disabled(fn() => empty($this->data['cliente_id']))
             ->action(fn(Anexos $livewire) => $livewire->js("window.open('" . route('clientes.procuracao', ['id' => $livewire->data['cliente_id'], 'embarcacao_id' => $livewire->data['embarcacao_id'] ?? 'null']) . "', '_blank');"));
     }
