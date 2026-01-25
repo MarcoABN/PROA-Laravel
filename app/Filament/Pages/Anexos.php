@@ -94,14 +94,14 @@ class Anexos extends Page implements HasForms
 
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
-        // 1. BLINDAGEM VISUAL: Verifica se já estamos criando esse processo agora (nos últimos 15s)
-        $cacheKey = "criando_processo_{$clienteId}_" . \Illuminate\Support\Str::slug($tipoServico);
+        // Criamos uma chave de cache robusta usando MD5 para evitar erros de caracteres
+        $cacheKey = "processo_lock_" . md5($clienteId . $tipoServico);
 
+        // 1. PRIMEIRA BARREIRA: Se a flag existe, paramos aqui. Nenhuma mensagem aparece.
         if (cache()->has($cacheKey)) {
-            return; // Aborta! Já sabemos que está sendo criado, não exiba o alerta.
+            return;
         }
 
-        // 2. Verificação no Banco (Segue normal)
         $existe = \App\Models\Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
@@ -118,12 +118,17 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        ->close()
-                        ->dispatch('executarRegistroProcesso', [
-                            'tipo' => $tipoServico,
-                            'clienteId' => $clienteId,
-                            'embarcacaoId' => $embarcacaoId,
-                        ]),
+                        ->close() // Fecha visualmente
+                        // MUDANÇA CRUCIAL AQUI:
+                        // Usamos 'action' em vez de 'dispatch' para rodar código PHP imediatamente no clique
+                        ->action(function () use ($tipoServico, $clienteId, $embarcacaoId, $cacheKey) {
+
+                            // 2. TRAVA IMEDIATA: Bloqueia reexibição ANTES de tentar registrar
+                            cache()->put($cacheKey, true, now()->addSeconds(15));
+
+                            // Agora chamamos o registro diretamente
+                            $this->registrarProcesso($tipoServico, $clienteId, $embarcacaoId);
+                        }),
                     NotificationAction::make('cancelar')
                         ->label('Não')
                         ->color('gray')
@@ -135,15 +140,9 @@ class Anexos extends Page implements HasForms
 
     public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null)
     {
-        // 1. Cria a chave única para este cliente + serviço
-        $cacheKey = "criando_processo_{$clienteId}_" . \Illuminate\Support\Str::slug($tipo);
-
-        // 2. Define a flag no Cache por 15 segundos (tempo de sobra para o banco processar)
-        cache()->put($cacheKey, true, now()->addSeconds(15));
-
         try {
             \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
-                // Blindagem de concorrência com Lock (Mantém sua proteção de banco)
+                // Lock de Banco (Segurança Final contra duplicidade física)
                 $existe = \App\Models\Processo::where('cliente_id', $clienteId)
                     ->where('tipo_servico', $tipo)
                     ->whereNotIn('status', ['concluido', 'arquivado'])
@@ -173,17 +172,22 @@ class Anexos extends Page implements HasForms
                 ]);
             });
 
-            // 3. Estratégia de Desacoplamento via JS
+            // Força limpeza de qualquer notificação residual
+            $this->dispatch('close-notifications');
+
+            // Delay para garantir que a UI limpe antes de mostrar o sucesso
             $embParam = $embarcacaoId ?? 'null';
             $this->js("
             setTimeout(() => { 
                 \$wire.call('confirmarEExibirSucesso', '{$tipo}', {$clienteId}, {$embParam});
-            }, 800);
+            }, 600);
         ");
 
         } catch (\Exception $e) {
-            // Se der erro, removemos a flag para permitir tentar de novo
+            // Se der erro, liberamos a trava para tentar de novo
+            $cacheKey = "processo_lock_" . md5($clienteId . $tipo);
             cache()->forget($cacheKey);
+
             Notification::make()->danger()->title('Erro ao salvar')->send();
         }
     }
@@ -196,8 +200,8 @@ class Anexos extends Page implements HasForms
             ->exists();
 
         if ($processoExiste) {
-            // Limpa a flag de criação, pois o processo já nasceu oficialmente
-            $cacheKey = "criando_processo_{$clienteId}_" . \Illuminate\Support\Str::slug($tipo);
+            // Processo confirmado! Podemos remover a trava de segurança.
+            $cacheKey = "processo_lock_" . md5($clienteId . $tipo);
             cache()->forget($cacheKey);
 
             Notification::make()
