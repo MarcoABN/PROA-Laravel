@@ -12,14 +12,14 @@ class SimuladoNaval extends Component
     public $questoes = [];
     public $respostasUsuario = [];
     public $modalidade; // 'aprendizado' ou 'real'
-    public $tempoRestante = 3600; // 60 min
+    public $tempoRestante = 7200; // 2 horas
     public $finalizado = false;
     public $resultado = null;
 
     public function mount($modalidade = 'aprendizado')
     {
         $this->modalidade = $modalidade;
-        $this->tempoRestante = ($modalidade === 'real') ? 3600 : null; // 60 min apenas se real
+        $this->tempoRestante = ($modalidade === 'real') ? 7200 : null; // 60 min apenas se real
 
         $this->questoes = Questao::where('ativo', true)
             ->inRandomOrder()
