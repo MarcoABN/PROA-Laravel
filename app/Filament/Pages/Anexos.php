@@ -94,16 +94,14 @@ class Anexos extends Page implements HasForms
 
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
+        // Verificação inicial padrão
         $existe = Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
         if (!$existe) {
-            // Adicionar um identificador único para esta notificação
-            $notificationId = 'processo-nao-identificado-' . $clienteId . '-' . $tipoServico;
-
-            Notification::make($notificationId) // <- Adicionar ID específico
+            Notification::make()
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
@@ -113,40 +111,111 @@ class Anexos extends Page implements HasForms
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
+                        // 1. AÇÃO IMEDIATA: Fecha o componente visual no navegador
                         ->close()
-                        ->dispatch('executarRegistroProcesso', [
-                            'tipo' => $tipoServico,
-                            'clienteId' => $clienteId,
-                            'embarcacaoId' => $embarcacaoId,
-                            'notificationId' => $notificationId, // <- Passar o ID para remover
-                        ]),
+                        // 2. DISPARO SILENCIOSO: Inicia o processo no backend sem travar a UI
+                        ->action(function () use ($tipoServico, $clienteId, $embarcacaoId) {
+                            $this->iniciarRegistroSilencioso($tipoServico, $clienteId, $embarcacaoId);
+                        }),
                     NotificationAction::make('cancelar')
                         ->label('Não')
                         ->color('gray')
                         ->close(),
-                ])->send();
+                ])
+                ->send();
         }
     }
 
-    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null, $notificationId = null): void
+    public function iniciarRegistroSilencioso($tipo, $clienteId, $embarcacaoId = null)
     {
-        try {
-            // VERIFICAÇÃO DUPLICADA: Checar novamente antes de criar
-            $existeAgora = Processo::where('cliente_id', $clienteId)
+        // Usamos DB Transaction para garantir atomicidade
+        \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
+            // Double-check com Lock para evitar duplicidade real no banco
+            $existe = Processo::where('cliente_id', $clienteId)
                 ->where('tipo_servico', $tipo)
                 ->whereNotIn('status', ['concluido', 'arquivado'])
+                ->lockForUpdate()
                 ->exists();
 
-            if ($existeAgora) {
-                // Se já existe, apenas notificar e sair
-                Notification::make()
-                    ->info()
-                    ->title('Processo já existe')
-                    ->body('Um processo ativo já foi registrado anteriormente.')
-                    ->send();
-                return;
+            if ($existe) {
+                return; // Já foi criado, apenas sai
             }
 
+            $user = auth()->user();
+            $prazo = now()->addDays(45);
+
+            $processo = Processo::create([
+                'cliente_id' => $clienteId,
+                'embarcacao_id' => $embarcacaoId,
+                'user_id' => $user->id,
+                'titulo' => "Cadastro automático",
+                'tipo_servico' => $tipo,
+                'status' => 'triagem',
+                'prioridade' => 'normal',
+                'prazo_estimado' => $prazo,
+            ]);
+
+            $processo->andamentos()->create([
+                'user_id' => $user->id,
+                'tipo' => 'movimentacao',
+                'descricao' => "Processo iniciado automaticamente.",
+            ]);
+        });
+
+        // A MÁGICA: Em vez de notificar, mandamos o JS esperar e conferir.
+        // O '1' no final é o contador de tentativas.
+        $embParam = $embarcacaoId ?? 'null';
+        $this->js("
+        setTimeout(() => {
+            \$wire.verificarSucessoRegistro('{$tipo}', {$clienteId}, {$embParam}, 1);
+        }, 1000);
+    ");
+    }
+
+    public function verificarSucessoRegistro($tipo, $clienteId, $embarcacaoId, $tentativa = 1)
+    {
+        // Verifica se o processo consta no banco
+        $existe = Processo::where('cliente_id', $clienteId)
+            ->where('tipo_servico', $tipo)
+            ->whereNotIn('status', ['concluido', 'arquivado'])
+            ->exists();
+
+        if ($existe) {
+            // SUCESSO CONFIRMADO: Exibe a mensagem limpa e desacoplada
+            Notification::make()
+                ->success()
+                ->title('Processo e andamento registrados!')
+                ->send();
+
+            // Opcional: Atualiza a grid/form se necessário
+            $this->form->fill($this->data);
+
+        } else {
+            // AINDA NÃO EXISTE: Se tentou menos de 5 vezes, tenta de novo
+            if ($tentativa < 5) {
+                $proximaTentativa = $tentativa + 1;
+                $embParam = $embarcacaoId ?? 'null';
+
+                // Reagendar a si mesmo para daqui a 1 segundo
+                $this->js("
+                setTimeout(() => {
+                    \$wire.verificarSucessoRegistro('{$tipo}', {$clienteId}, {$embParam}, {$proximaTentativa});
+                }, 1000);
+            ");
+            } else {
+                // FALHA APÓS 5 SEGUNDOS: Avisa o usuário que algo deu errado
+                Notification::make()
+                    ->danger()
+                    ->title('Tempo limite excedido')
+                    ->body('O registro foi enviado, mas não houve confirmação do banco. Verifique na lista de processos.')
+                    ->send();
+            }
+        }
+    }
+
+    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null): void
+    {
+        try {
             $prazo = now()->addDays(45);
             $user = auth()->user();
 
@@ -171,11 +240,6 @@ class Anexos extends Page implements HasForms
                     $prazo->format('d/m/Y')
                 ),
             ]);
-
-            // Remover a notificação específica se o ID foi fornecido
-            if ($notificationId) {
-                Notification::make($notificationId)->dismiss();
-            }
 
             Notification::make()->success()->title('Processo e andamento registrados!')->send();
         } catch (\Exception $e) {
