@@ -2,7 +2,7 @@
 
 namespace App\Filament\Pages;
 
-// Imports de Anexos - Todos Restaurados
+// Imports de Anexos
 use App\Anexos\Anexo1C;
 use App\Anexos\Anexo2A;
 use App\Anexos\Anexo2B;
@@ -52,10 +52,10 @@ class Anexos extends Page implements HasForms
 
     public ?array $data = [];
 
-    // No início da classe Anexos
+    // LISTENERS ATUALIZADOS: Inclui o validador de sucesso
     protected $listeners = [
         'executarRegistroProcesso' => 'registrarProcesso',
-        'validarSucessoRegistro' => 'validarSucessoRegistro' // Novo listener para o loop de conferência
+        'validarSucessoRegistro' => 'validarSucessoRegistro'
     ];
 
     public function mount(): void
@@ -96,12 +96,25 @@ class Anexos extends Page implements HasForms
             ]);
     }
 
+    // --- LÓGICA DE CORREÇÃO (INÍCIO) ---
+
+    /**
+     * Gera uma chave única para controle de cache/bloqueio
+     */
+    private function getCacheKey(string $tipo, $clienteId): string
+    {
+        return "lock_criacao_" . md5("{$clienteId}_{$tipo}");
+    }
+
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
-        // 1. SILENCIADOR: Verifica se já mandamos criar esse processo nos últimos 30 segundos
-        $cacheKey = "criando_proc_" . md5($clienteId . $tipoServico);
+        // 1. SILENCIADOR: Verifica se já mandamos criar esse processo recentemente.
+        // Se existir a chave no cache, retornamos IMEDIATAMENTE.
+        // Isso impede que a mensagem "Processo não identificado" apareça enquanto o banco processa.
+        $cacheKey = $this->getCacheKey($tipoServico, $clienteId);
+        
         if (cache()->has($cacheKey)) {
-            return; // Aborta silenciosamente. O processo está sendo criado, não incomode o usuário.
+            return; 
         }
 
         $existe = Processo::where('cliente_id', $clienteId)
@@ -121,7 +134,7 @@ class Anexos extends Page implements HasForms
                         ->button()
                         ->color('success')
                         ->close() // Fecha visualmente na hora
-                        // Dispara o evento que será capturado pelo listener
+                        // Dispara o evento para iniciar o registro
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -131,118 +144,31 @@ class Anexos extends Page implements HasForms
                         ->label('Não')
                         ->color('gray')
                         ->close(),
-                ])
-                ->send();
+                ])->send();
         }
     }
 
-    public function iniciarRegistroSilencioso($tipo, $clienteId, $embarcacaoId = null)
+    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null): void
     {
-        // Usamos DB Transaction para garantir atomicidade
-        \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
-            // Double-check com Lock para evitar duplicidade real no banco
-            $existe = Processo::where('cliente_id', $clienteId)
-                ->where('tipo_servico', $tipo)
-                ->whereNotIn('status', ['concluido', 'arquivado'])
-                ->lockForUpdate()
-                ->exists();
-
-            if ($existe) {
-                return; // Já foi criado, apenas sai
-            }
-
-            $user = auth()->user();
-            $prazo = now()->addDays(45);
-
-            $processo = Processo::create([
-                'cliente_id' => $clienteId,
-                'embarcacao_id' => $embarcacaoId,
-                'user_id' => $user->id,
-                'titulo' => "Cadastro automático",
-                'tipo_servico' => $tipo,
-                'status' => 'triagem',
-                'prioridade' => 'normal',
-                'prazo_estimado' => $prazo,
-            ]);
-
-            $processo->andamentos()->create([
-                'user_id' => $user->id,
-                'tipo' => 'movimentacao',
-                'descricao' => "Processo iniciado automaticamente.",
-            ]);
-        });
-
-        // A MÁGICA: Em vez de notificar, mandamos o JS esperar e conferir.
-        // O '1' no final é o contador de tentativas.
-        $embParam = $embarcacaoId ?? 'null';
-        $this->js("
-        setTimeout(() => {
-            \$wire.verificarSucessoRegistro('{$tipo}', {$clienteId}, {$embParam}, 1);
-        }, 1000);
-    ");
-    }
-
-    public function verificarSucessoRegistro($tipo, $clienteId, $embarcacaoId, $tentativa = 1)
-    {
-        // Verifica se o processo consta no banco
-        $existe = Processo::where('cliente_id', $clienteId)
-            ->where('tipo_servico', $tipo)
-            ->whereNotIn('status', ['concluido', 'arquivado'])
-            ->exists();
-
-        if ($existe) {
-            // SUCESSO CONFIRMADO: Exibe a mensagem limpa e desacoplada
-            Notification::make()
-                ->success()
-                ->title('Processo e andamento registrados!')
-                ->send();
-
-            // Opcional: Atualiza a grid/form se necessário
-            $this->form->fill($this->data);
-
-        } else {
-            // AINDA NÃO EXISTE: Se tentou menos de 5 vezes, tenta de novo
-            if ($tentativa < 5) {
-                $proximaTentativa = $tentativa + 1;
-                $embParam = $embarcacaoId ?? 'null';
-
-                // Reagendar a si mesmo para daqui a 1 segundo
-                $this->js("
-                setTimeout(() => {
-                    \$wire.verificarSucessoRegistro('{$tipo}', {$clienteId}, {$embParam}, {$proximaTentativa});
-                }, 1000);
-            ");
-            } else {
-                // FALHA APÓS 5 SEGUNDOS: Avisa o usuário que algo deu errado
-                Notification::make()
-                    ->danger()
-                    ->title('Tempo limite excedido')
-                    ->body('O registro foi enviado, mas não houve confirmação do banco. Verifique na lista de processos.')
-                    ->send();
-            }
-        }
-    }
-
-    public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null)
-    {
-        // 1. ATIVA O SILENCIADOR: Impede que a mensagem de "Não identificado" volte a aparecer
-        $cacheKey = "criando_proc_" . md5($clienteId . $tipo);
-        cache()->put($cacheKey, true, now()->addSeconds(30));
+        // 2. ATIVAR BLOQUEIO: Define a flag no cache antes de qualquer coisa.
+        // Isso garante que se a tela atualizar, o método acima (verificarOuCriarProcesso) ficará em silêncio.
+        $cacheKey = $this->getCacheKey($tipo, $clienteId);
+        cache()->put($cacheKey, true, now()->addSeconds(60));
 
         try {
-            // Transação para criação segura
             \Illuminate\Support\Facades\DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId) {
-                // Verifica duplicidade real no banco
+                // Lock for Update para evitar duplicidade física no banco
                 $existe = Processo::where('cliente_id', $clienteId)
                     ->where('tipo_servico', $tipo)
                     ->whereNotIn('status', ['concluido', 'arquivado'])
                     ->lockForUpdate()
                     ->exists();
 
-                if ($existe)
-                    return;
+                if ($existe) return;
 
+                $prazo = now()->addDays(45);
                 $user = auth()->user();
+
                 $processo = Processo::create([
                     'cliente_id' => $clienteId,
                     'embarcacao_id' => $embarcacaoId,
@@ -251,38 +177,45 @@ class Anexos extends Page implements HasForms
                     'tipo_servico' => $tipo,
                     'status' => 'triagem',
                     'prioridade' => 'normal',
-                    'prazo_estimado' => now()->addDays(45),
+                    'prazo_estimado' => $prazo,
                 ]);
 
                 $processo->andamentos()->create([
                     'user_id' => $user->id,
                     'tipo' => 'movimentacao',
-                    'descricao' => "Processo iniciado automaticamente.",
+                    'descricao' => sprintf(
+                        "Processo de %s iniciado automaticamente por %s. Status inicial: Triagem. Prazo estimado: %s.",
+                        $tipo,
+                        $user->name,
+                        $prazo->format('d/m/Y')
+                    ),
                 ]);
             });
 
-            // 2. INICIA A CONFERÊNCIA (POLLING)
-            // Dispara o JS para conferir se deu certo daqui a 1 segundo.
-            // O dispatch aqui garante que o Livewire processe o JS corretamente.
+            // 3. INICIA O POLLING:
+            // Dispara JS para conferir o sucesso após 1 segundo.
             $embParam = $embarcacaoId ?? 'null';
             $this->js("
-            setTimeout(() => {
-                Livewire.dispatch('validarSucessoRegistro', { 
-                    tipo: '{$tipo}', 
-                    clienteId: {$clienteId}, 
-                    embarcacaoId: {$embParam},
-                    tentativa: 1
-                });
-            }, 1000);
-        ");
+                setTimeout(() => {
+                    Livewire.dispatch('validarSucessoRegistro', { 
+                        tipo: '{$tipo}', 
+                        clienteId: {$clienteId}, 
+                        embarcacaoId: {$embParam},
+                        tentativa: 1
+                    });
+                }, 1000);
+            ");
 
         } catch (\Exception $e) {
-            // Se der erro, limpamos o cache para permitir tentar de novo
+            // Em caso de erro, liberamos o bloqueio para permitir nova tentativa
             cache()->forget($cacheKey);
-            Notification::make()->danger()->title('Erro ao salvar')->send();
+            Notification::make()->danger()->title('Erro ao salvar')->body($e->getMessage())->send();
         }
     }
 
+    /**
+     * Método chamado periodicamente pelo JS para verificar se o registro concluiu.
+     */
     public function validarSucessoRegistro($tipo, $clienteId, $embarcacaoId, $tentativa = 1)
     {
         $existe = Processo::where('cliente_id', $clienteId)
@@ -291,9 +224,9 @@ class Anexos extends Page implements HasForms
             ->exists();
 
         if ($existe) {
-            // SUCESSO!
-            // Limpamos o silenciador pois o processo já existe "oficialmente"
-            $cacheKey = "criando_proc_" . md5($clienteId . $tipo);
+            // SUCESSO CONFIRMADO!
+            // Removemos o bloqueio de cache para manter o sistema limpo
+            $cacheKey = $this->getCacheKey($tipo, $clienteId);
             cache()->forget($cacheKey);
 
             Notification::make()
@@ -301,28 +234,35 @@ class Anexos extends Page implements HasForms
                 ->title('Processo e andamento registrados!')
                 ->send();
         } else {
-            // AINDA NÃO EXISTE (Delay de Banco/Rede)
-            // Se tentou menos de 5 vezes, tenta de novo em 1s
+            // AINDA NÃO EXISTE (Latência): Tenta novamente
             if ($tentativa <= 5) {
                 $prox = $tentativa + 1;
                 $embParam = $embarcacaoId ?? 'null';
                 $this->js("
-                setTimeout(() => {
-                    Livewire.dispatch('validarSucessoRegistro', { 
-                        tipo: '{$tipo}', 
-                        clienteId: {$clienteId}, 
-                        embarcacaoId: {$embParam},
-                        tentativa: {$prox}
-                    });
-                }, 1000);
-            ");
+                    setTimeout(() => {
+                        Livewire.dispatch('validarSucessoRegistro', { 
+                            tipo: '{$tipo}', 
+                            clienteId: {$clienteId}, 
+                            embarcacaoId: {$embParam},
+                            tentativa: {$prox}
+                        });
+                    }, 1000);
+                ");
             } else {
-                // Tempo esgotado
-                cache()->forget("criando_proc_" . md5($clienteId . $tipo));
-                Notification::make()->warning()->title('O registro foi enviado, mas ainda não apareceu. Atualize a página.')->send();
+                // TIMEOUT: Libera o cache e avisa
+                $cacheKey = $this->getCacheKey($tipo, $clienteId);
+                cache()->forget($cacheKey);
+                
+                Notification::make()
+                    ->warning()
+                    ->title('Aguardando sincronização...')
+                    ->body('O registro foi enviado. Verifique a lista de processos em instantes.')
+                    ->send();
             }
         }
     }
+
+    // --- LÓGICA DE CORREÇÃO (FIM) ---
 
     private function criarBotaoAnexo(string $classeAnexo, string $tituloBotao, string $tipoServico, string $cor = 'primary'): Action
     {
@@ -443,7 +383,7 @@ class Anexos extends Page implements HasForms
         return $this->criarBotaoAnexo(Anexo2F212::class, 'Anexo 2F', Processo::TIPO_MOTO, 'warning');
     }
 
-    // --- GRUPO: ADMINISTRATIVOS (Padronizados para Laranja / Representação) ---
+    // --- GRUPO: ADMINISTRATIVOS ---
     public function gerarProcuracaoClienteAction(): Action
     {
         $anexo = new Procuracao();
@@ -451,7 +391,7 @@ class Anexos extends Page implements HasForms
         return Action::make('gerarProcuracaoCliente')
             ->label('Representação')
             ->icon('heroicon-o-user')
-            ->color('danger') // Alterado para laranja
+            ->color('danger')
             ->disabled(fn() => empty($this->data['cliente_id']))
             ->modalHeading($anexo->getTitulo())
             ->form($anexo->getFormSchema())
@@ -464,9 +404,9 @@ class Anexos extends Page implements HasForms
     public function gerarProcuracao02Action(): Action
     {
         return Action::make('gerarProcuracao02')
-            ->label('Representação') // Alterado para manter o padrão
+            ->label('Representação')
             ->icon('heroicon-o-document-text')
-            ->color('danger') // Alterado para laranja
+            ->color('danger')
             ->disabled(fn() => empty($this->data['cliente_id']))
             ->action(fn(Anexos $livewire) => $livewire->js("window.open('" . route('clientes.procuracao', ['id' => $livewire->data['cliente_id'], 'embarcacao_id' => $livewire->data['embarcacao_id'] ?? 'null']) . "', '_blank');"));
     }
