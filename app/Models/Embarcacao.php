@@ -11,7 +11,7 @@ class Embarcacao extends Model
 {
     // Liberar mass assignment (Segurança)
     protected $guarded = [];
-    
+
     // Define o nome da tabela no plural correto (opcional, mas bom garantir)
     protected $table = 'embarcacoes';
 
@@ -31,5 +31,12 @@ class Embarcacao extends Model
     public function notaFiscal(): HasOne
     {
         return $this->hasOne(NotaFiscal::class);
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'potencia_motor' => 'integer',
+        ];
     }
 }

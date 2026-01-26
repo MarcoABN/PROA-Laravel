@@ -13,4 +13,11 @@ class Motor extends Model
     {
         return $this->belongsTo(Embarcacao::class);
     }
+
+    protected function casts(): array
+    {
+        return [
+            'potencia' => 'integer',
+        ];
+    }
 }
