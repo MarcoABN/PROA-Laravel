@@ -62,3 +62,7 @@ Route::get('/gerar-sitemap', function () {
     return 'Sitemap gerado com sucesso!';
 });
 */
+
+Route::get('/googlefab17170d240591b.html', function () {
+    return 'google-site-verification: googlefab17170d240591b.html';
+});
