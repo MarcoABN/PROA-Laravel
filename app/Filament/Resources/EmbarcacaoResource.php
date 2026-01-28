@@ -12,8 +12,8 @@ use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Support\HtmlString; // Importante para o ícone de loading
-use Illuminate\Support\Facades\Http; // Importante para a API do ViaCEP
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Facades\Http;
 
 class EmbarcacaoResource extends Resource
 {
@@ -25,7 +25,6 @@ class EmbarcacaoResource extends Resource
     protected static ?string $pluralModelLabel = 'Embarcações';
     protected static ?string $navigationLabel = 'Embarcações';
     protected static ?string $navigationIcon = 'heroicon-o-lifebuoy';
-    //protected static ?string $navigationLabel = 'Embarcações';
 
     public static function form(Form $form): Form
     {
@@ -42,7 +41,6 @@ class EmbarcacaoResource extends Resource
                             ->required()
                             ->live()
                             ->afterStateUpdated(function ($state, Set $set) {
-                                // Ao selecionar cliente, copia o endereço dele para a embarcação
                                 if ($cliente = Cliente::find($state)) {
                                     $set('cep', $cliente->cep);
                                     $set('logradouro', $cliente->logradouro);
@@ -59,7 +57,6 @@ class EmbarcacaoResource extends Resource
                 Forms\Components\Section::make('Detalhes da Embarcação')
                     ->columns(2)
                     ->schema([
-                        // CORREÇÃO 1: Removido required e adicionado placeholder
                         Forms\Components\TextInput::make('nome_embarcacao')
                             ->label('Nome da Embarcação')
                             ->placeholder('Caso não tenha nome, deixe em branco'),
@@ -67,15 +64,20 @@ class EmbarcacaoResource extends Resource
                         Forms\Components\TextInput::make('num_casco')->label('Número do Casco'),
                         Forms\Components\TextInput::make('num_inscricao')->label('Inscrição'),
 
-                        Forms\Components\Select::make('tipo_embarcacao')
-                            ->options([
-                                'MOTOAQUÁTICA' => 'MOTOAQUÁTICA',
-                                'LANCHA' => 'LANCHA',
-                                'VELEIRO' => 'VELEIRO',
-                                'IATE' => 'IATE',
-                                'CATAMARÃ' => 'CATAMARÃ',
+                        // ALTERAÇÃO AQUI: De Select para TextInput com Datalist
+                        Forms\Components\TextInput::make('tipo_embarcacao')
+                            ->label('Tipo de Embarcação')
+                            ->placeholder('Selecione ou digite...')
+                            ->datalist([
+                                'MOTOAQUÁTICA',
+                                'CANOA',
+                                'CHATA',
+                                'SEMI-CHATA',
+                                'FLUTUANTE',
+                                'LANCHA',
+                                'VELEIRO',
+                                'CATAMARÃ',
                             ])
-                            ->searchable()
                             ->required(),
 
                         Forms\Components\Select::make('tipo_atividade')
@@ -93,7 +95,7 @@ class EmbarcacaoResource extends Resource
 
                 // --- SEÇÃO 3: CARACTERÍSTICAS TÉCNICAS ---
                 Forms\Components\Section::make('Características e Medidas')
-                    ->collapsible() // CORREÇÃO 2: Permite fechar, mas começa aberto
+                    ->collapsible()
                     ->columns(3)
                     ->schema([
                         Forms\Components\TextInput::make('comp_total')->numeric()->label('Comp. Total'),
@@ -117,7 +119,6 @@ class EmbarcacaoResource extends Resource
                         Forms\Components\TextInput::make('cep')
                             ->mask('99999-999')
                             ->live(onBlur: true)
-                            // CORREÇÃO 3: Visual de Loading igual ao ClienteResource
                             ->helperText(new HtmlString('
                                 <div wire:loading wire:target="data.cep" class="text-primary-500 text-sm font-bold flex items-center gap-2 mt-1">
                                     <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -128,17 +129,10 @@ class EmbarcacaoResource extends Resource
                                 </div>
                             '))
                             ->afterStateUpdated(function ($state, Set $set) {
-                                if (!$state)
-                                    return;
-
-                                // Remove formatação para enviar para a API
+                                if (!$state) return;
                                 $cep = preg_replace('/[^0-9]/', '', $state);
-
-                                if (strlen($cep) !== 8)
-                                    return;
-
+                                if (strlen($cep) !== 8) return;
                                 $response = Http::get("https://viacep.com.br/ws/{$cep}/json/")->json();
-
                                 if (!isset($response['erro'])) {
                                     $set('logradouro', $response['logradouro'] ?? null);
                                     $set('bairro', $response['bairro'] ?? null);
@@ -167,7 +161,7 @@ class EmbarcacaoResource extends Resource
                             ])
                             ->columns(3)
                             ->addActionLabel('Adicionar Motor')
-                            ->defaultItems(0), // CORREÇÃO 4: Removemos o optional() que causava erro
+                            ->defaultItems(0),
                     ]),
 
                 // --- SEÇÃO 6: NOTA FISCAL ---
@@ -199,19 +193,16 @@ class EmbarcacaoResource extends Resource
                 Tables\Columns\TextColumn::make('nome_embarcacao')
                     ->searchable()
                     ->sortable()
-                    ->placeholder('Nome não informado'), // Visual na tabela quando vazio
+                    ->placeholder('Nome não informado'),
 
                 Tables\Columns\TextColumn::make('cliente.nome')
                     ->label('Proprietário')
                     ->searchable(query: function ($query, string $search) {
-                        // Limpa pontuação para pesquisar CPF mesmo se o usuário digitar pontos
                         $searchNumeros = preg_replace('/[^0-9]/', '', $search);
-
-                        // Busca dentro do relacionamento 'cliente'
                         $query->whereHas('cliente', function ($q) use ($search, $searchNumeros) {
-                            $q->where('nome', 'ilike', "%{$search}%") // Busca por Nome (Insensitive)
-                                ->orWhere('cpfcnpj', 'like', "%{$search}%") // Busca CPF exato digitado
-                                ->orWhere('cpfcnpj', 'like', "%{$searchNumeros}%"); // Busca CPF apenas números
+                            $q->where('nome', 'ilike', "%{$search}%")
+                                ->orWhere('cpfcnpj', 'like', "%{$search}%")
+                                ->orWhere('cpfcnpj', 'like', "%{$searchNumeros}%");
                         });
                     }),
                 Tables\Columns\TextColumn::make('tipo_embarcacao'),
