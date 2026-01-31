@@ -129,44 +129,41 @@ class Anexos extends Page implements HasForms
      */
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
-        // Geração de chaves únicas
+        // 1. Definição das chaves
         $checkKey = md5("check_{$clienteId}_{$tipoServico}");
-        $shownKey = "shown_{$checkKey}"; // Chave para impedir duplicidade visual imediata
-        $ignoreKey = "ignore_{$checkKey}"; // Chave para ignorar permanentemente
-
-        // 1. VERIFICAÇÕES DE BLOQUEIO (Cache e Estado)
-
-        // Se o usuário já clicou em "Não" anteriormente (no cache ou na sessão atual)
-        if (in_array($checkKey, $this->checksIgnored) || Cache::has($ignoreKey)) {
+        $shownKey = "shown_{$checkKey}"; // Trava de 15s (Duplicidade imediata)
+        
+        // 2. VERIFICAÇÃO ROBUSTA (SESSÃO + CACHE)
+        
+        // Verifica na SESSÃO se o usuário já disse "Não" para este caso.
+        // A sessão persiste mesmo se o componente der erro ou recarregar.
+        $ignorados = session()->get('anexos_ignored_checks', []);
+        if (in_array($checkKey, $ignorados)) {
             return;
         }
 
-        // BLOQUEIO DE DUPLICIDADE: 
-        // Se já mostramos esse balão nos últimos 15 segundos, não mostre de novo.
-        // Isso resolve o problema dele fechar e reaparecer sozinho.
+        // Verifica o CACHE para impedir que o balão apareça 2x seguidas em milissegundos
         if (Cache::has($shownKey)) {
             return;
         }
 
-        // 2. VERIFICAÇÃO NO BANCO
+        // 3. Verifica no banco de dados
         $existe = Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
-        // 3. ENVIO DA NOTIFICAÇÃO
+        // 4. Se não existe processo, exibe notificação
         if (!$existe) {
-
-            // TRAVA IMEDIATA: Marca que este balão acabou de ser exibido.
-            // Validade: 15 segundos (tempo suficiente para evitar o duplo disparo).
+            
+            // Grava no Cache que acabamos de mostrar (trava visual de 15s)
             Cache::put($shownKey, true, 15);
 
             Notification::make("notif_{$checkKey}")
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
-                // CORREÇÃO DE TEMPO: 10 segundos e some (removemos o persistent)
-                ->duration(10000)
+                ->duration(10000) // Some em 10s automaticamente
                 ->actions([
                     NotificationAction::make('confirmar')
                         ->label('Sim, registrar')
@@ -179,16 +176,15 @@ class Anexos extends Page implements HasForms
                             'embarcacaoId' => $embarcacaoId,
                             'checkKey' => $checkKey,
                         ]),
-
+                    
                     NotificationAction::make('cancelar')
                         ->label('Não')
                         ->color('gray')
-                        // 1. Fecha visualmente na hora (Client-side)
-                        ->close()
-                        // 2. Avisa o servidor para nunca mais mostrar para este cliente/serviço (Server-side)
-                        ->action(function () use ($checkKey, $ignoreKey) {
-                            $this->checksIgnored[] = $checkKey;
-                            Cache::put($ignoreKey, true, now()->addMinutes(30)); // Ignora por 30 minutos
+                        ->close() // Fecha visualmente na hora (Client-side)
+                        ->action(function () use ($checkKey) {
+                            // CORREÇÃO CRÍTICA:
+                            // Salvamos na SESSÃO do Laravel, não na memória do componente.
+                            session()->push('anexos_ignored_checks', $checkKey);
                         }),
                 ])
                 ->send();
