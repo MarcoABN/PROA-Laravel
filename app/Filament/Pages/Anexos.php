@@ -56,10 +56,8 @@ class Anexos extends Page implements HasForms
 
     public ?array $data = [];
 
-    /**
-     * Armazena chaves de verificações que já foram processadas (Sim ou Não).
-     * Isso impede que a mensagem reapareça após a ação do usuário no refresh do Livewire.
-     */
+    // Array local mantido apenas para referência intra-request, 
+    // a persistência real agora é feita via Session.
     public array $checksIgnored = [];
 
     protected $listeners = ['executarRegistroProcesso' => 'registrarProcesso'];
@@ -81,22 +79,16 @@ class Anexos extends Page implements HasForms
                             ->getSearchResultsUsing(function (string $search) {
                                 $numbers = preg_replace('/[^0-9]/', '', $search);
 
-                                // Otimização: Se a busca for curta e sem números, retorna vazio para não sobrecarregar
                                 if (strlen($search) < 3 && empty($numbers)) {
                                     return [];
                                 }
 
                                 return Cliente::query()
                                     ->where(function (Builder $query) use ($search, $numbers) {
-                                        // 1. Busca por Nome (Case Insensitive - PostgreSQL)
                                         if (strlen($search) >= 3) {
                                             $query->where('nome', 'ilike', "%{$search}%");
                                         }
-
-                                        // 2. Busca por CPF/CNPJ (Ignorando formatação do banco)
                                         if (!empty($numbers)) {
-                                            // Usa OR para somar aos resultados de nome (se houver)
-                                            // REGEXP_REPLACE remove caracteres não numéricos do campo do banco
                                             $query->orWhereRaw("REGEXP_REPLACE(cpfcnpj, '[^0-9]', '', 'g') LIKE ?", ["%{$numbers}%"]);
                                         }
                                     })
@@ -109,8 +101,6 @@ class Anexos extends Page implements HasForms
                             ->live()
                             ->afterStateUpdated(function (Set $set) {
                                 $set('embarcacao_id', null);
-                                // Opcional: Se quiser resetar a memória ao mudar de cliente, descomente abaixo:
-                                // $this->checksIgnored = []; 
                             }),
 
                         Select::make('embarcacao_id')
@@ -125,51 +115,47 @@ class Anexos extends Page implements HasForms
     }
 
     /**
-     * Verifica a existência do processo com feedback visual instantâneo.
+     * Verifica a existência do processo com blindagem contra falhas de conexão/componente.
      */
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
-        // 1. Definição das chaves
         $checkKey = md5("check_{$clienteId}_{$tipoServico}");
-        $shownKey = "shown_{$checkKey}"; // Trava de 15s (Duplicidade imediata)
-        
-        // 2. VERIFICAÇÃO ROBUSTA (SESSÃO + CACHE)
-        
-        // Verifica na SESSÃO se o usuário já disse "Não" para este caso.
-        // A sessão persiste mesmo se o componente der erro ou recarregar.
+        $shownKey = "shown_{$checkKey}";
+
+        // 1. BLINDAGEM DE SESSÃO: 
+        // Verifica se o usuário já ignorou isso anteriormente. 
+        // A sessão persiste mesmo se o componente crashar no front-end.
         $ignorados = session()->get('anexos_ignored_checks', []);
         if (in_array($checkKey, $ignorados)) {
             return;
         }
 
-        // Verifica o CACHE para impedir que o balão apareça 2x seguidas em milissegundos
+        // 2. BLINDAGEM DE CACHE (Throttling):
+        // Impede que o balão apareça 2x seguidas em menos de 15 segundos.
         if (Cache::has($shownKey)) {
             return;
         }
 
-        // 3. Verifica no banco de dados
         $existe = Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
-        // 4. Se não existe processo, exibe notificação
         if (!$existe) {
-            
-            // Grava no Cache que acabamos de mostrar (trava visual de 15s)
+            // Marca no cache que acabamos de mostrar (trava visual)
             Cache::put($shownKey, true, 15);
 
             Notification::make("notif_{$checkKey}")
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
-                ->duration(10000) // Some em 10s automaticamente
+                ->duration(10000) // Fecha automaticamente em 10s
                 ->actions([
                     NotificationAction::make('confirmar')
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        ->close()
+                        ->close() // Fecha visualmente na hora
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -182,8 +168,7 @@ class Anexos extends Page implements HasForms
                         ->color('gray')
                         ->close() // Fecha visualmente na hora (Client-side)
                         ->action(function () use ($checkKey) {
-                            // CORREÇÃO CRÍTICA:
-                            // Salvamos na SESSÃO do Laravel, não na memória do componente.
+                            // Salva a decisão na SESSÃO do servidor
                             session()->push('anexos_ignored_checks', $checkKey);
                         }),
                 ])
@@ -191,18 +176,13 @@ class Anexos extends Page implements HasForms
         }
     }
 
-    /**
-     * Registra o processo com proteção de concorrência.
-     */
     public function registrarProcesso($tipo, $clienteId, $embarcacaoId = null, $checkKey = null): void
     {
-        // 1. ATUALIZA ESTADO LOCAL
+        // Ao registrar, também salvamos na sessão para não perguntar de novo
         if ($checkKey) {
-            $this->checksIgnored[] = $checkKey;
-            Cache::put("ignore_{$checkKey}", true, 10);
+            session()->push('anexos_ignored_checks', $checkKey);
         }
 
-        // 2. ATOMIC LOCK
         $lockKey = "lock_create_{$clienteId}_" . Str::slug($tipo);
         $lock = Cache::lock($lockKey, 10);
 
@@ -214,7 +194,6 @@ class Anexos extends Page implements HasForms
             $user = auth()->user();
             $prazo = now()->addDays(45);
 
-            // 3. TRANSAÇÃO DE BANCO
             $processo = DB::transaction(function () use ($tipo, $clienteId, $embarcacaoId, $user, $prazo) {
                 $existing = Processo::where('cliente_id', $clienteId)
                     ->where('tipo_servico', $tipo)
@@ -246,12 +225,9 @@ class Anexos extends Page implements HasForms
                 return $novo;
             });
 
-            // 4. LIMPEZA DE NOTIFICAÇÕES (Backup)
-            // Como já removemos visualmente via JS no botão, isso aqui garante 
-            // que qualquer outra pendência seja limpa antes do sucesso.
+            // Limpa pendências visuais extras
             $this->dispatch('close-notifications');
 
-            // 5. MENSAGEM DE SUCESSO
             if ($processo->wasRecentlyCreated) {
                 Notification::make()
                     ->success()
@@ -290,7 +266,9 @@ class Anexos extends Page implements HasForms
                 $livewire->verificarOuCriarProcesso($tipoServico, $clienteId, $embarcacaoId);
 
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $embarcacaoId]) . '?' . http_build_query($data);
-                return $livewire->js("window.open('{$url}', '_blank');");
+                
+                // CORREÇÃO: setTimeout para evitar o crash do componente ao abrir nova aba
+                return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
     }
 
@@ -310,7 +288,9 @@ class Anexos extends Page implements HasForms
                 $livewire->verificarOuCriarProcesso($tipoServico, $clienteId, null);
 
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $clienteId]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
-                return $livewire->js("window.open('{$url}', '_blank');");
+                
+                // CORREÇÃO: setTimeout para evitar o crash do componente
+                return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
     }
 
@@ -414,7 +394,9 @@ class Anexos extends Page implements HasForms
                 $livewire->verificarOuCriarProcesso('Representação', $livewire->data['cliente_id'], null);
 
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $livewire->data['cliente_id']]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
-                return $livewire->js("window.open('{$url}', '_blank');");
+                
+                // CORREÇÃO: setTimeout
+                return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
     }
 
@@ -429,7 +411,9 @@ class Anexos extends Page implements HasForms
                 $livewire->verificarOuCriarProcesso('Representação', $livewire->data['cliente_id'], $livewire->data['embarcacao_id'] ?? null);
 
                 $url = route('clientes.procuracao', ['id' => $livewire->data['cliente_id'], 'embarcacao_id' => $livewire->data['embarcacao_id'] ?? 'null']);
-                return $livewire->js("window.open('{$url}', '_blank');");
+                
+                // CORREÇÃO: setTimeout
+                return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
     }
 
@@ -454,7 +438,9 @@ class Anexos extends Page implements HasForms
                 $livewire->verificarOuCriarProcesso(Processo::TIPO_DEFESA, $clienteId, $embarcacaoId);
 
                 $url = route('clientes.defesa_infracao', ['id' => $clienteId, 'embarcacao_id' => $embarcacaoId ?? 'null']) . '?' . http_build_query($data);
-                return $livewire->js("window.open('{$url}', '_blank');");
+                
+                // CORREÇÃO: setTimeout
+                return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
     }
 }
