@@ -14,9 +14,9 @@
     <link rel="canonical" href="{{ url()->current() }}">
 
     {{-- Favicon para Pesquisa Google (Arquivo em /public) --}}
-    <link rel="shortcut icon" href="{{ asset('favicon.jpg') }}" type="image/jpeg">
-    <link rel="icon" href="{{ asset('favicon.jpg') }}" type="image/jpeg" sizes="32x32">
-    <link rel="apple-touch-icon" href="{{ asset('favicon.jpg') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.png') }}" type="image/jpeg">
+    <link rel="icon" href="{{ asset('favicon.png') }}" type="image/jpeg" sizes="32x32">
+    <link rel="apple-touch-icon" href="{{ asset('favicon.png') }}">
 
     {{-- Open Graph / Social Media --}}
     <meta property="og:type" content="website">
