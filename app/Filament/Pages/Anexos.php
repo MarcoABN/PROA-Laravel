@@ -39,6 +39,7 @@ use Filament\Forms\Set;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use Filament\Notifications\Actions\Action as NotificationAction;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -78,12 +79,30 @@ class Anexos extends Page implements HasForms
                             ->label('Cliente (Nome ou CPF/CNPJ)')
                             ->searchable()
                             ->getSearchResultsUsing(function (string $search) {
-                                $searchNumeros = preg_replace('/[^0-9]/', '', $search);
+                                $numbers = preg_replace('/[^0-9]/', '', $search);
+
+                                // Otimização: Se a busca for curta e sem números, retorna vazio para não sobrecarregar
+                                if (strlen($search) < 3 && empty($numbers)) {
+                                    return [];
+                                }
+
                                 return Cliente::query()
-                                    ->where('nome', 'ilike', "%{$search}%")
-                                    ->orWhere('cpfcnpj', 'like', "%{$search}%")
-                                    ->orWhere('cpfcnpj', 'like', "%{$searchNumeros}%")
-                                    ->limit(50)->get()->mapWithKeys(fn(Cliente $c) => [$c->id => "{$c->nome} - {$c->cpfcnpj}"]);
+                                    ->where(function (Builder $query) use ($search, $numbers) {
+                                        // 1. Busca por Nome (Case Insensitive - PostgreSQL)
+                                        if (strlen($search) >= 3) {
+                                            $query->where('nome', 'ilike', "%{$search}%");
+                                        }
+
+                                        // 2. Busca por CPF/CNPJ (Ignorando formatação do banco)
+                                        if (!empty($numbers)) {
+                                            // Usa OR para somar aos resultados de nome (se houver)
+                                            // REGEXP_REPLACE remove caracteres não numéricos do campo do banco
+                                            $query->orWhereRaw("REGEXP_REPLACE(cpfcnpj, '[^0-9]', '', 'g') LIKE ?", ["%{$numbers}%"]);
+                                        }
+                                    })
+                                    ->limit(50)
+                                    ->get()
+                                    ->mapWithKeys(fn(Cliente $c) => [$c->id => "{$c->nome} - {$c->cpfcnpj}"]);
                             })
                             ->getOptionLabelUsing(fn($value) => ($c = Cliente::find($value)) ? "{$c->nome} - {$c->cpfcnpj}" : null)
                             ->required()

@@ -42,7 +42,11 @@ class ClienteResource extends Resource
                             ->label('CPF/CNPJ')
                             ->required()
                             ->unique(ignoreRecord: true)
-                            ->maxLength(18),
+                            ->maxLength(18)
+                            ->validationMessages([
+                                'unique' => 'CPF já cadastrado',
+                                'required' => 'Campo Obrigatório',
+                            ]),
 
                         Forms\Components\TextInput::make('rg')
                             ->label('RG'),
@@ -95,9 +99,11 @@ class ClienteResource extends Resource
                                 </div>
                             '))
                             ->afterStateUpdated(function ($state, Set $set) {
-                                if (!$state) return;
+                                if (!$state)
+                                    return;
                                 $cep = preg_replace('/[^0-9]/', '', $state);
-                                if (strlen($cep) !== 8) return;
+                                if (strlen($cep) !== 8)
+                                    return;
 
                                 $response = Http::get("https://viacep.com.br/ws/{$cep}/json/")->json();
 
@@ -134,10 +140,10 @@ class ClienteResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('cha_numero')
                             ->label('Número'),
-                            
+
                         Forms\Components\TextInput::make('cha_categoria')
                             ->label('Categoria'),
-                            
+
                         Forms\Components\DatePicker::make('cha_dtemissao')
                             ->label('Validade/Emissão'),
                     ]),
@@ -195,7 +201,8 @@ class ClienteResource extends Resource
                     ->alignCenter()
                     ->badge()
                     ->color(function ($state) {
-                        if ($state === '-') return 'gray';
+                        if ($state === '-')
+                            return 'gray';
                         $valor = (float) str_replace('%', '', $state);
                         return $valor >= 50 ? 'success' : 'danger';
                     }),
@@ -207,7 +214,7 @@ class ClienteResource extends Resource
                         'sim' => 'Sim, já realizou',
                         'nao' => 'Não, nunca realizou',
                     ])
-                    ->query(fn (Builder $query, array $data) => match($data['value']) {
+                    ->query(fn(Builder $query, array $data) => match ($data['value']) {
                         'sim' => $query->has('simulado_resultados'),
                         'nao' => $query->doesntHave('simulado_resultados'),
                         default => $query,
@@ -226,11 +233,12 @@ class ClienteResource extends Resource
                             ]),
                     ])
                     ->query(function (Builder $query, array $data) {
-                        if (empty($data['faixa_acerto'])) return $query;
+                        if (empty($data['faixa_acerto']))
+                            return $query;
 
                         return $query->whereHas('simulado_resultados', function ($q) use ($data) {
                             $q->select('cliente_id')
-                              ->groupBy('cliente_id');
+                                ->groupBy('cliente_id');
 
                             return match ($data['faixa_acerto']) {
                                 'excelente' => $q->havingRaw('AVG(porcentagem) >= 90'),
@@ -250,7 +258,8 @@ class ClienteResource extends Resource
                     ->color('warning')
                     ->form(function (Cliente $record) {
                         $temBarcos = $record->embarcacoes()->exists();
-                        if (!$temBarcos) return [];
+                        if (!$temBarcos)
+                            return [];
 
                         return [
                             Select::make('embarcacao_id')
