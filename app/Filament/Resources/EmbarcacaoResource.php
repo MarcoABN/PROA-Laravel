@@ -40,6 +40,27 @@ class EmbarcacaoResource extends Resource
                             ->preload()
                             ->required()
                             ->live()
+                            // 1. Pega o ID da URL se vier do botão "Salvar e Cadastrar Embarcação"
+                            ->default(request()->query('cliente_id'))
+                            // 2. Garante que os dados de endereço sejam preenchidos ao carregar a página
+                            ->afterStateHydrated(function ($component, $state, Set $set) {
+                                // Se não tiver state (edição), tenta pegar da URL (criação via redirecionamento)
+                                $clienteId = $state ?? request()->query('cliente_id');
+                                
+                                if ($clienteId && $cliente = Cliente::find($clienteId)) {
+                                    $component->state($clienteId); // Define visualmente o select
+                                    
+                                    // Preenche os campos de endereço
+                                    $set('cep', $cliente->cep);
+                                    $set('logradouro', $cliente->logradouro);
+                                    $set('numero', $cliente->numero);
+                                    $set('bairro', $cliente->bairro);
+                                    $set('cidade', $cliente->cidade);
+                                    $set('uf', $cliente->uf);
+                                    $set('complemento', $cliente->complemento);
+                                }
+                            })
+                            // 3. Atualiza os dados se o usuário trocar o cliente manualmente
                             ->afterStateUpdated(function ($state, Set $set) {
                                 if ($cliente = Cliente::find($state)) {
                                     $set('cep', $cliente->cep);
@@ -64,7 +85,6 @@ class EmbarcacaoResource extends Resource
                         Forms\Components\TextInput::make('num_casco')->label('Número do Casco'),
                         Forms\Components\TextInput::make('num_inscricao')->label('Inscrição'),
 
-                        // ALTERAÇÃO AQUI: De Select para TextInput com Datalist
                         Forms\Components\TextInput::make('tipo_embarcacao')
                             ->label('Tipo de Embarcação')
                             ->placeholder('Selecione ou digite...')
