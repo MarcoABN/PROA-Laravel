@@ -129,38 +129,50 @@ class Anexos extends Page implements HasForms
      */
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
-        // 1. Gera chave única
+        // Geração de chaves únicas
         $checkKey = md5("check_{$clienteId}_{$tipoServico}");
+        $shownKey = "shown_{$checkKey}"; // Chave para impedir duplicidade visual imediata
+        $ignoreKey = "ignore_{$checkKey}"; // Chave para ignorar permanentemente
 
-        // 2. Verifica se já foi ignorado nesta sessão ou cache
-        if (in_array($checkKey, $this->checksIgnored)) {
+        // 1. VERIFICAÇÕES DE BLOQUEIO (Cache e Estado)
+
+        // Se o usuário já clicou em "Não" anteriormente (no cache ou na sessão atual)
+        if (in_array($checkKey, $this->checksIgnored) || Cache::has($ignoreKey)) {
             return;
         }
-        if (Cache::has("ignore_{$checkKey}")) {
+
+        // BLOQUEIO DE DUPLICIDADE: 
+        // Se já mostramos esse balão nos últimos 15 segundos, não mostre de novo.
+        // Isso resolve o problema dele fechar e reaparecer sozinho.
+        if (Cache::has($shownKey)) {
             return;
         }
 
-        // 3. Verifica no banco se o processo existe
+        // 2. VERIFICAÇÃO NO BANCO
         $existe = Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
-        // 4. Se não existe, envia notificação
+        // 3. ENVIO DA NOTIFICAÇÃO
         if (!$existe) {
-            $notificationId = "notif_{$checkKey}";
 
-            Notification::make($notificationId)
+            // TRAVA IMEDIATA: Marca que este balão acabou de ser exibido.
+            // Validade: 15 segundos (tempo suficiente para evitar o duplo disparo).
+            Cache::put($shownKey, true, 15);
+
+            Notification::make("notif_{$checkKey}")
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
-                ->persistent() // Obriga o usuário a interagir
+                // CORREÇÃO DE TEMPO: 10 segundos e some (removemos o persistent)
+                ->duration(10000)
                 ->actions([
                     NotificationAction::make('confirmar')
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        ->close() // Fecha ao clicar em Sim também
+                        ->close()
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
@@ -171,16 +183,12 @@ class Anexos extends Page implements HasForms
                     NotificationAction::make('cancelar')
                         ->label('Não')
                         ->color('gray')
-                        // --- AQUI ESTÁ A CORREÇÃO ---
-                        // O método ->close() replica o comportamento do "X".
-                        // Ele executa o fechamento no navegador imediatamente.
+                        // 1. Fecha visualmente na hora (Client-side)
                         ->close()
-
-                        // Executa a lógica de ignorar no servidor (Back-end)
-                        // Mesmo se isso falhar, o balão já terá fechado visualmente.
-                        ->action(function () use ($checkKey) {
+                        // 2. Avisa o servidor para nunca mais mostrar para este cliente/serviço (Server-side)
+                        ->action(function () use ($checkKey, $ignoreKey) {
                             $this->checksIgnored[] = $checkKey;
-                            Cache::put("ignore_{$checkKey}", true, 60);
+                            Cache::put($ignoreKey, true, now()->addMinutes(30)); // Ignora por 30 minutos
                         }),
                 ])
                 ->send();
