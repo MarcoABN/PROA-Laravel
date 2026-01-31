@@ -149,12 +149,26 @@ class ClienteResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('nome')
-                    ->searchable()
+                    ->searchable(query: function (Builder $query, string $search) {
+                        // Só busca se tiver 3 ou mais caracteres
+                        if (strlen($search) >= 3) {
+                            // Usa ILIKE para ignorar maiúsculas/minúsculas no PostgreSQL
+                            $query->where('nome', 'ilike', "%{$search}%");
+                        }
+                    })
                     ->weight('bold'),
 
                 Tables\Columns\TextColumn::make('cpfcnpj')
                     ->label('Documento')
-                    ->searchable(),
+                    ->searchable(query: function (Builder $query, string $search) {
+                        // Remove tudo que não for número da busca do usuário
+                        $numbers = preg_replace('/[^0-9]/', '', $search);
+
+                        if (!empty($numbers)) {
+                            // Remove formatação do banco antes de comparar
+                            $query->whereRaw("REGEXP_REPLACE(cpfcnpj, '[^0-9]', '', 'g') LIKE ?", ["%{$numbers}%"]);
+                        }
+                    }),
 
                 Tables\Columns\TextColumn::make('simulado_resultados_count')
                     ->counts('simulado_resultados')
@@ -214,7 +228,6 @@ class ClienteResource extends Resource
                     ->query(function (Builder $query, array $data) {
                         if (empty($data['faixa_acerto'])) return $query;
 
-                        // Solução robusta para PostgreSQL: Usar whereHas com Having Interno
                         return $query->whereHas('simulado_resultados', function ($q) use ($data) {
                             $q->select('cliente_id')
                               ->groupBy('cliente_id');
