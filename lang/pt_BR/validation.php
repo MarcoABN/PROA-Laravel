@@ -124,7 +124,7 @@ return [
 
     'custom' => [
         // AQUI ESTÁ A MUDANÇA DO CPF
-        'cPF/CNPJ' => [
+        'cpfcnpj' => [
             'unique' => 'CPF já cadastrado',
         ],
     ],

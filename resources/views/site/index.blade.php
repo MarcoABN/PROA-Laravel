@@ -13,21 +13,28 @@
         content="despachante náutico, escola naval, arrais amador, motonauta, marinha do brasil, regularização de barcos, goiânia">
     <link rel="canonical" href="{{ url()->current() }}">
 
-    {{-- Open Graph / Social Media (Funciona para WhatsApp/Instagram/Facebook) --}}
+    {{-- Favicon para Pesquisa Google (Arquivo em /public) --}}
+    <link rel="shortcut icon" href="{{ asset('favicon.jpg') }}" type="image/jpeg">
+    <link rel="icon" href="{{ asset('favicon.jpg') }}" type="image/jpeg" sizes="32x32">
+    <link rel="apple-touch-icon" href="{{ asset('favicon.jpg') }}">
+
+    {{-- Open Graph / Social Media --}}
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url()->current() }}">
     <meta property="og:title" content="Campeão Náutica | Despachante Marítimo e Escola Naval">
     <meta property="og:description"
         content="Regularize sua embarcação ou tire sua habilitação com especialistas. Mais de 20 anos de tradição.">
     <meta property="og:image" content="{{ asset('images/logo_campeao.jpg') }}">
+    <meta property="og:image:type" content="image/jpeg">
 
-    {{-- Schema.org Structured Data - Usando @@ para o Blade ignorar o símbolo --}}
+    {{-- Schema.org Structured Data (Correção com @@ para evitar ParseError) --}}
     <script type="application/ld+json">
     {
       "@@context": "https://schema.org",
       "@@type": "LocalBusiness",
       "name": "Campeão Náutica",
       "image": "{{ asset('images/logo_campeao.jpg') }}",
+      "logo": "{{ asset('images/logo_campeao.jpg') }}",
       "@@id": "https://campeaonautica.com.br",
       "url": "https://campeaonautica.com.br",
       "telephone": "+5562998599357",
@@ -76,7 +83,7 @@
         <div class="container mx-auto px-6 h-20 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <img src="{{ asset('images/logo_campeao.jpg') }}"
-                    alt="Logotipo Campeão Náutica - Despachante e Assessoria Naval" class="h-12 w-auto rounded">
+                    alt="Logotipo Campeão Náutica" class="h-12 w-auto rounded">
                 <div class="flex flex-col">
                     <span class="text-lg font-extrabold tracking-tight text-blue-900 leading-none">CAMPEÃO
                         NÁUTICA</span>
@@ -104,7 +111,7 @@
     <header class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
         <div class="absolute inset-0 z-0">
             <img src="https://images.unsplash.com/photo-1567899834503-452b36873550?q=80&w=2070&auto=format&fit=crop"
-                class="w-full h-full object-cover opacity-20" alt="Embarcação em águas cristalinas - Campeão Náutica">
+                class="w-full h-full object-cover opacity-20" alt="Embarcação em águas cristalinas">
             <div class="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-white"></div>
         </div>
 
@@ -178,9 +185,8 @@
         <div class="container mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left">
             <div>
                 <img src="{{ asset('images/logo_campeao.jpg') }}"
-                    class="h-16 mx-auto md:mx-0 rounded mb-4 brightness-90" alt="Campeão Náutica Assessoria Naval">
-                <p class="text-sm leading-relaxed">Referência em assessoria naval e regularização junto à Marinha do
-                    Brasil.</p>
+                    class="h-16 mx-auto md:mx-0 rounded mb-4 brightness-90" alt="Campeão Náutica">
+                <p class="text-sm leading-relaxed">Referência em assessoria naval e regularização junto à Marinha do Brasil.</p>
                 <div class="mt-6">
                     <a href="https://www.instagram.com/campeao.despachantenautico10" target="_blank"
                         class="inline-flex items-center gap-2 hover:text-pink-400 transition">
@@ -212,7 +218,7 @@
         </div>
 
         <div class="container mx-auto px-6 mt-16 pt-8 border-t border-slate-800 text-center text-xs text-slate-500">
-            &copy; 2026 Campeão Náutica | CNPJ 53.775.360/0001-21 | Goiânia - GO
+            &copy; {{ date('Y') }} Campeão Náutica | CNPJ 53.775.360/0001-21 | Goiânia - GO
         </div>
     </footer>
 
