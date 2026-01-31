@@ -129,25 +129,24 @@ class Anexos extends Page implements HasForms
      */
     public function verificarOuCriarProcesso(string $tipoServico, $clienteId, $embarcacaoId = null)
     {
-        // 1. GERAÇÃO DE CHAVE ÚNICA DE CONTEXTO
+        // 1. Gera chave única
         $checkKey = md5("check_{$clienteId}_{$tipoServico}");
 
-        // 2. BLINDAGEM DE ESTADO (Componente)
+        // 2. Verifica se já foi ignorado nesta sessão ou cache
         if (in_array($checkKey, $this->checksIgnored)) {
             return;
         }
-
-        // 3. BLINDAGEM DE CACHE (Aplicação)
         if (Cache::has("ignore_{$checkKey}")) {
             return;
         }
 
-        // 4. VERIFICAÇÃO NO BANCO DE DADOS
+        // 3. Verifica no banco se o processo existe
         $existe = Processo::where('cliente_id', $clienteId)
             ->where('tipo_servico', $tipoServico)
             ->whereNotIn('status', ['concluido', 'arquivado'])
             ->exists();
 
+        // 4. Se não existe, envia notificação
         if (!$existe) {
             $notificationId = "notif_{$checkKey}";
 
@@ -155,34 +154,33 @@ class Anexos extends Page implements HasForms
                 ->warning()
                 ->title('Processo não identificado')
                 ->body("Não encontramos um processo de **{$tipoServico}** ativo. Deseja registrar agora?")
-                // ALTERAÇÃO 1: Reduzido para 10 segundos. 
-                // É tempo suficiente para ler e clicar. Se o usuário não fizer nada, ela some logo.
-                ->duration(10000)
+                ->persistent() // Obriga o usuário a interagir
                 ->actions([
                     NotificationAction::make('confirmar')
                         ->label('Sim, registrar')
                         ->button()
                         ->color('success')
-                        // ALTERAÇÃO 2: Fechamento via Evento Nativo do Filament
-                        // Isso diz ao Filament: "Feche a notificação com este ID agora", sem depender de selectors CSS frágeis.
-                        ->extraAttributes([
-                            'x-on:click' => "\$dispatch('notifications.close', { id: '{$notificationId}' })"
-                        ])
+                        ->close() // Fecha ao clicar em Sim também
                         ->dispatch('executarRegistroProcesso', [
                             'tipo' => $tipoServico,
                             'clienteId' => $clienteId,
                             'embarcacaoId' => $embarcacaoId,
                             'checkKey' => $checkKey,
                         ]),
+
                     NotificationAction::make('cancelar')
                         ->label('Não')
                         ->color('gray')
-                        // Ao cancelar, também usa o evento nativo para fechar instantaneamente
-                        ->extraAttributes([
-                            'x-on:click' => "\$dispatch('notifications.close', { id: '{$notificationId}' })"
-                        ])
+                        // --- AQUI ESTÁ A CORREÇÃO ---
+                        // O método ->close() replica o comportamento do "X".
+                        // Ele executa o fechamento no navegador imediatamente.
+                        ->close()
+
+                        // Executa a lógica de ignorar no servidor (Back-end)
+                        // Mesmo se isso falhar, o balão já terá fechado visualmente.
                         ->action(function () use ($checkKey) {
                             $this->checksIgnored[] = $checkKey;
+                            Cache::put("ignore_{$checkKey}", true, 60);
                         }),
                 ])
                 ->send();
