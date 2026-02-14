@@ -15,12 +15,12 @@ class Oficio extends Model
     protected $fillable = [
         'escola_nautica_id', 
         'capitania_id', 
-        'instrutor_id',
+        // 'instrutor_id' REMOVIDO
         'sequencial', 
         'ano', 
         'assunto', 
         'data_aula', 
-        'periodo_aula', 
+        'periodo_aula', // MANTIDO (Global)
         'local_aula', 
         'cidade_aula'
     ];
@@ -36,14 +36,10 @@ class Oficio extends Model
         );
     }
 
-    // --- CORREÇÃO AQUI ---
     protected static function booted()
     {
         static::creating(function ($oficio) {
             $anoAtual = date('Y');
-            
-            // Adicionamos ->withTrashed() para que ele conte também os ofícios deletados
-            // Assim, se o ofício 1 foi deletado, o sistema gerará o 2, e não tentará recriar o 1.
             $ultimo = static::withTrashed()
                 ->where('ano', $anoAtual)
                 ->max('sequencial') ?? 0;
@@ -52,7 +48,6 @@ class Oficio extends Model
             $oficio->sequencial = $ultimo + 1;
         });
     }
-    // ---------------------
 
     public function escola(): BelongsTo 
     { 
@@ -63,14 +58,16 @@ class Oficio extends Model
     { 
         return $this->belongsTo(Capitania::class, 'capitania_id'); 
     }
-
-    public function instrutor(): BelongsTo 
-    { 
-        return $this->belongsTo(Prestador::class, 'instrutor_id'); 
-    }
     
+    // Alunos
     public function itens(): HasMany 
     { 
         return $this->hasMany(OficioCliente::class, 'oficio_id'); 
+    }
+
+    // Instrutores (Novo relacionamento)
+    public function instrutores_oficio(): HasMany
+    {
+        return $this->hasMany(OficioInstrutor::class, 'oficio_id');
     }
 }

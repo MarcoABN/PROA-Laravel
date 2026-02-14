@@ -9,11 +9,12 @@ use App\Models\Cliente;
 use App\Services\OficioService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Tables\Actions\Action; // Necessário para tipagem da $action
+use Filament\Tables\Actions\Action;
 
 class OficioResource extends Resource
 {
@@ -24,65 +25,51 @@ class OficioResource extends Resource
 
     public static function form(Form $form): Form
     {
-        // MANTENDO EXATAMENTE O SEU LAYOUT VISUAL
         return $form
             ->schema([
-                // --- BLOCO 1: CABEÇALHO DO DOCUMENTO ---
+                // --- CABEÇALHO ---
                 Forms\Components\Section::make()
                     ->schema([
-                        // Linha 1: Os Atores
                         Forms\Components\Group::make()->columns(12)->schema([
                             Forms\Components\Select::make('escola_nautica_id')
-                                ->label('Escola Náutica (Origem)')
+                                ->label('Escola Náutica')
                                 ->options(EscolaNautica::all()->pluck('razao_social', 'id'))
                                 ->required()
                                 ->searchable()
                                 ->live()
                                 ->afterStateUpdated(function (Set $set, $state) {
                                     if ($state && $escola = EscolaNautica::find($state)) {
-                                        $set('instrutor_id', $escola->instrutor_id);
                                         $set('cidade_aula', $escola->cidade . ' - ' . $escola->uf);
                                     }
                                 })
                                 ->prefixIcon('heroicon-m-building-office-2')
-                                ->columnSpan(5),
-
-                            Forms\Components\Select::make('instrutor_id')
-                                ->label('Instrutor Responsável')
-                                ->relationship('instrutor', 'nome')
-                                ->required()
-                                ->searchable()
-                                ->preload()
-                                ->prefixIcon('heroicon-m-user')
-                                ->columnSpan(4),
+                                ->columnSpan(8),
 
                             Forms\Components\Select::make('capitania_id')
                                 ->label('Capitania')
                                 ->relationship('capitania', 'sigla')
                                 ->required()
                                 ->prefixIcon('heroicon-m-paper-airplane')
-                                ->columnSpan(3),
+                                ->columnSpan(4),
                         ]),
 
-                        // Linha 2: Logística
                         Forms\Components\Fieldset::make('Detalhes da Execução')
                             ->schema([
                                 Forms\Components\DatePicker::make('data_aula')
                                     ->label('Data')
-                                    ->native(false)
                                     ->displayFormat('d/m/Y')
                                     ->default(now()->addDay())
                                     ->required()
                                     ->columnSpan(1),
 
                                 Forms\Components\TextInput::make('periodo_aula')
-                                    ->label('Horário')
+                                    ->label('Horário (Global)')
                                     ->default('07:00 às 14:00')
                                     ->required()
                                     ->columnSpan(1),
 
                                 Forms\Components\TextInput::make('local_aula')
-                                    ->label('Local de Realização')
+                                    ->label('Local')
                                     ->placeholder('Ex: Lago Paranoá')
                                     ->required()
                                     ->columnSpan(2),
@@ -95,26 +82,14 @@ class OficioResource extends Resource
                             ->columns(5),
                     ]),
 
-                // --- BLOCO 2: A LISTA (CORPO) ---
+                // --- 1. ALUNOS ---
                 Forms\Components\Section::make('Candidatos Habilitados')
-                    ->headerActions([
-                        Forms\Components\Actions\Action::make('info')
-                            ->icon('heroicon-m-information-circle')
-                            ->label('Máx. 6 alunos')
-                            ->color('gray')
-                            ->disabled(),
-                    ])
                     ->schema([
                         Forms\Components\Repeater::make('itens')
                             ->hiddenLabel()
                             ->relationship('itens')
                             ->schema([
-                                Forms\Components\Group::make()->columns(12)->schema([
-                                    Forms\Components\Placeholder::make('icon')
-                                        ->hiddenLabel()
-                                        ->content(fn() => new \Illuminate\Support\HtmlString('<div class="pt-2"><svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div>'))
-                                        ->columnSpan(1),
-
+                                Forms\Components\Grid::make(12)->schema([
                                     Forms\Components\Select::make('cliente_id')
                                         ->hiddenLabel()
                                         ->placeholder('Selecione o candidato...')
@@ -122,7 +97,7 @@ class OficioResource extends Resource
                                         ->getSearchResultsUsing(fn(string $search) => Cliente::where('nome', 'ilike', "%{$search}%")->limit(20)->pluck('nome', 'id'))
                                         ->searchable()
                                         ->required()
-                                        ->columnSpan(8),
+                                        ->columnSpan(9),
 
                                     Forms\Components\TextInput::make('categoria')
                                         ->hiddenLabel()
@@ -133,10 +108,59 @@ class OficioResource extends Resource
                             ])
                             ->defaultItems(1)
                             ->maxItems(6)
-                            ->addActionLabel('Adicionar Candidato na Lista')
+                            ->addActionLabel('Adicionar Candidato')
                             ->reorderableWithButtons()
-                            ->collapsible(false)
-                            ->itemLabel(fn(array $state): ?string => Cliente::find($state['cliente_id'] ?? null)?->nome ?? null),
+                            ->itemLabel(fn (array $state): ?string => Cliente::find($state['cliente_id'] ?? null)?->nome ?? null),
+                    ])
+                    ->compact(),
+
+                // --- 2. INSTRUTORES ---
+                Forms\Components\Section::make('Equipe de Instrução')
+                    ->description('Adicione os instrutores. Marque APENAS UM como responsável pela assinatura.')
+                    ->schema([
+                        Forms\Components\Repeater::make('instrutores_oficio')
+                            ->hiddenLabel()
+                            ->relationship('instrutores_oficio')
+                            ->schema([
+                                Forms\Components\Grid::make(12)->schema([
+                                    
+                                    Forms\Components\Select::make('prestador_id')
+                                        ->hiddenLabel()
+                                        ->placeholder('Selecione o instrutor...')
+                                        ->relationship('prestador', 'nome', fn($query) => $query->where('is_instrutor', true))
+                                        ->searchable()
+                                        ->preload()
+                                        ->required()
+                                        ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                                        ->columnSpan(9),
+
+                                    Forms\Components\Toggle::make('is_principal')
+                                        ->label('Assina Doc.?')
+                                        ->inline(false)
+                                        ->onColor('success')
+                                        ->offColor('gray')
+                                        ->columnSpan(3)
+                                        // VALIDAÇÃO
+                                        ->rules([
+                                            fn (Get $get) => function (string $attribute, $value, \Closure $fail) use ($get) {
+                                                if ($value === true) {
+                                                    $items = $get('../../instrutores_oficio');
+                                                    $marcados = collect($items)->where('is_principal', true)->count();
+                                                    
+                                                    if ($marcados > 1) {
+                                                        $fail('Apenas um instrutor pode assinar.');
+                                                    }
+                                                }
+                                            },
+                                        ]),
+                                ]),
+                            ])
+                            ->defaultItems(1)
+                            ->maxItems(4)
+                            ->addActionLabel('Adicionar Instrutor')
+                            ->reorderableWithButtons()
+                            ->columnSpanFull(), 
+                            // ->simple() <--- REMOVIDO POIS CAUSA O ERRO
                     ])
                     ->compact(),
             ]);
@@ -165,22 +189,25 @@ class OficioResource extends Resource
                     ->badge()
                     ->color('gray'),
 
+                Tables\Columns\TextColumn::make('instrutores_oficio_count')
+                    ->counts('instrutores_oficio')
+                    ->label('Instrutores')
+                    ->badge(),
+
                 Tables\Columns\TextColumn::make('itens_count')
-                    ->counts('itens') // <--- ADICIONE ESTA LINHA
+                    ->counts('itens')
                     ->label('Turma')
                     ->formatStateUsing(fn($state) => $state . ' Alunos')
                     ->badge()
                     ->color(fn($state) => $state == 6 ? 'success' : 'primary'),
             ])
-            // ->contentGrid(...)  <-- REMOVIDO: Isso que transformava em cartões e sumia os botões
             ->actions([
-                // Botão IMPRIMIR (Visível na linha)
                 Tables\Actions\Action::make('imprimir')
                     ->label('Imprimir')
                     ->icon('heroicon-o-printer')
-                    ->color('success') // Verde
-                    ->button() // Força aparência de botão
-                    ->action(function (Oficio $record, \Filament\Tables\Actions\Action $action) {
+                    ->color('success')
+                    ->button()
+                    ->action(function (Oficio $record, Action $action) {
                         try {
                             $pdfPath = app(OficioService::class)->gerarDocumento($record);
                             $fileName = basename($pdfPath);
@@ -194,7 +221,6 @@ class OficioResource extends Resource
                         }
                     }),
 
-                // Menu com Editar/Excluir (Três pontinhos)
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\EditAction::make(),
                     Tables\Actions\DeleteAction::make(),
