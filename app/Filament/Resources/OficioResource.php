@@ -19,8 +19,8 @@ class OficioResource extends Resource
 {
     protected static ?string $model = Oficio::class;
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
-    protected static ?string $modelLabel = 'Ofício';
-    protected static ?string $navigationGroup = 'Operacional';
+    protected static ?string $modelLabel = 'Ofícios de Aula';
+    protected static ?string $navigationGroup = 'Ofícios';
 
     public static function form(Form $form): Form
     {
@@ -166,6 +166,7 @@ class OficioResource extends Resource
                     ->color('gray'),
 
                 Tables\Columns\TextColumn::make('itens_count')
+                    ->counts('itens') // <--- ADICIONE ESTA LINHA
                     ->label('Turma')
                     ->formatStateUsing(fn($state) => $state . ' Alunos')
                     ->badge()

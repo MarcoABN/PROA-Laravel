@@ -10,10 +10,8 @@ class Capitania extends Model
     use HasFactory;
 
     protected $fillable = [
-        'nome',
-        'sigla',
-        'uf',
-        'padrao',
+        'nome', 'sigla', 'uf', 'padrao',
+        // --- NOVOS CAMPOS QUE FALTAVAM AQUI ---
         'capitao_nome',
         'capitao_patente',
         'cep',
@@ -28,12 +26,10 @@ class Capitania extends Model
         'padrao' => 'boolean',
     ];
 
-    // Lógica para garantir apenas uma Capitania Padrão
     protected static function booted()
     {
         static::saving(function ($capitania) {
             if ($capitania->padrao) {
-                // Desmarca todas as outras antes de salvar esta como padrão
                 static::where('id', '!=', $capitania->id)->update(['padrao' => false]);
             }
         });

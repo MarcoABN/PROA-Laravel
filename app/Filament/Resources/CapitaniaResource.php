@@ -25,36 +25,63 @@ class CapitaniaResource extends Resource
                     ->columns(2)
                     ->schema([
                         Forms\Components\TextInput::make('nome')
-                            ->label('Nome da OM')
+                            ->label('Nome da Organização Militar')
+                            ->placeholder('Ex: Capitania Fluvial de Brasília')
                             ->required()
                             ->columnSpanFull(),
-                        Forms\Components\TextInput::make('sigla')
-                            ->label('Sigla')
-                            ->required(),
-                        Forms\Components\Toggle::make('padrao')
-                            ->label('Padrão')
-                            ->inline(false),
+                        
+                        Forms\Components\Grid::make(3)->schema([
+                            Forms\Components\TextInput::make('sigla')
+                                ->label('Sigla / Indicativo')
+                                ->placeholder('Ex: CFB')
+                                ->required()
+                                ->maxLength(20),
+                            
+                            Forms\Components\TextInput::make('uf')
+                                ->label('UF')
+                                ->length(2)
+                                ->required(),
+        
+                            Forms\Components\Toggle::make('padrao')
+                                ->label('Padrão')
+                                ->columnSpan(1),
+                        ]),
                     ]),
 
+                // --- ADICIONE ESTA SEÇÃO DE COMANDO ---
                 Forms\Components\Section::make('Comando (Para Ofícios)')
+                    ->description('Dados utilizados no cabeçalho dos documentos.')
                     ->columns(2)
                     ->schema([
                         Forms\Components\TextInput::make('capitao_nome')
                             ->label('Nome do Capitão'),
                         Forms\Components\TextInput::make('capitao_patente')
-                            ->label('Patente/Função'),
+                            ->label('Patente/Função')
+                            ->placeholder('Ex: Capitão de Mar e Guerra'),
                     ]),
 
+                // --- ADICIONE ESTA SEÇÃO DE ENDEREÇO ---
                 Forms\Components\Section::make('Endereço')
                     ->columns(3)
                     ->schema([
-                        Forms\Components\TextInput::make('cep')->mask('99999-999'),
-                        Forms\Components\TextInput::make('logradouro')->columnSpan(2),
-                        Forms\Components\TextInput::make('numero'),
+                        Forms\Components\TextInput::make('cep')
+                            ->label('CEP')
+                            ->mask('99999-999'),
+                        
+                        Forms\Components\TextInput::make('logradouro')
+                            ->columnSpan(2),
+                            
+                        Forms\Components\TextInput::make('numero')
+                            ->label('Número'),
+                            
                         Forms\Components\TextInput::make('complemento'),
+                        
                         Forms\Components\TextInput::make('bairro'),
-                        Forms\Components\TextInput::make('cidade')->required(),
-                        Forms\Components\TextInput::make('uf')->label('UF')->length(2)->required(),
+                        
+                        Forms\Components\TextInput::make('cidade')
+                            ->required(),
+                            
+                        // UF já foi pedido lá em cima, não precisa repetir se não quiser
                     ]),
             ]);
     }
@@ -65,14 +92,12 @@ class CapitaniaResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('nome')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('sigla')->searchable(),
-                Tables\Columns\TextColumn::make('uf'),
-                Tables\Columns\IconColumn::make('padrao')
-                    ->boolean()
-                    ->label('Padrão'),
+                Tables\Columns\TextColumn::make('cidade')->label('Cidade'), // Agora vai funcionar
+                Tables\Columns\IconColumn::make('padrao')->boolean()->label('Padrão'),
             ])
-            ->defaultSort('padrao', 'desc'); // Padrão aparece primeiro
+            ->defaultSort('padrao', 'desc');
     }
-
+    
     public static function getPages(): array
     {
         return [
