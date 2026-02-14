@@ -1,59 +1,55 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+<p align="center">
+    <img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="300" alt="PROA Logo">
+    </p>
 
 <p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+    <a href="https://laravel.com"><img src="https://img.shields.io/badge/Laravel-10.x-red?style=for-the-badge&logo=laravel" alt="Laravel"></a>
+    <a href="https://filamentphp.com"><img src="https://img.shields.io/badge/Filament-3.x-amber?style=for-the-badge&logo=livewire" alt="Filament"></a>
+    <a href="https://tailwindcss.com"><img src="https://img.shields.io/badge/Tailwind_CSS-3.0-38B2AC?style=for-the-badge&logo=tailwind-css" alt="Tailwind"></a>
+    <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-15-316192?style=for-the-badge&logo=postgresql" alt="Postgres"></a>
 </p>
 
-## About Laravel
+# PROA - Sistema de Gestão para Despachante e Escola Náutica
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+O **PROA** é uma solução integrada desenvolvida para atender às demandas completas de escritórios de despacho e escolas náuticas (como a *Campeão Náutica*). O sistema automatiza a burocracia exigida pela Marinha do Brasil, gerencia o relacionamento com clientes e alunos, e oferece ferramentas de treinamento para habilitação.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 🎯 Visão Geral do Sistema
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+O sistema atua em três frentes principais: **Despacho Documental**, **Gestão Administrativa** e **Educação Náutica**.
 
-## Learning Laravel
+### 1. Automação de Documentos (Marinha do Brasil)
+Geração automática de anexos e formulários conforme as **NORMAM-211 e 212**, eliminando preenchimento manual e erros.
+- **Habilitação (CHA):** Requerimentos de Motonauta/Arrais (Anexos 3A, 5E, 5H), Atestados de Treinamento (3B) e Declarações de Extravio.
+- **Embarcações (TIE):** Inscrição e Transferência de Propriedade (Anexos 2D, 2E, 2K, 2M), Termos de Responsabilidade e Construção.
+- **Residência:** Declarações automáticas para cliente e embarcação.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### 2. Gestão de Processos e Workflow
+Painel de controle para acompanhamento em tempo real dos trâmites junto às Capitanias.
+- **Status de Processo:** Triagem, Aguardando Cliente, Em Análise, Concluído, etc.
+- **Priorização:** Controle visual de processos Urgentes vs. Normais.
+- **Monitoramento de Prazos:** Alertas de vencimento para renovações.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 3. Módulo Educacional (Simulados)
+Ferramenta completa para preparação de alunos para as provas de Arrais e Motonauta.
+- **Banco de Questões:** Mais de 2.400 questões cadastradas.
+- **Desempenho:** Acompanhamento de notas médias, aprovações e reprovações diretamente no perfil do aluno.
+- **Integração:** Vínculo direto entre o cadastro do cliente e seu histórico de treinamento.
 
-## Laravel Sponsors
+## 🗂️ Módulos Principais
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+* **Painel de Controle:** Visão macro do negócio e atalhos rápidos.
+* **Embarcações:** Cadastro detalhado (Lanchas, Jets, Canoas, Iates) com controle de motores e número de inscrição.
+* **Clientes:** CRM com dados pessoais, documentos digitalizados e gestão de procurações.
+* **Cadastros Auxiliares:** Gestão de Capitanias, Escolas Náuticas credenciadas e Instrutores/Procuradores.
+* **Serviços do Site:** Integração para recebimento de propostas e leads via website.
 
-### Premium Partners
+## 🚀 Tecnologias da Stack
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+O projeto utiliza a **TALL Stack** para oferecer uma interface reativa e moderna:
 
-## Contributing
+- **Backend:** Laravel 12
+- **Admin Panel:** FilamentPHP v3 (Resources, Widgets, Actions customizadas)
+- **Frontend:** Livewire + Blade
+- **Banco de Dados:** PostgreSQL
+- **Servidor:** Ubuntu + Nginx
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
