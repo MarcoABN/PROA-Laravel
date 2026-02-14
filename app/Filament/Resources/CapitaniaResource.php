@@ -21,29 +21,41 @@ class CapitaniaResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('nome')
-                    ->label('Nome da Organização Militar')
-                    ->placeholder('Ex: Capitania Fluvial de Brasília')
-                    ->required()
-                    ->maxLength(255),
-                
-                Forms\Components\Grid::make(3)->schema([
-                    Forms\Components\TextInput::make('sigla')
-                        ->label('Sigla / Indicativo')
-                        ->placeholder('Ex: CFB')
-                        ->required()
-                        ->maxLength(20),
-                    
-                    Forms\Components\TextInput::make('uf')
-                        ->label('UF')
-                        ->length(2)
-                        ->required(),
+                Forms\Components\Section::make('Identificação')
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('nome')
+                            ->label('Nome da OM')
+                            ->required()
+                            ->columnSpanFull(),
+                        Forms\Components\TextInput::make('sigla')
+                            ->label('Sigla')
+                            ->required(),
+                        Forms\Components\Toggle::make('padrao')
+                            ->label('Padrão')
+                            ->inline(false),
+                    ]),
 
-                    Forms\Components\Toggle::make('padrao')
-                        ->label('Capitania Padrão?')
-                        ->helperText('Se ativado, virá pré-selecionada nos anexos.')
-                        ->columnSpan(1),
-                ]),
+                Forms\Components\Section::make('Comando (Para Ofícios)')
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('capitao_nome')
+                            ->label('Nome do Capitão'),
+                        Forms\Components\TextInput::make('capitao_patente')
+                            ->label('Patente/Função'),
+                    ]),
+
+                Forms\Components\Section::make('Endereço')
+                    ->columns(3)
+                    ->schema([
+                        Forms\Components\TextInput::make('cep')->mask('99999-999'),
+                        Forms\Components\TextInput::make('logradouro')->columnSpan(2),
+                        Forms\Components\TextInput::make('numero'),
+                        Forms\Components\TextInput::make('complemento'),
+                        Forms\Components\TextInput::make('bairro'),
+                        Forms\Components\TextInput::make('cidade')->required(),
+                        Forms\Components\TextInput::make('uf')->label('UF')->length(2)->required(),
+                    ]),
             ]);
     }
 
@@ -60,7 +72,7 @@ class CapitaniaResource extends Resource
             ])
             ->defaultSort('padrao', 'desc'); // Padrão aparece primeiro
     }
-    
+
     public static function getPages(): array
     {
         return [

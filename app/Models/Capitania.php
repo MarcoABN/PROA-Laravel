@@ -9,7 +9,20 @@ class Capitania extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nome', 'sigla', 'uf', 'padrao'];
+    protected $fillable = [
+        'nome',
+        'sigla',
+        'uf',
+        'padrao',
+        'capitao_nome',
+        'capitao_patente',
+        'cep',
+        'logradouro',
+        'numero',
+        'complemento',
+        'bairro',
+        'cidade'
+    ];
 
     protected $casts = [
         'padrao' => 'boolean',

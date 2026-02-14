@@ -9,16 +9,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class EscolaNautica extends Model
 {
     use HasFactory;
-    
-    protected $guarded = []; // Já adicionado anteriormente
 
-    // Relacionamento com Prestador (Instrutor)
+    protected $guarded = [];
+
     public function instrutor(): BelongsTo
     {
         return $this->belongsTo(Prestador::class, 'instrutor_id');
     }
 
-    // Relacionamento com Prestador (Responsável)
     public function responsavel(): BelongsTo
     {
         return $this->belongsTo(Prestador::class, 'responsavel_id');
