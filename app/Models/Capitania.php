@@ -9,17 +9,17 @@ class Capitania extends Model
 {
     use HasFactory;
 
+    // ADICIONE OS CAMPOS NOVOS AQUI
     protected $fillable = [
         'nome', 'sigla', 'uf', 'padrao',
-        // --- NOVOS CAMPOS QUE FALTAVAM AQUI ---
-        'capitao_nome',
-        'capitao_patente',
-        'cep',
-        'logradouro',
-        'numero',
-        'complemento',
-        'bairro',
-        'cidade'
+        'capitao_nome',    // <--- Faltava
+        'capitao_patente', // <--- Faltava
+        'cep',             // <--- Faltava
+        'logradouro',      // <--- Faltava
+        'numero',          // <--- Faltava
+        'complemento',     // <--- Faltava
+        'bairro',          // <--- Faltava
+        'cidade'           // <--- Faltava
     ];
 
     protected $casts = [
