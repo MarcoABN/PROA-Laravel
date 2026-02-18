@@ -13,7 +13,7 @@ class OficioService
     {
         $templatePath = storage_path('app/public/templates/oficioproa.docx');
         if (!file_exists($templatePath)) {
-            throw new \Exception("Template não encontrado.");
+            throw new \Exception("Template não encontrado em: {$templatePath}");
         }
 
         $template = new TemplateProcessor($templatePath);
@@ -80,7 +80,7 @@ class OficioService
             }
         }
 
-        // --- 5. INSTRUTORES (Lista no corpo do email/doc) ---
+        // --- 5. INSTRUTORES ---
         $instrutores = $oficio->instrutores_oficio()->with('prestador')->get();
 
         for ($j = 1; $j <= 4; $j++) {
@@ -90,17 +90,25 @@ class OficioService
                 $template->setValue("nomeinstrutor{$j}", $this->up($p->nome));
                 $template->setValue("cpfinstrutor{$j}", $this->formatarCpfCnpj($p->cpfcnpj));
                 $template->setValue("celinstrutor{$j}", $p->celular ?? '');
+                
+                // Correção solicitada: Preenche "ARA e MTA" apenas se existir instrutor
+                $template->setValue("aramta{$j}", "ARA e MTA");
+                
                 $template->setValue("chainstrutor{$j}", $p->cha_numero ?? '');
             } else {
                 $template->setValue("nomeinstrutor{$j}", "");
                 $template->setValue("cpfinstrutor{$j}", "");
                 $template->setValue("celinstrutor{$j}", "");
+                
+                // Correção solicitada: Limpa o campo se não houver instrutor
+                $template->setValue("aramta{$j}", "");
+                
                 $template->setValue("chainstrutor{$j}", "");
             }
         }
 
-        // --- 6. ASSINATURA (RESPONSÁVEL LEGAL) ---
-        // Alteração solicitada: usar dados do Representante Legal da Escola
+        // --- 6. ASSINATURA (RESPONSÁVEL LEGAL DA ESCOLA) ---
+        // Certifique-se de ter criado o relacionamento 'responsavel' no model EscolaNautica
         $responsavel = $escola->responsavel;
 
         if ($responsavel) {
@@ -137,11 +145,13 @@ class OficioService
         if (file_exists($pdfPath))
             @unlink($pdfPath);
 
-        // Ajuste para Linux/Windows
+        // Verifica SO para comando correto do LibreOffice
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            // Caminho padrão Windows - ajuste se necessário
             $libreOfficePath = '"C:\Program Files\LibreOffice\program\soffice.exe"';
             $command = $libreOfficePath . ' --headless --convert-to pdf "' . $tempDocx . '" --outdir "' . $outputDir . '"';
         } else {
+            // Padrão Linux
             $command = "export HOME=/tmp && libreoffice --headless --convert-to pdf " . escapeshellarg($tempDocx) . " --outdir " . escapeshellarg($outputDir);
         }
 
@@ -150,7 +160,7 @@ class OficioService
         @unlink($tempDocx);
 
         if (!file_exists($pdfPath)) {
-            throw new \Exception("Erro ao gerar PDF. Verifique se o LibreOffice está instalado e acessível.");
+            throw new \Exception("Erro ao gerar PDF. Verifique se o LibreOffice está instalado.");
         }
 
         return $pdfPath;
