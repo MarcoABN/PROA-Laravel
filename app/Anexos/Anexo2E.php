@@ -69,12 +69,12 @@ class Anexo2E implements AnexoInterface
         foreach ($selecionados as $item) { $dados['check_' . $item] = 'Sim'; }
 
         if (in_array('mudancanome', $selecionados)) {
-            $dados['nomeembarcacao1'] = $this->up($input['texto1']);
-            $dados['nomeembarcacao2'] = $this->up($input['texto2']);
-            $dados['nomeembarcacao3'] = $this->up($input['texto3']);
+            $dados['nomeembarcacao1'] = $this->up($input['texto1']?? '');
+            $dados['nomeembarcacao2'] = $this->up($input['texto2']?? '');
+            $dados['nomeembarcacao3'] = $this->up($input['texto3']?? '');
         }
         if (in_array('outrosservicos', $selecionados)) {
-            $dados['outrosservicos1'] = mb_substr($this->up($input['justificativa']), 0, 90);
+            $dados['outrosservicos1'] = mb_substr($this->up($input['justificativa']?? ''), 0, 90);
         }
         if (in_array('renovacaotie', $selecionados)) {
             $sub = $input['renovacao_alteracao'] ?? null;
