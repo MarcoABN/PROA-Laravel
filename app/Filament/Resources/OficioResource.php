@@ -110,20 +110,19 @@ class OficioResource extends Resource
                             ->maxItems(6)
                             ->addActionLabel('Adicionar Candidato')
                             ->reorderableWithButtons()
-                            ->itemLabel(fn (array $state): ?string => Cliente::find($state['cliente_id'] ?? null)?->nome ?? null),
+                            ->itemLabel(fn(array $state): ?string => Cliente::find($state['cliente_id'] ?? null)?->nome ?? null),
                     ])
                     ->compact(),
 
                 // --- 2. INSTRUTORES ---
                 Forms\Components\Section::make('Equipe de Instrução')
-                    ->description('Adicione os instrutores. Marque APENAS UM como responsável pela assinatura.')
+                    ->description('Adicione os instrutores que participarão da aula.')
                     ->schema([
                         Forms\Components\Repeater::make('instrutores_oficio')
                             ->hiddenLabel()
                             ->relationship('instrutores_oficio')
                             ->schema([
                                 Forms\Components\Grid::make(12)->schema([
-                                    
                                     Forms\Components\Select::make('prestador_id')
                                         ->hiddenLabel()
                                         ->placeholder('Selecione o instrutor...')
@@ -132,35 +131,14 @@ class OficioResource extends Resource
                                         ->preload()
                                         ->required()
                                         ->disableOptionsWhenSelectedInSiblingRepeaterItems()
-                                        ->columnSpan(9),
-
-                                    Forms\Components\Toggle::make('is_principal')
-                                        ->label('Assina Doc.?')
-                                        ->inline(false)
-                                        ->onColor('success')
-                                        ->offColor('gray')
-                                        ->columnSpan(3)
-                                        // VALIDAÇÃO
-                                        ->rules([
-                                            fn (Get $get) => function (string $attribute, $value, \Closure $fail) use ($get) {
-                                                if ($value === true) {
-                                                    $items = $get('../../instrutores_oficio');
-                                                    $marcados = collect($items)->where('is_principal', true)->count();
-                                                    
-                                                    if ($marcados > 1) {
-                                                        $fail('Apenas um instrutor pode assinar.');
-                                                    }
-                                                }
-                                            },
-                                        ]),
+                                        ->columnSpan(12),
                                 ]),
                             ])
                             ->defaultItems(1)
                             ->maxItems(4)
                             ->addActionLabel('Adicionar Instrutor')
                             ->reorderableWithButtons()
-                            ->columnSpanFull(), 
-                            // ->simple() <--- REMOVIDO POIS CAUSA O ERRO
+                            ->columnSpanFull(),
                     ])
                     ->compact(),
             ]);

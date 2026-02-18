@@ -80,15 +80,8 @@ class OficioService
             }
         }
 
-        // --- 5. INSTRUTORES ---
+        // --- 5. INSTRUTORES (Lista no corpo do email/doc) ---
         $instrutores = $oficio->instrutores_oficio()->with('prestador')->get();
-
-        $principal = $instrutores->where('is_principal', true)->first();
-        if (!$principal && $instrutores->count() > 0) {
-            $principal = $instrutores->first();
-        }
-
-        $template->setValue('nomeinstrutorprincipal', $principal ? $this->up($principal->prestador->nome) : '');
 
         for ($j = 1; $j <= 4; $j++) {
             if (isset($instrutores[$j - 1])) {
@@ -106,14 +99,21 @@ class OficioService
             }
         }
 
-        // --- SALVAR (AQUI ESTAVA O ERRO) ---
-        // 1. Definimos a variável $safeNum primeiro
+        // --- 6. ASSINATURA (RESPONSÁVEL LEGAL) ---
+        // Alteração solicitada: usar dados do Representante Legal da Escola
+        $responsavel = $escola->responsavel;
+
+        if ($responsavel) {
+            $template->setValue('resplegal', $this->up($responsavel->nome));
+            $template->setValue('cpfresplegal', $this->formatarCpfCnpj($responsavel->cpfcnpj));
+        } else {
+            $template->setValue('resplegal', 'RESPONSÁVEL NÃO CADASTRADO');
+            $template->setValue('cpfresplegal', '');
+        }
+
+        // --- SALVAR ---
         $safeNum = str_replace('/', '-', $oficio->numero_oficio);
-
-        // 2. Criamos um ID único (timestamp) para forçar o navegador a baixar um novo arquivo
         $uniqueId = time();
-
-        // 3. Usamos as duas variáveis para criar o nome final
         $fileName = "Oficio_{$safeNum}_{$uniqueId}";
 
         return $this->salvarEConverter($template, $fileName);
@@ -150,7 +150,7 @@ class OficioService
         @unlink($tempDocx);
 
         if (!file_exists($pdfPath)) {
-            throw new \Exception("Erro ao gerar PDF.");
+            throw new \Exception("Erro ao gerar PDF. Verifique se o LibreOffice está instalado e acessível.");
         }
 
         return $pdfPath;
