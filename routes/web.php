@@ -8,6 +8,8 @@ use App\Http\Controllers\SiteController;
 use App\Livewire\Auth\LoginCpf;
 use App\Livewire\SimuladoNaval;
 use Spatie\Sitemap\SitemapGenerator;
+use Spatie\Sitemap\Sitemap;
+use Spatie\Sitemap\Tags\Url;
 
 /*
 |--------------------------------------------------------------------------
@@ -51,15 +53,21 @@ Route::get('/propostas/{id}/imprimir-recibo', [PropostaController::class, 'impri
 Route::get('/clientes/{id}/procuracao/{embarcacao_id?}', [ClienteController::class, 'imprimirProcuracao'])
     ->name('clientes.procuracao')
     ->middleware('auth');
-    
+
 Route::get('/clientes/{id}/defesa-infracao/{embarcacao_id?}', [ClienteController::class, 'imprimirDefesa'])
     ->name('clientes.defesa_infracao')
     ->middleware('auth');
 
 
 Route::get('/gerar-sitemap', function () {
-    SitemapGenerator::create('https://campeaonautica.com.br')->writeToFile(public_path('sitemap.xml'));
-    return 'Sitemap gerado com sucesso!';
+    Sitemap::create()
+        ->add(Url::create('/')->setPriority(1.0)->setChangeFrequency(Url::CHANGE_FREQUENCY_WEEKLY))
+        ->add(Url::create('/login')->setPriority(0.8)->setChangeFrequency(Url::CHANGE_FREQUENCY_MONTHLY))
+        // Se tiver outras páginas públicas, adicione aqui:
+        // ->add(Url::create('/sobre')...)
+        ->writeToFile(public_path('sitemap.xml'));
+
+    return 'Sitemap gerado com sucesso sem usar o crawler!';
 });
 
 
