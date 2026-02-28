@@ -23,7 +23,7 @@ class Anexo1C implements AnexoInterface
             'nome' => $this->up($c->nome), 'nacionalidade' => $this->up($c->nacionalidade),
             'naturalidade' => $this->up($c->naturalidade), 'cpf' => $c->cpfcnpj ?? '',
             'telefone' => $c->telefone ?? '', 'celular' => $c->celular ?? '', 'email' => $this->up($c->email),
-            'endereco1' => mb_substr($end, 0, 85), 'endereco2' => mb_substr($end, 85),
+            'endereco1' => mb_substr($end, 0, 45), 'endereco2' => mb_substr($end, 45),
             'localdata' => $this->up($c->cidade ?? 'Brasília') . ', ' . Carbon::now()->format('d/m/Y'),
         ];
     }
