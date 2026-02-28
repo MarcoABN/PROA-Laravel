@@ -56,12 +56,12 @@ Route::get('/clientes/{id}/defesa-infracao/{embarcacao_id?}', [ClienteController
     ->name('clientes.defesa_infracao')
     ->middleware('auth');
 
-/*
+
 Route::get('/gerar-sitemap', function () {
     SitemapGenerator::create('https://campeaonautica.com.br')->writeToFile(public_path('sitemap.xml'));
     return 'Sitemap gerado com sucesso!';
 });
-*/
+
 
 Route::get('/googlefab17170d240591b.html', function () {
     return 'google-site-verification: googlefab17170d240591b.html';
