@@ -7,4 +7,7 @@
 .env
 !storage/app/public/templates/
 !storage/app/public/templates/*
-!storage/app/templates/*
+!storage/app/templates/*/public/storage
+/public/sitemap.xml
+
+/public/storage
