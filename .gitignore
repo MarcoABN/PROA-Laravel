@@ -9,3 +9,5 @@
 !storage/app/public/templates/*
 !storage/app/templates/*/public/storage
 /public/sitemap.xml
+
+/public/storage
