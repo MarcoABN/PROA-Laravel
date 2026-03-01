@@ -13,10 +13,10 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Set;
 
-class Anexo2F212 implements AnexoInterface
+class ComunicadoTransferenciaMotoaquatica implements AnexoInterface
 {
-    public function getTitulo(): string { return 'Anexo 2F - Comunicação Transf. (212)'; }
-    public function getTemplatePath(): string { return storage_path('app/public/templates/Anexo2F-N212.pdf'); }
+    public function getTitulo(): string { return 'Anexo 2E - Comunicação Transf. (212)'; }
+    public function getTemplatePath(): string { return storage_path('app/templates/Anexo2E-N212.pdf'); }
 
     public function getFormSchema(): array
     {
@@ -56,17 +56,17 @@ class Anexo2F212 implements AnexoInterface
             
             // CORREÇÃO: Adicionado "?? ''" para todos os campos do proprietário anterior
             'nomeproprietarioanterior' => $this->up($input['antigo_nome'] ?? ''), 
-            'docidentidadeproprietarioanterior' => $this->up($input['antigo_rg'] ?? ''),
-            'orgaoexpedidorproprietarioanterior' => $this->up($input['antigo_orgao'] ?? ''), 
-            'dataexpedicaoproprietarioanterior' => $dtExpAntigo,
-            'cpfcnpjproprietarioanterior' => $input['antigo_cpf'] ?? '', 
-            'enderecoproprietarioanterior' => $this->up($input['antigo_endereco'] ?? ''),
-            'numeroproprietarioanterior' => $input['antigo_numero'] ?? '', 
-            'complementoproprietarioanterior' => $this->up($input['antigo_complemento'] ?? ''),
-            'bairroproprietarioanterior' => $this->up($input['antigo_bairro'] ?? ''), 
-            'cidadeproprietarioanterior' => $this->up($input['antigo_cidade'] ?? ''),
-            'ufproprietarioanterior' => $this->up($input['antigo_uf'] ?? ''), 
-            'cepproprietarioanterior' => $input['antigo_cep'] ?? '',
+            'rg' => $this->up($input['antigo_rg'] ?? ''),
+            'orgaoexpedidor' => $this->up($input['antigo_orgao'] ?? ''), 
+            'dtexpedicao' => $dtExpAntigo,
+            'cpfcnpj' => $input['antigo_cpf'] ?? '', 
+            'endereco' => $this->up($input['antigo_endereco'] ?? ''),
+            'numero' => $input['antigo_numero'] ?? '', 
+            'complemento' => $this->up($input['antigo_complemento'] ?? ''),
+            'bairro' => $this->up($input['antigo_bairro'] ?? ''), 
+            'cidade' => $this->up($input['antigo_cidade'] ?? ''),
+            'uf' => $this->up($input['antigo_uf'] ?? ''), 
+            'cep' => $input['antigo_cep'] ?? '',
             
             'nomenovoproprietario' => $this->up($novo->nome), 'docidentidadenovoproprietario' => $this->up($novo->rg),
             'orgaoexpedidornovoproprietario' => $this->up($novo->org_emissor), 'dataexpedicaonovoproprietario' => $dtExpNovo,

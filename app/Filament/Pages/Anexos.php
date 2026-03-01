@@ -22,7 +22,17 @@ use App\Anexos\Anexo3D;
 use App\Anexos\Anexo5D;
 use App\Anexos\Anexo5E;
 use App\Anexos\Anexo5H;
+use App\Anexos\Bsade;
+use App\Anexos\DeclaracaoResidencia;
 use App\Anexos\Procuracao;
+use App\Anexos\RequerimentoServico;
+use App\Anexos\DeclaracaoPerda;
+use App\Anexos\ComunicadoTransferencia;
+use App\Anexos\AutorizacaoTransferencia;
+use App\Anexos\TermoResponsabilidade;
+use App\Anexos\DeclaracaoPerdaMotoaquatica;
+use App\Anexos\AutorizacaoTransferenciaMotoaquatica;
+use App\Anexos\ComunicadoTransferenciaMotoaquatica;
 
 // Infra e Models
 use App\Models\Cliente;
@@ -162,7 +172,7 @@ class Anexos extends Page implements HasForms
                             'embarcacaoId' => $embarcacaoId,
                             'checkKey' => $checkKey,
                         ]),
-                    
+
                     NotificationAction::make('cancelar')
                         ->label('Não')
                         ->color('gray')
@@ -266,7 +276,7 @@ class Anexos extends Page implements HasForms
                 $livewire->verificarOuCriarProcesso($tipoServico, $clienteId, $embarcacaoId);
 
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $embarcacaoId]) . '?' . http_build_query($data);
-                
+
                 // CORREÇÃO: setTimeout para evitar o crash do componente ao abrir nova aba
                 return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
@@ -288,7 +298,7 @@ class Anexos extends Page implements HasForms
                 $livewire->verificarOuCriarProcesso($tipoServico, $clienteId, null);
 
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $clienteId]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
-                
+
                 // CORREÇÃO: setTimeout para evitar o crash do componente
                 return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
@@ -315,42 +325,45 @@ class Anexos extends Page implements HasForms
     {
         return $this->criarBotaoAnexoCliente(Anexo5H::class, 'Anexo 5H', Processo::TIPO_CHA);
     }
-    public function gerarAnexo2LClienteAction(): Action
+
+    //TESTE DE MUDANÇA
+    public function gerarDeclaracaoResidenciaClienteAction(): Action
     {
-        return $this->criarBotaoAnexoCliente(Anexo2L::class, 'Anexo 2L', Processo::TIPO_CHA);
+        return $this->criarBotaoAnexoCliente(DeclaracaoResidencia::class, 'Anexo 2G', Processo::TIPO_CHA);
     }
 
-    public function gerarAnexo2DAction(): Action
+    public function gerarBsadeAction(): Action
     {
-        return $this->criarBotaoAnexo(Anexo2D::class, 'Anexo 2D', Processo::TIPO_TIE, 'info');
+        return $this->criarBotaoAnexo(Bsade::class, 'Anexo 2B', Processo::TIPO_TIE, 'info');
     }
-    public function gerarAnexo2EAction(): Action
+
+    public function gerarRequerimentoServicoAction(): Action
     {
-        return $this->criarBotaoAnexo(Anexo2E::class, 'Anexo 2E', Processo::TIPO_TIE, 'info');
+        return $this->criarBotaoAnexo(RequerimentoServico::class, 'Anexo 2C', Processo::TIPO_TIE, 'info');
     }
-    public function gerarAnexo2JAction(): Action
+    public function gerarDeclaracaoPerdaAction(): Action
     {
-        return $this->criarBotaoAnexo(Anexo2J::class, 'Anexo 2J', Processo::TIPO_TIE, 'info');
+        return $this->criarBotaoAnexo(DeclaracaoPerda::class, 'Anexo 2H', Processo::TIPO_TIE, 'info');
     }
-    public function gerarAnexo2KAction(): Action
+    public function gerarComunicadoTransferenciaAction(): Action
     {
-        return $this->criarBotaoAnexo(Anexo2K::class, 'Anexo 2K', Processo::TIPO_TIE, 'info');
+        return $this->criarBotaoAnexo(ComunicadoTransferencia::class, 'Anexo 2L', Processo::TIPO_TIE, 'info');
     }
-    public function gerarAnexo2LAction(): Action
+    public function gerarDeclaracaoResidenciaAction(): Action
     {
-        return $this->criarBotaoAnexo(Anexo2L::class, 'Anexo 2L', Processo::TIPO_TIE, 'info');
+        return $this->criarBotaoAnexo(DeclaracaoResidencia::class, 'Anexo 2G', Processo::TIPO_TIE, 'info');
     }
-    public function gerarAnexo2MAction(): Action
+    public function gerarAutorizacaoTransferenciaAction(): Action
     {
-        return $this->criarBotaoAnexo(Anexo2M::class, 'Anexo 2M', Processo::TIPO_TIE, 'info');
+        return $this->criarBotaoAnexo(AutorizacaoTransferencia::class, 'Anexo 2K', Processo::TIPO_TIE, 'info');
     }
     public function gerarAnexo3CAction(): Action
     {
         return $this->criarBotaoAnexo(Anexo3C::class, 'Anexo 3C', Processo::TIPO_TIE, 'info');
     }
-    public function gerarAnexo3DAction(): Action
+    public function gerarTermoResponsabilidadeAction(): Action
     {
-        return $this->criarBotaoAnexo(Anexo3D::class, 'Anexo 3D', Processo::TIPO_TIE, 'info');
+        return $this->criarBotaoAnexo(TermoResponsabilidade::class, 'Anexo 3C', Processo::TIPO_TIE, 'info');
     }
 
     public function gerarAnexo1CAction(): Action
@@ -365,17 +378,19 @@ class Anexos extends Page implements HasForms
     {
         return $this->criarBotaoAnexo(Anexo2B::class, 'Anexo 2B', Processo::TIPO_MOTO, 'warning');
     }
-    public function gerarAnexo2D212Action(): Action
+    public function gerarDeclaracaoPerdaMotoaquaticaAction(): Action
     {
-        return $this->criarBotaoAnexo(Anexo2D212::class, 'Anexo 2D (212)', Processo::TIPO_MOTO, 'warning');
+        return $this->criarBotaoAnexo(DeclaracaoPerdaMotoaquatica::class, 'Anexo 2C (212)', Processo::TIPO_MOTO, 'warning');
     }
-    public function gerarAnexo2E212Action(): Action
+
+    public function gerarAutorizacaoTransferenciaMotoaquaticaAction(): Action
     {
-        return $this->criarBotaoAnexo(Anexo2E212::class, 'Anexo 2E (212)', Processo::TIPO_MOTO, 'warning');
+        return $this->criarBotaoAnexo(AutorizacaoTransferenciaMotoaquatica::class, 'Anexo 2D (212)', Processo::TIPO_MOTO, 'warning');
     }
-    public function gerarAnexo2F212Action(): Action
+
+    public function gerarComunicadoTransferenciaMotoaquaticaAction(): Action
     {
-        return $this->criarBotaoAnexo(Anexo2F212::class, 'Anexo 2F', Processo::TIPO_MOTO, 'warning');
+        return $this->criarBotaoAnexo(ComunicadoTransferenciaMotoaquatica::class, 'Anexo 2E (212)', Processo::TIPO_MOTO, 'warning');
     }
 
     // --- GRUPO: ADMINISTRATIVOS ---
@@ -394,7 +409,7 @@ class Anexos extends Page implements HasForms
                 $livewire->verificarOuCriarProcesso('Representação', $livewire->data['cliente_id'], null);
 
                 $url = route('anexos.gerar_generico', ['classe' => $classeUrl, 'embarcacao' => $livewire->data['cliente_id']]) . '?' . http_build_query(array_merge($data, ['tipo' => 'cliente']));
-                
+
                 // CORREÇÃO: setTimeout
                 return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
@@ -403,7 +418,7 @@ class Anexos extends Page implements HasForms
     public function gerarProcuracao02Action(): Action
     {
         return Action::make('gerarProcuracao02')
-            ->label('Representação')
+            ->label('Emitir Procuração')
             ->icon('heroicon-o-document-text')
             ->color('danger')
             ->disabled(fn() => empty($this->data['cliente_id']))
@@ -411,7 +426,7 @@ class Anexos extends Page implements HasForms
                 $livewire->verificarOuCriarProcesso('Representação', $livewire->data['cliente_id'], $livewire->data['embarcacao_id'] ?? null);
 
                 $url = route('clientes.procuracao', ['id' => $livewire->data['cliente_id'], 'embarcacao_id' => $livewire->data['embarcacao_id'] ?? 'null']);
-                
+
                 // CORREÇÃO: setTimeout
                 return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
@@ -420,7 +435,7 @@ class Anexos extends Page implements HasForms
     public function gerarDefesaInfracaoAction(): Action
     {
         return Action::make('gerarDefesaInfracao')
-            ->label('Emitir')
+            ->label('Emitir Defesa')
             ->modalHeading('Defesa de Infração')
             ->icon('heroicon-o-shield-check')
             ->color('danger')
@@ -438,7 +453,7 @@ class Anexos extends Page implements HasForms
                 $livewire->verificarOuCriarProcesso(Processo::TIPO_DEFESA, $clienteId, $embarcacaoId);
 
                 $url = route('clientes.defesa_infracao', ['id' => $clienteId, 'embarcacao_id' => $embarcacaoId ?? 'null']) . '?' . http_build_query($data);
-                
+
                 // CORREÇÃO: setTimeout
                 return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });

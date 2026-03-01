@@ -18,6 +18,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\HtmlString;
+use Filament\Support\RawJs;
 
 class ClienteResource extends Resource
 {
@@ -41,12 +42,32 @@ class ClienteResource extends Resource
                         Forms\Components\TextInput::make('cpfcnpj')
                             ->label('CPF/CNPJ')
                             ->required()
+                            // Máscara dinâmica: alterna para CNPJ se passar de 14 caracteres digitados
+                            ->mask(RawJs::make(<<<'JS'
+        $input.length > 14 ? '99.999.999/9999-99' : '999.999.999-99'
+    JS))
+                            // Remove os caracteres de formatação antes de validar e salvar no banco
+                            ->stripCharacters(['.', '-', '/'])
                             ->unique(ignoreRecord: true)
                             ->maxLength(18)
                             ->validationMessages([
-                                'unique' => 'CPF já cadastrado',
+                                'unique' => 'CPF/CNPJ já cadastrado',
                                 'required' => 'Campo Obrigatório',
-                            ]),
+                            ])
+                            // Garante que o dado vindo do banco (mesmo os antigos com formato errado)
+                            // sejam limpos e recebam a máscara correta ao abrir a edição
+                            ->formatStateUsing(function (?string $state) {
+                                if (!$state)
+                                    return null;
+                                $state = preg_replace('/[^0-9]/', '', $state);
+                                if (strlen($state) === 11) {
+                                    return preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $state);
+                                }
+                                if (strlen($state) === 14) {
+                                    return preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $state);
+                                }
+                                return $state;
+                            }),
 
                         Forms\Components\TextInput::make('rg')
                             ->label('RG'),
@@ -166,12 +187,27 @@ class ClienteResource extends Resource
 
                 Tables\Columns\TextColumn::make('cpfcnpj')
                     ->label('Documento')
-                    ->searchable(query: function (Builder $query, string $search) {
-                        // Remove tudo que não for número da busca do usuário
-                        $numbers = preg_replace('/[^0-9]/', '', $search);
+                    // Formata o dado puro do banco para exibição na tabela
+                    ->formatStateUsing(function (?string $state) {
+                        if (!$state)
+                            return null;
 
+                        // Remove qualquer sujeira (corrige visualmente os registros antigos salvos errados)
+                        $state = preg_replace('/[^0-9]/', '', $state);
+
+                        if (strlen($state) === 11) {
+                            return preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $state);
+                        }
+                        if (strlen($state) === 14) {
+                            return preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $state);
+                        }
+                        return $state;
+                    })
+                    ->searchable(query: function (Builder $query, string $search) {
+                        $numbers = preg_replace('/[^0-9]/', '', $search);
                         if (!empty($numbers)) {
-                            // Remove formatação do banco antes de comparar
+                            // Mantivemos o REGEXP_REPLACE para continuar encontrando os registros
+                            // legados que ainda estão sujos no banco de dados.
                             $query->whereRaw("REGEXP_REPLACE(cpfcnpj, '[^0-9]', '', 'g') LIKE ?", ["%{$numbers}%"]);
                         }
                     }),

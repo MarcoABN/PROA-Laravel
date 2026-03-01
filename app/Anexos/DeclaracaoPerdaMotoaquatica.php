@@ -5,10 +5,10 @@ namespace App\Anexos;
 use App\Anexos\Contracts\AnexoInterface;
 use Carbon\Carbon;
 
-class Anexo2D212 implements AnexoInterface
+class DeclaracaoPerdaMotoaquatica implements AnexoInterface
 {
-    public function getTitulo(): string { return 'Anexo 2D - Perda/Extravio (212)'; }
-    public function getTemplatePath(): string { return storage_path('app/public/templates/Anexo2D-N212.pdf'); }
+    public function getTitulo(): string { return 'Anexo 2C - Perda/Extravio (212)'; }
+    public function getTemplatePath(): string { return storage_path('app/templates/Anexo2C-N212.pdf'); }
     public function getFormSchema(): array { return []; }
 
     public function getDados($record, array $input): array

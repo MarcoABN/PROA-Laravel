@@ -11,10 +11,10 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Set;
 
-class Anexo2M implements AnexoInterface
+class AutorizacaoTransferenciaMotoaquatica implements AnexoInterface
 {
-    public function getTitulo(): string { return 'Anexo 2M - Autorização de Transferência'; }
-    public function getTemplatePath(): string { return storage_path('app/public/templates/Anexo2M-N211.pdf'); }
+    public function getTitulo(): string { return 'Anexo 2D - Autorização Transf. (212)'; }
+    public function getTemplatePath(): string { return storage_path('app/templates/Anexo2D-N212.pdf'); }
 
     public function getFormSchema(): array
     {
@@ -23,14 +23,24 @@ class Anexo2M implements AnexoInterface
                 Select::make('buscar_vendedor')->searchable()->options(Cliente::limit(50)->pluck('nome', 'id'))
                     ->live()->afterStateUpdated(function ($state, Set $set) {
                         if ($cliente = Cliente::find($state)) {
-                            $set('vendedor_nome', $cliente->nome); $set('vendedor_cpf', $cliente->cpfcnpj);
-                            $set('vendedor_telefone', $cliente->celular ?? $cliente->telefone); $set('vendedor_email', $cliente->email);
-                            $set('vendedor_logradouro', $cliente->logradouro); $set('vendedor_bairro', $cliente->bairro);
+                            $set('vendedor_nome', $cliente->nome); 
+                            $set('vendedor_cpf', $cliente->cpfcnpj);
+                            $set('vendedor_telefone', $cliente->celular ?? $cliente->telefone); 
+                            $set('vendedor_email', $cliente->email);
+                            $set('vendedor_logradouro', $cliente->logradouro); 
+                            $set('vendedor_bairro', $cliente->bairro);
                         }
                     }),
                 TextInput::make('vendedor_nome')->required(),
-                Grid::make(3)->schema([TextInput::make('vendedor_cpf')->required(), TextInput::make('vendedor_telefone'), TextInput::make('vendedor_email')]),
-                Grid::make(2)->schema([TextInput::make('vendedor_logradouro'), TextInput::make('vendedor_bairro')]),
+                Grid::make(3)->schema([
+                    TextInput::make('vendedor_cpf')->required(), 
+                    TextInput::make('vendedor_telefone'), 
+                    TextInput::make('vendedor_email')
+                ]),
+                Grid::make(2)->schema([
+                    TextInput::make('vendedor_logradouro'), 
+                    TextInput::make('vendedor_bairro')
+                ]),
             ]),
         ];
     }
@@ -44,7 +54,7 @@ class Anexo2M implements AnexoInterface
             'inscricao' => $this->up($embarcacao->num_inscricao),
             'valor' => 'R$ ' . number_format($embarcacao->valor ?? 0, 2, ',', '.'),
             
-            // CORREÇÃO AQUI: Adicionado "?? ''" em todos os campos do $input
+            // Dados do Vendedor
             'nomeproprietario' => $this->up($input['vendedor_nome'] ?? ''), 
             'cpfcnpjproprietario' => $input['vendedor_cpf'] ?? '',
             'telefoneproprietario' => $input['vendedor_telefone'] ?? '', 
@@ -52,7 +62,7 @@ class Anexo2M implements AnexoInterface
             'rua' => $this->up($input['vendedor_logradouro'] ?? ''), 
             'bairro' => $this->up($input['vendedor_bairro'] ?? ''),
             
-            // Dados do Comprador (Vêm do banco, então usamos ?? na propriedade do objeto se necessário)
+            // Dados do Comprador
             'nomecomprador' => $this->up($embarcacao->cliente->nome), 
             'cpfcnpjcomprador' => $embarcacao->cliente->cpfcnpj ?? '',
             'telefone' => $embarcacao->cliente->celular ?? '', 
@@ -67,6 +77,7 @@ class Anexo2M implements AnexoInterface
             'localdata' => $this->up($embarcacao->cidade ?? 'Brasília') . ', ' . date('d/m/Y'),
         ];
 
+        // Lógica dos motores
         $motores = $embarcacao->motores;
         for ($i = 1; $i <= 4; $i++) {
             $dados["motor{$i}_sim"] = ($i <= $motores->count()) ? 'Sim' : 'Off';

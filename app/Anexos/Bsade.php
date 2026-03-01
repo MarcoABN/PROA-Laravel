@@ -7,10 +7,10 @@ use App\Models\Embarcacao;
 use Carbon\Carbon;
 use Filament\Forms\Components\Select;
 
-class Anexo2D implements AnexoInterface
+class Bsade implements AnexoInterface
 {
-    public function getTitulo(): string { return 'Anexo 2D - Atualização de Dados (BSADE)'; }
-    public function getTemplatePath(): string { return storage_path('app/public/templates/Anexo2D-N211.pdf'); }
+    public function getTitulo(): string { return 'Anexo 2B - Atualização de Dados (BSADE)'; }
+    public function getTemplatePath(): string { return storage_path('app/templates/Anexo2B-N211.pdf'); }
 
     public function getFormSchema(): array
     {

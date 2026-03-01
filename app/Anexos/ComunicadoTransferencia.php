@@ -13,10 +13,10 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Set;
 
-class Anexo2K implements AnexoInterface
+class ComunicadoTransferencia implements AnexoInterface
 {
-    public function getTitulo(): string { return 'Anexo 2K - Comunicação Transferência'; }
-    public function getTemplatePath(): string { return storage_path('app/public/templates/Anexo2K-N211.pdf'); }
+    public function getTitulo(): string { return 'Anexo 2L - Comunicação Transferência'; }
+    public function getTemplatePath(): string { return storage_path('app/templates/Anexo2L-N211.pdf'); }
 
     public function getFormSchema(): array
     {

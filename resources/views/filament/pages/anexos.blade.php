@@ -37,7 +37,7 @@
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Residência (Cliente)</span></x-slot>
-                {{ $this->gerarAnexo2LClienteAction }}
+                {{ $this->gerarDeclaracaoResidenciaClienteAction }}
             </x-filament::section>
         </div>
     </div>
@@ -51,42 +51,42 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Atualização (BSADE)</span></x-slot>
-                {{ $this->gerarAnexo2DAction }}
+                {{ $this->gerarBsadeAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Requerimento TIE</span></x-slot>
-                {{ $this->gerarAnexo2EAction }}
+                {{ $this->gerarRequerimentoServicoAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Perda/Extravio</span></x-slot>
-                {{ $this->gerarAnexo2JAction }}
+                {{ $this->gerarDeclaracaoPerdaAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Comunicação Transf.</span></x-slot>
-                {{ $this->gerarAnexo2KAction }}
+                {{ $this->gerarComunicadoTransferenciaAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Residência (Embarcação)</span></x-slot>
-                {{ $this->gerarAnexo2LAction }}
+                {{ $this->gerarDeclaracaoResidenciaAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Autorização Transf.</span></x-slot>
-                {{ $this->gerarAnexo2MAction }}
+                {{ $this->gerarAutorizacaoTransferenciaAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Termo Resp. Inscrição</span></x-slot>
+                <x-slot name="heading"><span class="text-sm">Termo Resp. Inscrição (DESCONTINUADO)</span></x-slot>
                 {{ $this->gerarAnexo3CAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Termo Construção</span></x-slot>
-                {{ $this->gerarAnexo3DAction }}
+                {{ $this->gerarTermoResponsabilidadeAction }}
             </x-filament::section>
         </div>
     </div>
@@ -111,15 +111,15 @@
             </x-filament::section>
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Perda/Extravio</span></x-slot>
-                {{ $this->gerarAnexo2D212Action }}
+                {{ $this->gerarDeclaracaoPerdaMotoaquaticaAction }}
             </x-filament::section>
             <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Autorização Transf.</span></x-slot>
-                {{ $this->gerarAnexo2E212Action }}
+                {{ $this->gerarAutorizacaoTransferenciaMotoaquaticaAction }}
             </x-filament::section>
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Recibo Venda (2F)</span></x-slot>
-                {{ $this->gerarAnexo2F212Action }}
+                <x-slot name="heading"><span class="text-sm">Comunicação Transf.</span></x-slot>
+                {{ $this->gerarComunicadoTransferenciaMotoaquaticaAction }}
             </x-filament::section>
         </div>
     </div>
@@ -130,13 +130,13 @@
             Documentos Administrativos
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <x-filament::section class="h-full">
+            <x-filament::section hidden class="h-full">
                 <x-slot name="heading"><span class="text-sm">Representação</span></x-slot>
                 {{ $this->gerarProcuracaoClienteAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Procuração 02</span></x-slot>
+                <x-slot name="heading"><span class="text-sm">Procuração</span></x-slot>
                 {{ $this->gerarProcuracao02Action }}
             </x-filament::section>
 
