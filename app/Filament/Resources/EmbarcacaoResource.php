@@ -104,10 +104,10 @@ class EmbarcacaoResource extends Resource
                             ->label('Tipo de Atividade')
                             ->placeholder('Selecione ou digite a atividade...')
                             // Define o valor padrão para novos cadastros
-                            ->default('ESPORTE E RECREIO')
+                            ->default('ESPORTE / RECREIO')
                             // Lista de sugestões que aparecerão ao clicar/digitar
                             ->datalist([
-                                'ESPORTE E RECREIO',
+                                'ESPORTE / RECREIO',
                                 'COMERCIAL',
                                 'TRANSPORTE DE PASSAGEIROS',
                             ])
