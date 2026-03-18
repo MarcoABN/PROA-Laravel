@@ -46,10 +46,10 @@ class EmbarcacaoResource extends Resource
                             ->afterStateHydrated(function ($component, $state, Set $set) {
                                 // Se não tiver state (edição), tenta pegar da URL (criação via redirecionamento)
                                 $clienteId = $state ?? request()->query('cliente_id');
-                                
+
                                 if ($clienteId && $cliente = Cliente::find($clienteId)) {
                                     $component->state($clienteId); // Define visualmente o select
-                                    
+                    
                                     // Preenche os campos de endereço
                                     $set('cep', $cliente->cep);
                                     $set('logradouro', $cliente->logradouro);
@@ -100,9 +100,19 @@ class EmbarcacaoResource extends Resource
                             ])
                             ->required(),
 
-                        Forms\Components\Select::make('tipo_atividade')
-                            ->options(['ESPORTE LAZER' => 'ESPORTE LAZER', 'COMERCIAL' => 'COMERCIAL'])
-                            ->required(),
+                        Forms\Components\TextInput::make('tipo_atividade')
+                            ->label('Tipo de Atividade')
+                            ->placeholder('Selecione ou digite a atividade...')
+                            // Define o valor padrão para novos cadastros
+                            ->default('ESPORTE E RECREIO')
+                            // Lista de sugestões que aparecerão ao clicar/digitar
+                            ->datalist([
+                                'ESPORTE E RECREIO',
+                                'COMERCIAL',
+                                'TRANSPORTE DE PASSAGEIROS',
+                            ])
+                            ->required()
+                            ->maxLength(255),
 
                         Forms\Components\Select::make('area_navegacao')
                             ->options(['INTERIOR' => 'INTERIOR', 'MAR ABERTO' => 'MAR ABERTO'])
@@ -149,9 +159,11 @@ class EmbarcacaoResource extends Resource
                                 </div>
                             '))
                             ->afterStateUpdated(function ($state, Set $set) {
-                                if (!$state) return;
+                                if (!$state)
+                                    return;
                                 $cep = preg_replace('/[^0-9]/', '', $state);
-                                if (strlen($cep) !== 8) return;
+                                if (strlen($cep) !== 8)
+                                    return;
                                 $response = Http::get("https://viacep.com.br/ws/{$cep}/json/")->json();
                                 if (!isset($response['erro'])) {
                                     $set('logradouro', $response['logradouro'] ?? null);
