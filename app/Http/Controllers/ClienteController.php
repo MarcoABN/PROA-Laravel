@@ -9,11 +9,12 @@ use App\Services\DefesaInfracaoService;
 
 class ClienteController extends Controller
 {
-    public function imprimirProcuracao($id, $embarcacao_id = null, ProcuracaoService $service)
+    // 1º Service, 2º ID obrigatório, 3º ID opcional
+    public function imprimirProcuracao(ProcuracaoService $service, $id, $embarcacao_id = null)
     {
         $cliente = Cliente::findOrFail($id);
 
-        // Trata o parâmetro caso venha como string "null" da URL
+        // O seu tratamento continua perfeito aqui
         $embarcacaoId = ($embarcacao_id && $embarcacao_id !== 'null') ? (int) $embarcacao_id : null;
 
         try {
@@ -28,12 +29,12 @@ class ClienteController extends Controller
         }
     }
 
-    public function imprimirDefesa(Request $request, $id, $embarcacao_id = null, DefesaInfracaoService $service)
+    // 1º Request, 2º Service, 3º ID obrigatório, 4º ID opcional
+    public function imprimirDefesa(Request $request, DefesaInfracaoService $service, $id, $embarcacao_id = null)
     {
         $cliente = Cliente::findOrFail($id);
         $embarcacaoId = ($embarcacao_id && $embarcacao_id !== 'null') ? (int) $embarcacao_id : null;
 
-        // Pega os dados extras passados via Query String (GET)
         $dadosForm = $request->all();
 
         try {
