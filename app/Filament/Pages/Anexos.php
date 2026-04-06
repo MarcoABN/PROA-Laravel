@@ -116,7 +116,13 @@ class Anexos extends Page implements HasForms
                         Select::make('embarcacao_id')
                             ->label('Embarcação')
                             ->placeholder(fn(Get $get) => $get('cliente_id') ? 'Selecione uma embarcação' : 'Selecione um cliente primeiro')
-                            ->options(fn(Get $get) => $get('cliente_id') ? Embarcacao::where('cliente_id', $get('cliente_id'))->pluck('nome_embarcacao', 'id') : [])
+                            ->options(
+                                fn(Get $get) => $get('cliente_id')
+                                ? Embarcacao::where('cliente_id', $get('cliente_id'))
+                                    ->pluck('nome_embarcacao', 'id')
+                                    ->map(fn($nome) => $nome ?? 'Embarcação sem nome') // <-- Adicione este map!
+                                : []
+                            )
                             ->disabled(fn(Get $get) => !$get('cliente_id'))
                             ->searchable()
                             ->live(),
@@ -418,16 +424,21 @@ class Anexos extends Page implements HasForms
     public function gerarProcuracao02Action(): Action
     {
         return Action::make('gerarProcuracao02')
-            ->label('Emitir Procuração')
-            ->icon('heroicon-o-document-text')
-            ->color('danger')
-            ->disabled(fn() => empty($this->data['cliente_id']))
+            // ... (configurações do botão) ...
             ->action(function (Anexos $livewire) {
-                $livewire->verificarOuCriarProcesso('Representação', $livewire->data['cliente_id'], $livewire->data['embarcacao_id'] ?? null);
+                $clienteId = $livewire->data['cliente_id'];
+                $embarcacaoId = $livewire->data['embarcacao_id'] ?? null;
 
-                $url = route('clientes.procuracao', ['id' => $livewire->data['cliente_id'], 'embarcacao_id' => $livewire->data['embarcacao_id'] ?? 'null']);
+                $livewire->verificarOuCriarProcesso('Representação', $clienteId, $embarcacaoId);
 
-                // CORREÇÃO: setTimeout
+                // Monta os parâmetros condicionalmente
+                $routeParams = ['id' => $clienteId];
+                if ($embarcacaoId) {
+                    $routeParams['embarcacao_id'] = $embarcacaoId;
+                }
+
+                $url = route('clientes.procuracao', $routeParams);
+
                 return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
     }
