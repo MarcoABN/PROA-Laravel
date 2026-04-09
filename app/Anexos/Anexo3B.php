@@ -95,7 +95,7 @@ class Anexo3B implements AnexoInterface
             'chainstrutor' => $input['instrutor_cat'] ?? '',
             'numchainstrutor' => $input['instrutor_cha'] ?? '',
             'data' => $dataAula ? $dataAula->format('d/m/Y') : '',
-            'localdata' => ($c->cidade ?? 'Brasília') . ', ' . ($dataAula ? $dataAula->translatedFormat('d \d\e F \d\e Y') : '____ de __________________ de ________'),
+            'localdata' => ($c->cidade ?? 'Brasília') . ', ' . ($dataAula ? $dataAula->translatedFormat('d \d\e F \d\e Y') : ''),
             'dia' => $dataAula ? $dataAula->format('d') : '____',
             'mes' => $dataAula ? $dataAula->format('m') : '____',
             'ano' => $dataAula ? $dataAula->format('Y') : '________',

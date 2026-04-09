@@ -68,9 +68,9 @@ class Anexo3A implements AnexoInterface
             'cep' => $cliente->cep ?? '',
             'email' => mb_strtoupper($cliente->email ?? ''),
             'local' => mb_strtoupper($cliente->cidade ?? ''),
-            'dia' => $dataEmissao ? $dataEmissao->format('d') : '____',
-            'mes' => $dataEmissao ? $dataEmissao->format('m') : '____',
-            'ano' => $dataEmissao ? $dataEmissao->format('Y') : '________',
+            'dia' => $dataEmissao ? $dataEmissao->format('d') : '',
+            'mes' => $dataEmissao ? $dataEmissao->format('m') : '',
+            'ano' => $dataEmissao ? $dataEmissao->format('Y') : '',
         ];
 
         $tel = $cliente->telefone ?? '';
