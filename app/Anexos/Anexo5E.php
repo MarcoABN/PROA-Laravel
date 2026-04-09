@@ -60,7 +60,7 @@ class Anexo5E implements AnexoInterface
     {
         Carbon::setLocale('pt_BR');
         $c = ($record instanceof \App\Models\Embarcacao) ? $record->cliente : $record;
-        $dataAula = isset($input['data_aula']) ? Carbon::parse($input['data_aula']) : Carbon::now();
+        $dataAula = !empty($input['data_aula']) ? Carbon::parse($input['data_aula']) : null;
         $dtEmissaoId = $c->dt_emissao ? Carbon::parse($c->dt_emissao)->format('d/m/Y') : '';
 
         return [
