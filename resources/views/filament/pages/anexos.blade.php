@@ -26,17 +26,17 @@
             </x-filament::section>
 
             <x-filament::section class="h-full">
+                <x-slot name="heading"><span class="text-sm">Requerimento Arrais</span></x-slot>
+                {{ $this->gerarAnexo5HClienteAction }}
+            </x-filament::section>
+
+            <x-filament::section class="h-full">
                 <x-slot name="heading"><span class="text-sm">Atestado Arrais</span></x-slot>
                 {{ $this->gerarAnexo5EClienteAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Requerimento Geral CHA</span></x-slot>
-                {{ $this->gerarAnexo5HClienteAction }}
-            </x-filament::section>
-
-            <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Residência (Cliente)</span></x-slot>
+                <x-slot name="heading"><span class="text-sm">Declaração de Residência</span></x-slot>
                 {{ $this->gerarDeclaracaoResidenciaClienteAction }}
             </x-filament::section>
         </div>
@@ -50,7 +50,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Atualização (BSADE)</span></x-slot>
+                <x-slot name="heading"><span class="text-sm">BSADE - Boletim Simplificado</span></x-slot>
                 {{ $this->gerarBsadeAction }}
             </x-filament::section>
 
@@ -60,22 +60,22 @@
             </x-filament::section>
 
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Perda/Extravio</span></x-slot>
+                <x-slot name="heading"><span class="text-sm">Declaração de Perda/Extravio</span></x-slot>
                 {{ $this->gerarDeclaracaoPerdaAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Comunicação Transf.</span></x-slot>
+                <x-slot name="heading"><span class="text-sm">Comunicado Transferência</span></x-slot>
                 {{ $this->gerarComunicadoTransferenciaAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Residência (Embarcação)</span></x-slot>
+                <x-slot name="heading"><span class="text-sm">Declaração de Residência (Embarcação)</span></x-slot>
                 {{ $this->gerarDeclaracaoResidenciaAction }}
             </x-filament::section>
 
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Autorização Transf.</span></x-slot>
+                <x-slot name="heading"><span class="text-sm">Autorização Transferência</span></x-slot>
                 {{ $this->gerarAutorizacaoTransferenciaAction }}
             </x-filament::section>
 
@@ -98,7 +98,7 @@
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <x-filament::section class="h-full">
-                <x-slot name="heading"><span class="text-sm">Declaração Residência</span></x-slot>
+                <x-slot name="heading"><span class="text-sm">Declaração de Residência</span></x-slot>
                 {{ $this->gerarAnexo1CAction }}
             </x-filament::section>
             <x-filament::section class="h-full">
