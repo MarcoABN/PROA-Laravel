@@ -26,7 +26,10 @@ class Anexo3B implements AnexoInterface
     {
         return [
             Section::make('Dados do Treinamento')->schema([
-                DatePicker::make('data_aula')->label('Data da Aula')->default(now())->required(),
+                DatePicker::make('data_aula')->label('Data da Aula')
+                    //->default(now())->required()
+                    ->nullable()
+                    ->helperText('Deixe em branco para preencher à caneta no documento impresso.'),
             ]),
             Section::make('Escola Náutica e Instrutor')->schema([
                 Select::make('escola_id')->label('Selecionar Escola')
@@ -67,7 +70,7 @@ class Anexo3B implements AnexoInterface
     {
         Carbon::setLocale('pt_BR');
         $c = ($record instanceof \App\Models\Embarcacao) ? $record->cliente : $record;
-        $dataAula = isset($input['data_aula']) ? Carbon::parse($input['data_aula']) : Carbon::now();
+        $dataAula = !empty($input['data_aula']) ? Carbon::parse($input['data_aula']) : null;
 
         return [
             'nomecliente' => mb_strtoupper($c->nome ?? ''),
@@ -91,11 +94,11 @@ class Anexo3B implements AnexoInterface
             'nomeinstrutor' => mb_strtoupper($input['instrutor_nome'] ?? ''),
             'chainstrutor' => $input['instrutor_cat'] ?? '',
             'numchainstrutor' => $input['instrutor_cha'] ?? '',
-            'data' => $dataAula->format('d/m/Y'),
-            'localdata' => ($c->cidade ?? 'Brasília') . ', ' . $dataAula->translatedFormat('d \d\e F \d\e Y'),
-            'dia' => $dataAula->format('d'),
-            'mes' => $dataAula->format('m'),
-            'ano' => $dataAula->format('Y'),
+            'data' => $dataAula ? $dataAula->format('d/m/Y') : '',
+            'localdata' => ($c->cidade ?? 'Brasília') . ', ' . ($dataAula ? $dataAula->translatedFormat('d \d\e F \d\e Y') : '____ de __________________ de ________'),
+            'dia' => $dataAula ? $dataAula->format('d') : '____',
+            'mes' => $dataAula ? $dataAula->format('m') : '____',
+            'ano' => $dataAula ? $dataAula->format('Y') : '________',
         ];
     }
 }
