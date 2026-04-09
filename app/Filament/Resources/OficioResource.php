@@ -152,7 +152,23 @@ class OficioResource extends Resource
                     ->label('Documento')
                     ->formatStateUsing(fn($state) => "Ofício nº {$state}")
                     ->description(fn(Oficio $record) => $record->escola->razao_social)
-                    ->searchable(['sequencial', 'ano'])
+                    // Usamos uma query customizada no searchable para buscar nas relações
+                    ->searchable(query: function (\Illuminate\Database\Eloquent\Builder $query, string $search) {
+                        $numbers = preg_replace('/[^0-9]/', '', $search);
+
+                        $query->where('sequencial', 'ilike', "%{$search}%")
+                            ->orWhere('ano', 'ilike', "%{$search}%")
+                            // Busca no relacionamento itens -> cliente
+                            ->orWhereHas('itens.cliente', function (\Illuminate\Database\Eloquent\Builder $q) use ($search, $numbers) {
+                                $q->where('nome', 'ilike', "%{$search}%")
+                                    ->orWhere('cpfcnpj', 'ilike', "%{$search}%");
+
+                                // Se houver números na pesquisa, usa a sua lógica de regex do Postgres para ignorar pontuação
+                                if (!empty($numbers)) {
+                                    $q->orWhereRaw("REGEXP_REPLACE(cpfcnpj, '[^0-9]', '', 'g') LIKE ?", ["%{$numbers}%"]);
+                                }
+                            });
+                    })
                     ->sortable(['ano', 'sequencial'])
                     ->weight('bold'),
 
