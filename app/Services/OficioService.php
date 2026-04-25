@@ -47,9 +47,12 @@ class OficioService
 
         $cidadeFmt = Str::title(Str::lower($escola->cidade ?? 'Goiânia'));
         $uf = strtoupper($escola->uf ?? 'GO');
-        $dia = Carbon::now()->day;
-        $mes = Carbon::now()->translatedFormat('F');
-        $ano = Carbon::now()->year;
+
+        $dataEmissao = $oficio->created_at ?? Carbon::now();
+
+        $dia = $dataEmissao->day;
+        $mes = $dataEmissao->translatedFormat('F');
+        $ano = $dataEmissao->year;
 
         $template->setValue('localdata', "{$cidadeFmt} - {$uf}, {$dia} de {$mes} de {$ano}");
 
@@ -90,19 +93,19 @@ class OficioService
                 $template->setValue("nomeinstrutor{$j}", $this->up($p->nome));
                 $template->setValue("cpfinstrutor{$j}", $this->formatarCpfCnpj($p->cpfcnpj));
                 $template->setValue("celinstrutor{$j}", $p->celular ?? '');
-                
+
                 // Correção solicitada: Preenche "ARA e MTA" apenas se existir instrutor
                 $template->setValue("aramta{$j}", "ARA e MTA");
-                
+
                 $template->setValue("chainstrutor{$j}", $p->cha_numero ?? '');
             } else {
                 $template->setValue("nomeinstrutor{$j}", "");
                 $template->setValue("cpfinstrutor{$j}", "");
                 $template->setValue("celinstrutor{$j}", "");
-                
+
                 // Correção solicitada: Limpa o campo se não houver instrutor
                 $template->setValue("aramta{$j}", "");
-                
+
                 $template->setValue("chainstrutor{$j}", "");
             }
         }
