@@ -391,12 +391,12 @@ class Anexos extends Page implements HasForms
 
     public function gerarAutorizacaoTransferenciaMotoaquaticaAction(): Action
     {
-        return $this->criarBotaoAnexo(AutorizacaoTransferenciaMotoaquatica::class, 'Anexo 2D (212)', Processo::TIPO_MOTO, 'warning');
+        return $this->criarBotaoAnexo(AutorizacaoTransferenciaMotoaquatica::class, 'Anexo 2D-212', Processo::TIPO_MOTO, 'warning');
     }
 
     public function gerarComunicadoTransferenciaMotoaquaticaAction(): Action
     {
-        return $this->criarBotaoAnexo(ComunicadoTransferenciaMotoaquatica::class, 'Anexo 2E (212)', Processo::TIPO_MOTO, 'warning');
+        return $this->criarBotaoAnexo(ComunicadoTransferenciaMotoaquatica::class, 'Anexo 2E-212', Processo::TIPO_MOTO, 'warning');
     }
 
     // --- GRUPO: ADMINISTRATIVOS ---
@@ -424,7 +424,7 @@ class Anexos extends Page implements HasForms
     public function gerarProcuracao02Action(): Action
     {
         return Action::make('gerarProcuracao02')
-            // ... (configurações do botão) ...
+            ->label('Procuração')
             ->action(function (Anexos $livewire) {
                 $clienteId = $livewire->data['cliente_id'];
                 $embarcacaoId = $livewire->data['embarcacao_id'] ?? null;
@@ -446,7 +446,7 @@ class Anexos extends Page implements HasForms
     public function gerarDefesaInfracaoAction(): Action
     {
         return Action::make('gerarDefesaInfracao')
-            ->label('Emitir Defesa')
+            ->label('Defesa')
             ->modalHeading('Defesa de Infração')
             ->icon('heroicon-o-shield-check')
             ->color('danger')
