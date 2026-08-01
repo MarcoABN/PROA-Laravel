@@ -24,6 +24,7 @@ use App\Anexos\Anexo5E;
 use App\Anexos\Anexo5H;
 use App\Anexos\Bsade;
 use App\Anexos\DeclaracaoResidencia;
+use App\Anexos\PedidoInformacao;
 use App\Anexos\Procuracao;
 use App\Anexos\RequerimentoServico;
 use App\Anexos\DeclaracaoPerda;
@@ -441,6 +442,13 @@ class Anexos extends Page implements HasForms
 
                 return $livewire->js("setTimeout(() => window.open('{$url}', '_blank'), 500);");
             });
+    }
+
+    // O nome do método precisa ser "{nome da action}Action" — criarBotaoAnexoCliente
+    // sufixa "Cliente" no nome, senão o Filament não resolve a action ao montar o modal.
+    public function gerarPedidoInformacaoClienteAction(): Action
+    {
+        return $this->criarBotaoAnexoCliente(PedidoInformacao::class, 'Pedido de Informação', Processo::TIPO_OUTROS, 'danger');
     }
 
     public function gerarDefesaInfracaoAction(): Action

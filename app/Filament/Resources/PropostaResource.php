@@ -91,7 +91,16 @@ class PropostaResource extends Resource
 
                         Forms\Components\Grid::make(2)
                             ->schema([
-                                TextInput::make('valor_desconto')->label('Desconto')->numeric()->prefix('R$')->default(0)->live(onBlur: true),
+                                TextInput::make('valor_desconto')
+                                    ->label('Desconto')
+                                    ->numeric()
+                                    ->prefix('R$')
+                                    ->default(0)
+                                    ->placeholder('0,00')
+                                    // Campo vazio significa "sem desconto". Sem isso o estado vai como null
+                                    // e a coluna valor_desconto (NOT NULL) rejeita o insert.
+                                    ->dehydrateStateUsing(fn($state) => blank($state) ? 0 : $state)
+                                    ->live(onBlur: true),
                                 Placeholder::make('total_calculado')
                                     ->label('Total Líquido Estimado')
                                     ->content(fn(Get $get) => 'R$ ' . number_format(self::getTotalLiquido($get), 2, ',', '.'))

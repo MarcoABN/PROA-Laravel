@@ -12,6 +12,7 @@ use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Facades\Http;
 
@@ -221,6 +222,12 @@ class EmbarcacaoResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // Abre mostrando os cadastros mais recentes. O desempate por id é necessário
+            // porque a carga inicial gravou centenas de registros com o mesmo created_at,
+            // e sem ele a paginação pode repetir ou pular linhas.
+            ->defaultSort(fn(Builder $query) => $query
+                ->orderByDesc('embarcacoes.created_at')
+                ->orderByDesc('embarcacoes.id'))
             ->columns([
                 Tables\Columns\TextColumn::make('nome_embarcacao')
                     ->searchable()
@@ -240,6 +247,12 @@ class EmbarcacaoResource extends Resource
                 Tables\Columns\TextColumn::make('tipo_embarcacao'),
                 Tables\Columns\TextColumn::make('num_inscricao'),
                 Tables\Columns\TextColumn::make('motores_count')->counts('motores')->label('Qtd Motores'),
+
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Cadastrado em')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

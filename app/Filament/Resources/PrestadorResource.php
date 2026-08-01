@@ -8,8 +8,10 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Resources\Resource;
+use Filament\Support\RawJs;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class PrestadorResource extends Resource
 {
@@ -33,21 +35,37 @@ class PrestadorResource extends Resource
                     ->columns(2)
                     ->schema([
                         Forms\Components\TextInput::make('nome')
+                            ->label(fn(Get $get) => static::ehPessoaJuridica($get('cpfcnpj')) ? 'Razão Social' : 'Nome')
                             ->required()
                             ->maxLength(255)
                             ->columnSpanFull(),
 
                         Forms\Components\TextInput::make('cpfcnpj')
-                            ->label('CPF')
-                            ->mask('999.999.999-99')
+                            ->label('CPF/CNPJ')
+                            ->helperText('Pessoa física (CPF) ou jurídica (CNPJ) — a máscara se ajusta sozinha.')
                             ->required()
-                            ->unique(ignoreRecord: true),
+                            // Máscara dinâmica: alterna para CNPJ se passar de 14 caracteres digitados
+                            ->mask(RawJs::make(<<<'JS'
+        $input.length > 14 ? '99.999.999/9999-99' : '999.999.999-99'
+    JS))
+                            // Remove os caracteres de formatação antes de validar e salvar no banco
+                            ->stripCharacters(['.', '-', '/'])
+                            ->maxLength(18)
+                            ->unique(ignoreRecord: true)
+                            ->validationMessages([
+                                'unique' => 'CPF/CNPJ já cadastrado',
+                                'required' => 'Campo Obrigatório',
+                            ])
+                            // Alterna os campos exclusivos de pessoa física ao sair do campo
+                            ->live(onBlur: true)
+                            // Normaliza registros antigos salvos com formato irregular ao abrir a edição
+                            ->formatStateUsing(fn(?string $state) => static::formatarDocumento($state)),
 
                         Forms\Components\TextInput::make('email')
                             ->email()
                             ->maxLength(255),
 
-                        // Grupo de RG
+                        // Grupo de RG — exclusivo de pessoa física
                         Forms\Components\Fieldset::make('Documento de Identidade (RG)')
                             ->schema([
                                 Forms\Components\TextInput::make('rg')
@@ -59,12 +77,17 @@ class PrestadorResource extends Resource
                                     ->label('Data de Emissão')
                                     ->displayFormat('d/m/Y') // <--- Visual (Dia/Mês/Ano)
                                     ->format('Y-m-d')        // <--- Banco (Ano-Mês-Dia)
-                            ])->columns(3),
+                            ])
+                            ->columns(3)
+                            ->hidden(fn(Get $get) => static::ehPessoaJuridica($get('cpfcnpj'))),
 
-                        // Outros Dados Civis
-                        Forms\Components\TextInput::make('nacionalidade'),
-                        Forms\Components\TextInput::make('estado_civil'),
-                        Forms\Components\TextInput::make('profissao'),
+                        // Outros Dados Civis — exclusivos de pessoa física
+                        Forms\Components\TextInput::make('nacionalidade')
+                            ->hidden(fn(Get $get) => static::ehPessoaJuridica($get('cpfcnpj'))),
+                        Forms\Components\TextInput::make('estado_civil')
+                            ->hidden(fn(Get $get) => static::ehPessoaJuridica($get('cpfcnpj'))),
+                        Forms\Components\TextInput::make('profissao')
+                            ->hidden(fn(Get $get) => static::ehPessoaJuridica($get('cpfcnpj'))),
 
                         // Contatos
                         Forms\Components\TextInput::make('telefone')
@@ -98,9 +121,11 @@ class PrestadorResource extends Resource
                     ])->collapsible(),
 
                 // --- SEÇÃO 3: DADOS DA HABILITAÇÃO (CHA) ---
+                // A CHA é um documento pessoal do amador, então não se aplica a pessoa jurídica.
                 Forms\Components\Section::make('Dados da Habilitação (CHA)')
                     ->description('Necessário para emissão de Atestados (Anexos 3B e 5E).')
                     ->columns(2)
+                    ->hidden(fn(Get $get) => static::ehPessoaJuridica($get('cpfcnpj')))
                     ->schema([
                         Forms\Components\TextInput::make('cha_numero')
                             ->label('Número da CHA')
@@ -157,7 +182,14 @@ class PrestadorResource extends Resource
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('cpfcnpj')
-                    ->label('Documento'),
+                    ->label('Documento')
+                    ->formatStateUsing(fn(?string $state) => static::formatarDocumento($state))
+                    ->searchable(query: function (Builder $query, string $search) {
+                        $numeros = preg_replace('/[^0-9]/', '', $search);
+                        if (!empty($numeros)) {
+                            $query->whereRaw("REGEXP_REPLACE(cpfcnpj, '[^0-9]', '', 'g') LIKE ?", ["%{$numeros}%"]);
+                        }
+                    }),
                 Tables\Columns\TextColumn::make('celular')
                     ->label('Contato'),
                 Tables\Columns\IconColumn::make('is_instrutor')
@@ -185,6 +217,37 @@ class PrestadorResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Um documento com 14 dígitos é CNPJ, ou seja, pessoa jurídica.
+     * Usado para esconder no formulário os campos que só existem para pessoa física.
+     */
+    protected static function ehPessoaJuridica(?string $documento): bool
+    {
+        return strlen(preg_replace('/[^0-9]/', '', (string) $documento)) === 14;
+    }
+
+    /**
+     * Aplica a máscara de CPF (11 dígitos) ou CNPJ (14 dígitos) a partir dos dígitos puros.
+     * Valores com quantidade inesperada de dígitos são devolvidos como estão.
+     */
+    protected static function formatarDocumento(?string $state): ?string
+    {
+        if (!$state) {
+            return null;
+        }
+
+        $digitos = preg_replace('/[^0-9]/', '', $state);
+
+        if (strlen($digitos) === 11) {
+            return preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $digitos);
+        }
+        if (strlen($digitos) === 14) {
+            return preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $digitos);
+        }
+
+        return $state;
     }
 
     public static function getPages(): array

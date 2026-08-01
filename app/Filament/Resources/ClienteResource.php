@@ -174,6 +174,12 @@ class ClienteResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // Abre mostrando os cadastros mais recentes. O desempate por id é necessário
+            // porque a carga inicial gravou centenas de registros com o mesmo created_at,
+            // e sem ele a paginação pode repetir ou pular linhas.
+            ->defaultSort(fn(Builder $query) => $query
+                ->orderByDesc('clientes.created_at')
+                ->orderByDesc('clientes.id'))
             ->columns([
                 Tables\Columns\TextColumn::make('nome')
                     ->searchable(query: function (Builder $query, string $search) {
@@ -242,6 +248,12 @@ class ClienteResource extends Resource
                         $valor = (float) str_replace('%', '', $state);
                         return $valor >= 50 ? 'success' : 'danger';
                     }),
+
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Cadastrado em')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('status_simulado')

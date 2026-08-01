@@ -4,6 +4,7 @@ use App\Http\Controllers\ClienteController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PropostaController;
 use App\Http\Controllers\AnexoController;
+use App\Http\Controllers\PreferenciaController;
 use App\Http\Controllers\SiteController;
 use App\Livewire\Auth\LoginCpf;
 use App\Livewire\SimuladoNaval;
@@ -42,6 +43,10 @@ Route::middleware(['auth:web'])->prefix('admin')->group(function () {
     // Gerador de Anexos
     Route::get('/anexos/gerar/{classe}/{embarcacao}', [AnexoController::class, 'gerarGenerico'])
         ->name('anexos.gerar_generico');
+
+    // Posição do menu do painel (lateral ou superior)
+    Route::get('/preferencias/menu/{posicao}', [PreferenciaController::class, 'navegacao'])
+        ->name('preferencias.menu');
 });
 
 

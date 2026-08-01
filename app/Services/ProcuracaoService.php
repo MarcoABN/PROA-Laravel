@@ -82,10 +82,22 @@ class ProcuracaoService
         foreach ($procuradores as $proc) {
             $cpf = $this->formatarCpfCnpj($proc->cpfcnpj);
 
+            // Procurador pode ser pessoa física (CPF) ou jurídica (CNPJ, 14 dígitos).
+            // A redação da procuração muda conforme o caso.
+            $ehPessoaJuridica = strlen(preg_replace('/[^0-9]/', '', (string) $proc->cpfcnpj)) === 14;
+
             // Monta o RG com Órgão Emissor se houver
             $rgTexto = $proc->rg;
             if (!empty($proc->org_emissor)) {
                 $rgTexto .= ' ' . $proc->org_emissor;
+            }
+
+            if ($ehPessoaJuridica) {
+                $tratamento = $this->up($proc->nome);
+                $qualificacao = "inscrita no CNPJ sob o nº {$cpf}";
+            } else {
+                $tratamento = "Sr. " . $this->up($proc->nome);
+                $qualificacao = "portador da Carteira de Identidade nº {$rgTexto} e CPF {$cpf}";
             }
 
             // Verifica o tipo (ENUM: COMPLETO ou REDUZIDO)
@@ -103,22 +115,32 @@ class ProcuracaoService
                 if ($proc->uf)
                     $enderecoProc .= "-{$proc->uf}";
 
-                $partes = [
-                    "Sr. " . $this->up($proc->nome),
-                    $proc->nacionalidade ?? 'brasileiro',
-                    $proc->estado_civil,
-                    $proc->profissao,
-                    "portador da Carteira de Identidade nº {$rgTexto} e CPF {$cpf}",
-                    "residente e domiciliado na " . ($enderecoProc ?? 'endereço não informado')
-                ];
+                if ($ehPessoaJuridica) {
+                    // Pessoa jurídica não tem nacionalidade/estado civil/profissão e tem sede, não domicílio
+                    $partes = [
+                        $tratamento,
+                        "pessoa jurídica de direito privado",
+                        $qualificacao,
+                        "com sede na " . ($enderecoProc ?? 'endereço não informado')
+                    ];
+                } else {
+                    $partes = [
+                        $tratamento,
+                        $proc->nacionalidade ?? 'brasileiro',
+                        $proc->estado_civil,
+                        $proc->profissao,
+                        $qualificacao,
+                        "residente e domiciliado na " . ($enderecoProc ?? 'endereço não informado')
+                    ];
+                }
 
                 // Filtra campos vazios e une com vírgula
                 $textosCompletos[] = implode(', ', array_filter($partes));
             } else {
                 // Tipo REDUZIDO
                 $partes = [
-                    "Sr. " . $this->up($proc->nome),
-                    "portador da Carteira de Identidade nº {$rgTexto} e CPF {$cpf}"
+                    $tratamento,
+                    $qualificacao
                 ];
                 $textosReduzidos[] = implode(', ', array_filter($partes));
             }
