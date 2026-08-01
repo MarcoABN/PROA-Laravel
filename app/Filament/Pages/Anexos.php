@@ -426,6 +426,10 @@ class Anexos extends Page implements HasForms
     {
         return Action::make('gerarProcuracao02')
             ->label('Procuração')
+            ->color('danger')
+            // Sem cliente a rota clientes.procuracao fica sem o parâmetro {id}
+            // e a geração estoura. Mesma regra dos demais botões.
+            ->disabled(fn() => empty($this->data['cliente_id']))
             ->action(function (Anexos $livewire) {
                 $clienteId = $livewire->data['cliente_id'];
                 $embarcacaoId = $livewire->data['embarcacao_id'] ?? null;
