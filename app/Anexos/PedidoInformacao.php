@@ -6,6 +6,7 @@ use App\Anexos\Contracts\AnexoInterface;
 use App\Models\Cliente;
 use App\Models\Embarcacao;
 use Carbon\Carbon;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 
 class PedidoInformacao implements AnexoInterface
@@ -22,6 +23,15 @@ class PedidoInformacao implements AnexoInterface
                 ->required()
                 ->maxLength(50)
                 ->validationMessages(['required' => 'Informe o número do protocolo']),
+
+            Textarea::make('solicitacao')
+                ->label('Venho Requerer')
+                ->placeholder('Descreva o que está sendo solicitado...')
+                ->helperText('Texto que aparece no documento logo após "Venho Requerer:".')
+                ->rows(4)
+                ->required()
+                ->maxLength(1000)
+                ->validationMessages(['required' => 'Informe o que está sendo requerido']),
         ];
     }
 
@@ -56,10 +66,31 @@ class PedidoInformacao implements AnexoInterface
             'cep' => $c->cep ?? '',
             'telefone' => $c->celular ?? $c->telefone ?? '',
             'email' => $this->up($c->email),
-            // Informado pelo usuário no momento da impressão
+            // Informados pelo usuário no momento da impressão
             'protocolo' => $input['protocolo'] ?? '',
+            'solicitacao' => $this->paraDocx($input['solicitacao'] ?? ''),
             'data_extenso' => Carbon::now()->translatedFormat('d \d\e F \d\e Y'),
         ];
+    }
+
+    /**
+     * Prepara texto livre para entrar no .docx.
+     *
+     * O escaping do PhpWord vem desabilitado por padrão (Settings::$outputEscapingEnabled
+     * = false), então o valor é injetado cru no XML: um "&" ou "<" digitado pelo usuário
+     * corromperia o documento. Aqui escapamos e convertemos quebras de linha em <w:br/>.
+     */
+    private function paraDocx(?string $texto): string
+    {
+        $texto = trim((string) $texto);
+
+        if ($texto === '') {
+            return '';
+        }
+
+        $texto = htmlspecialchars($texto, ENT_QUOTES | ENT_XML1, 'UTF-8');
+
+        return preg_replace('/\R/u', '<w:br/>', $texto);
     }
 
     private function up($valor) { return mb_strtoupper((string) ($valor ?? ''), 'UTF-8'); }
