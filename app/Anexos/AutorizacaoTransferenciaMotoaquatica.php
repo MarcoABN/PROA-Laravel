@@ -74,7 +74,7 @@ class AutorizacaoTransferenciaMotoaquatica implements AnexoInterface
             'cidadecomprador' => $this->up($embarcacao->cliente->cidade), 
             'cepcomprador' => $embarcacao->cliente->cep ?? '',
             
-            'localdata' => $this->up($embarcacao->cidade ?? 'Brasília') . ', ' . date('d/m/Y'),
+            'localdata' => $this->up($this->cidadeDoLocal($embarcacao)) . ', ' . date('d/m/Y'),
         ];
 
         // Lógica dos motores
@@ -91,5 +91,29 @@ class AutorizacaoTransferenciaMotoaquatica implements AnexoInterface
         return $dados;
     }
     
+    /**
+     * Cidade do "Local e Data".
+     *
+     * Antes era `$embarcacao->cidade ?? 'Brasília'`. Como 11% das embarcações estão
+     * sem cidade, o documento saía com BRASÍLIA — um literal sem relação alguma com
+     * o cadastro. Agora cai para a cidade do cliente (o comprador), que existe em
+     * todos esses casos. Usa trim() porque `??` não pega string vazia.
+     */
+    private function cidadeDoLocal($embarcacao): string
+    {
+        $candidatas = [
+            $embarcacao->cidade ?? null,
+            $embarcacao->cliente->cidade ?? null,
+        ];
+
+        foreach ($candidatas as $cidade) {
+            if (trim((string) $cidade) !== '') {
+                return trim((string) $cidade);
+            }
+        }
+
+        return '';
+    }
+
     private function up($valor) { return mb_strtoupper((string)($valor ?? ''), 'UTF-8'); }
 }
