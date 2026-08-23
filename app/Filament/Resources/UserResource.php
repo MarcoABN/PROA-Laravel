@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\User;
+use App\Support\AcessoUsuarios;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -23,6 +24,16 @@ class UserResource extends Resource
     protected static ?string $modelLabel = 'Usuário';
     protected static ?string $navigationGroup = 'Painel de Controle'; // Agrupa no menu
     protected static ?int $navigationSort = 1; // Ordem dentro do grupo
+
+    public static function canAccess(): bool
+    {
+        return AcessoUsuarios::permitido();
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return AcessoUsuarios::permitido();
+    }
 
     public static function form(Form $form): Form
     {
@@ -75,7 +86,25 @@ class UserResource extends Resource
                             ->required(fn(string $operation): bool => $operation === 'create')
                             ->dehydrated(false) // Não salva esse campo no banco
                         //->visible(fn(Forms\Get $get) => filled($get('password'))),
-                    ])->columns(2)
+                    ])->columns(2),
+
+                // Conceder permissão é privilégio do administrador. Para os demais a
+                // seção não é desenhada: quem não distribui acesso também não precisa
+                // saber quem tem o quê. Componente oculto não é hidratado, então o
+                // valor não chega ao model nem se alguém forjar o campo no navegador.
+                Forms\Components\Section::make('Permissões de Acesso')
+                    ->visible(fn(): bool => AcessoUsuarios::podeConcederPermissoes())
+                    ->schema([
+                        Forms\Components\Toggle::make('pode_acessar_financeiro')
+                            ->label('Acessa a Gestão Financeira')
+                            ->helperText('Quando desligado, o menu Gestão Financeira (lançamentos, tipos e consolidado) some para este usuário.')
+                            ->default(false),
+
+                        Forms\Components\Toggle::make('pode_gerenciar_usuarios')
+                            ->label('Acessa os Usuários do Sistema')
+                            ->helperText('Permite cadastrar usuários e trocar senhas. Conceder permissões continua sendo só do administrador.')
+                            ->default(false),
+                    ])->columns(2),
             ]);
     }
 
@@ -90,6 +119,20 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('email')
                     ->label('E-mail')
                     ->searchable(),
+
+                // Mesma regra do formulário: a listagem também não mostra as
+                // permissões para quem não pode mexer nelas.
+                Tables\Columns\IconColumn::make('pode_acessar_financeiro')
+                    ->label('Financeiro')
+                    ->boolean()
+                    ->sortable()
+                    ->visible(fn(): bool => AcessoUsuarios::podeConcederPermissoes()),
+
+                Tables\Columns\IconColumn::make('pode_gerenciar_usuarios')
+                    ->label('Usuários')
+                    ->boolean()
+                    ->sortable()
+                    ->visible(fn(): bool => AcessoUsuarios::podeConcederPermissoes()),
 
                 // --- MOSTRAR ÚLTIMO ACESSO ---
                 Tables\Columns\TextColumn::make('last_login_at')
@@ -137,7 +180,7 @@ class UserResource extends Resource
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
         return parent::getEloquentQuery()
-            ->where('email', '!=', 'marcoanunes23@gmail.com');
+            ->where('email', '!=', User::EMAIL_ADMINISTRADOR);
         // Ou use uma lógica mais abrangente, como:
         // ->where('is_invisible', false);
     }
