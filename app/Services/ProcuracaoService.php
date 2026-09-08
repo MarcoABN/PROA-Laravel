@@ -24,29 +24,29 @@ class ProcuracaoService
         $embarcacao = $embarcacaoId ? Embarcacao::find($embarcacaoId) : null;
 
         // --- 2. DADOS DO CLIENTE ---
-        $template->setValue('nomecliente', $this->up($cliente->nome));
+        $this->definir($template,'nomecliente', $this->up($cliente->nome));
 
         // Concatena endereço do cliente
         $endCliente = ($cliente->logradouro ?? '') . ', ' . ($cliente->numero ?? '');
-        $template->setValue('enderecocliente', $this->up($endCliente));
+        $this->definir($template,'enderecocliente', $this->up($endCliente));
 
-        $template->setValue('cep', $cliente->cep);
-        $template->setValue('cidade', $this->up($cliente->cidade)); // Cidade no endereço
-        $template->setValue('bairro', $this->up($cliente->bairro));
-        $template->setValue('rg', $cliente->rg ?? '');
-        $template->setValue('orgexpedidor', $this->up($cliente->org_emissor ?? ''));
-        $template->setValue('cpfcliente', $this->formatarCpfCnpj($cliente->cpfcnpj));
-        $template->setValue('email', strtolower($cliente->email));
-        $template->setValue('celular', $cliente->celular);
+        $this->definir($template,'cep', $cliente->cep);
+        $this->definir($template,'cidade', $this->up($cliente->cidade)); // Cidade no endereço
+        $this->definir($template,'bairro', $this->up($cliente->bairro));
+        $this->definir($template,'rg', $cliente->rg ?? '');
+        $this->definir($template,'orgexpedidor', $this->up($cliente->org_emissor ?? ''));
+        $this->definir($template,'cpfcliente', $this->formatarCpfCnpj($cliente->cpfcnpj));
+        $this->definir($template,'email', strtolower($cliente->email));
+        $this->definir($template,'celular', $cliente->celular);
 
         // --- 3. DADOS DA EMBARCAÇÃO (Condicional) ---
         if ($embarcacao) {
-            $template->setValue('label_embarcacao', 'NOME DA EMBARCAÇÃO:');
-            $template->setValue('nome_embarcacao', $this->up($embarcacao->nome_embarcacao));
+            $this->definir($template,'label_embarcacao', 'NOME DA EMBARCAÇÃO:');
+            $this->definir($template,'nome_embarcacao', $this->up($embarcacao->nome_embarcacao));
         } else {
             // Limpa os campos se não houver embarcação
-            $template->setValue('label_embarcacao', '');
-            $template->setValue('nome_embarcacao', '');
+            $this->definir($template,'label_embarcacao', '');
+            $this->definir($template,'nome_embarcacao', '');
         }
 
         // --- 4. LOCAL E DATA ---
@@ -61,7 +61,7 @@ class ProcuracaoService
         $cidadeBase = $cidadeBase ?? 'Goiânia';
 
         $dataExtenso = $this->up($cidadeBase) . ', ' . Carbon::now()->translatedFormat('d \d\e F \d\e Y');
-        $template->setValue('local_data', $dataExtenso);
+        $this->definir($template,'local_data', $dataExtenso);
 
         // --- 5. PROCURADORES (Lógica Dinâmica) ---
         $this->preencherProcuradores($template);
@@ -147,8 +147,8 @@ class ProcuracaoService
         }
 
         // Insere no template com gramática correta (A, B e C)
-        $template->setValue('procuradores_completo', $this->listarGramaticalmente($textosCompletos));
-        $template->setValue('procuradores_reduzido', $this->listarGramaticalmente($textosReduzidos));
+        $this->definir($template,'procuradores_completo', $this->listarGramaticalmente($textosCompletos));
+        $this->definir($template,'procuradores_reduzido', $this->listarGramaticalmente($textosReduzidos));
     }
 
     // Une array com vírgulas e "e" no final
@@ -202,6 +202,28 @@ class ProcuracaoService
         @unlink($tempDocx);
 
         return $pdfPath;
+    }
+
+    /**
+     * Grava um valor no template escapando os caracteres reservados do XML.
+     *
+     * O PhpWord tem escaping próprio, mas ele vem desligado por padrão
+     * (Settings::$outputEscapingEnabled = false), então o valor era injetado cru no
+     * document.xml: uma embarcação chamada "MAR & SOL" gerava XML inválido
+     * ("xmlParseEntityRef: no name") e o documento não abria.
+     *
+     * Não ligamos o escaping global do PhpWord de propósito: outros pontos do
+     * sistema dependem de injetar marcação própria (por exemplo <w:br/> para
+     * quebras de linha), que o modo global escaparia junto.
+     */
+    private function definir(TemplateProcessor $template, string $campo, $valor): void
+    {
+        $template->setValue($campo, $this->escaparXml($valor));
+    }
+
+    private function escaparXml($valor): string
+    {
+        return htmlspecialchars((string) ($valor ?? ''), ENT_QUOTES | ENT_XML1, 'UTF-8');
     }
 
     private function up($valor)
