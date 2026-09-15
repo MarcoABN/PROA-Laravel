@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\CapitaniaResource\Pages;
 use App\Models\Capitania;
 use App\Support\AcessoAgendamento;
+use App\Support\OrganizacoesMilitaresSisap;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -59,7 +60,19 @@ class CapitaniaResource extends Resource
                         Forms\Components\TextInput::make('sisap_nidom')
                             ->label('Código da OM no SISAP')
                             ->numeric()
-                            ->helperText('Ex.: CFGO = 136.'),
+                            ->live(onBlur: true)
+                            ->helperText(fn($state) => OrganizacoesMilitaresSisap::nome($state)
+                                ?? ($state ? 'Código fora da lista conhecida do SISAP. Confira no "?".' : 'Ex.: Capitania Fluvial de Goiás = 136.'))
+                            ->hintAction(
+                                Forms\Components\Actions\Action::make('listaOmsSisap')
+                                    ->label('?')
+                                    ->icon('heroicon-o-question-mark-circle')
+                                    ->tooltip('Ver os códigos das OMs no SISAP')
+                                    ->modalHeading('Códigos das OMs no SISAP')
+                                    ->modalContent(view('filament.forms.lista-oms-sisap'))
+                                    ->modalSubmitAction(false)
+                                    ->modalCancelActionLabel('Fechar')
+                            ),
 
                         Forms\Components\TextInput::make('sisap_vagas_por_agendamento')
                             ->label('Vagas por agendamento')
