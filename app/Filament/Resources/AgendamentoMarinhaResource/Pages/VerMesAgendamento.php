@@ -3,16 +3,19 @@
 namespace App\Filament\Resources\AgendamentoMarinhaResource\Pages;
 
 use App\Filament\Resources\AgendamentoMarinhaResource;
+use App\Models\AgendamentoMarinha;
+use App\Models\Capitania;
 use App\Support\AcessoAgendamento;
 use App\Support\ExtensaoChrome;
-use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 
 /**
- * Um mês aberto: os serviços do mês agrupados por procurador.
+ * Um mês aberto, para consulta e operação: serviços agrupados por capitania · procurador.
+ * Incluir ou alterar clientes é no cadastro de cada capitania ("Editar cadastro").
  */
 class VerMesAgendamento extends ListRecords
 {
@@ -67,6 +70,14 @@ class VerMesAgendamento extends ListRecords
 
     protected function getHeaderActions(): array
     {
+        $capitaniasDoMes = Capitania::query()
+            ->whereIn('id', AgendamentoMarinha::query()
+                ->whereDate('competencia', $this->dataCompetencia()->toDateString())
+                ->where('status', '!=', AgendamentoMarinha::STATUS_CANCELADO)
+                ->select('capitania_id'))
+            ->orderBy('sigla')
+            ->get();
+
         return [
             Actions\Action::make('voltar')
                 ->label('Meses')
@@ -74,10 +85,24 @@ class VerMesAgendamento extends ListRecords
                 ->color('gray')
                 ->url(AgendamentoMarinhaResource::getUrl()),
 
-            Actions\CreateAction::make()
-                ->label('Adicionar serviço')
-                ->modalHeading('Adicionar serviço neste mês')
-                ->using(fn(array $data, Actions\CreateAction $action) => AgendamentoMarinhaResource::salvar($data, null, $action)),
+            Actions\ActionGroup::make($capitaniasDoMes
+                ->map(fn(Capitania $capitania) => Actions\Action::make("editarCadastro{$capitania->id}")
+                    ->label("Editar cadastro {$capitania->sigla}")
+                    ->icon('heroicon-o-pencil-square')
+                    ->url(AgendamentoMarinhaResource::urlCadastro($capitania->id, $this->dataCompetencia())))
+                ->all())
+                ->label('Editar cadastro')
+                ->icon('heroicon-o-pencil-square')
+                ->button()
+                ->color('gray')
+                ->visible($capitaniasDoMes->isNotEmpty()),
+
+            // Só há novo cadastro no mês enquanto sobrar capitania sem cadastro (a chave capitania + mês não repete).
+            Actions\Action::make('novoCadastro')
+                ->label('Novo cadastro')
+                ->icon('heroicon-o-plus')
+                ->url(AgendamentoMarinhaResource::urlNovoCadastro($this->competencia))
+                ->visible(Capitania::whereNotIn('id', $capitaniasDoMes->pluck('id'))->exists()),
         ];
     }
 }

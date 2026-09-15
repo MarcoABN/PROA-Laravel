@@ -20,7 +20,7 @@
     @if ($meses->isEmpty())
         <x-filament::section>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-                Nenhum agendamento cadastrado ainda. Use <strong>Cadastrar agendamentos</strong> para registrar os procuradores e clientes de um mês.
+                Nenhum agendamento cadastrado ainda. Use <strong>Novo cadastro</strong> para escolher a capitania e o mês e registrar os procuradores e clientes.
             </p>
         </x-filament::section>
     @else
@@ -33,8 +33,15 @@
                             <div class="text-sm text-gray-500 dark:text-gray-400">
                                 {{ $mes['procuradores'] }} procurador(es) · {{ $mes['agendamentos'] }} agendamento(s) · {{ $mes['servicos'] }} serviço(s)
                             </div>
-                            @if ($mes['capitanias'])
-                                <div class="text-xs text-gray-500 dark:text-gray-400">{{ $mes['capitanias'] }}</div>
+                            @if ($mes['cadastros'])
+                                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                    <span>Cadastros:</span>
+                                    @foreach ($mes['cadastros'] as $cadastro)
+                                        <x-filament::link :href="$cadastro['url']" size="sm" icon="heroicon-m-pencil-square">
+                                            {{ $cadastro['sigla'] }} ({{ $cadastro['total'] }} agend.)
+                                        </x-filament::link>
+                                    @endforeach
+                                </div>
                             @endif
                         </div>
 

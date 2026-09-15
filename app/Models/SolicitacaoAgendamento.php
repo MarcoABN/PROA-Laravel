@@ -5,11 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Auth;
+use LogicException;
 
 /**
  * Um serviço de um cliente a ser agendado pelo procurador: CPF + GRU + serviço.
- * Cada GRU ocupa uma vaga. Grave sempre por App\Services\Agendamento\AlocaSolicitacao,
- * que escolhe o agendamento do procurador onde a solicitação entra.
+ * Cada GRU ocupa uma vaga. Grave sempre pelo cadastro da Capitania + Mês
+ * (App\Services\Agendamento\CadastroDoMes), que mantém procurador, capitania e mês coerentes com o agendamento.
  */
 class SolicitacaoAgendamento extends Model
 {
@@ -32,6 +33,13 @@ class SolicitacaoAgendamento extends Model
                 $cliente = Cliente::where('cpfcnpj', $solicitacao->cliente_cpf)->first();
                 $solicitacao->cliente_id = $cliente?->id;
                 $solicitacao->cliente_nome = $solicitacao->cliente_nome ?: $cliente?->nome;
+            }
+        });
+
+        // Capitania + mês é a chave do cadastro: uma vez gravada, não muda.
+        static::updating(function (SolicitacaoAgendamento $solicitacao) {
+            if ($solicitacao->isDirty(['capitania_id', 'competencia'])) {
+                throw new LogicException('A capitania e o mês de um cliente do agendamento não podem ser alterados.');
             }
         });
 

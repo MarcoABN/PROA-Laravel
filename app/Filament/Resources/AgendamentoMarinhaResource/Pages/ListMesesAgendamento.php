@@ -4,28 +4,21 @@ namespace App\Filament\Resources\AgendamentoMarinhaResource\Pages;
 
 use App\Filament\Resources\AgendamentoMarinhaResource;
 use App\Models\AgendamentoMarinha;
-use App\Models\Capitania;
-use App\Services\Agendamento\AlocaSolicitacao;
-use App\Services\Agendamento\SemVagaException;
 use App\Support\AcessoAgendamento;
 use App\Support\EnderecoPublico;
 use App\Support\ExtensaoChrome;
-use Illuminate\Support\HtmlString;
 use Carbon\Carbon;
 use Filament\Actions;
-use Filament\Forms;
-use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
-use Filament\Support\Enums\MaxWidth;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
+use Illuminate\Support\HtmlString;
 
 /**
- * Tela de entrada: um card por mês com o andamento dos agendamentos.
- * "Cadastrar agendamentos" registra de uma vez os procuradores e clientes de um mês.
+ * Tela de entrada: um card por mês com o andamento e os cadastros de cada capitania.
+ * "Novo cadastro" abre o cadastro de uma Capitania + Mês.
  */
 class ListMesesAgendamento extends Page
 {
@@ -56,12 +49,12 @@ class ListMesesAgendamento extends Page
             ->groupBy('competencia')
             ->pluck('total', 'competencia');
 
-        // Resumo por capitania dentro do mês: "CFGO: 4 agend. · CFMT: 1 agend."
-        $porCapitania = DB::table('agendamentos_marinha')
+        // Um cadastro por capitania no mês, com link para editar.
+        $cadastros = DB::table('agendamentos_marinha')
             ->join('capitanias', 'capitanias.id', '=', 'agendamentos_marinha.capitania_id')
             ->where('agendamentos_marinha.status', '<>', AgendamentoMarinha::STATUS_CANCELADO)
-            ->selectRaw('agendamentos_marinha.competencia, capitanias.sigla, COUNT(*) AS total')
-            ->groupBy('agendamentos_marinha.competencia', 'capitanias.sigla')
+            ->selectRaw('agendamentos_marinha.competencia, capitanias.id, capitanias.sigla, COUNT(*) AS total')
+            ->groupBy('agendamentos_marinha.competencia', 'capitanias.id', 'capitanias.sigla')
             ->orderBy('capitanias.sigla')
             ->get()
             ->groupBy('competencia');
@@ -78,13 +71,18 @@ class ListMesesAgendamento extends Page
             ->groupBy('competencia')
             ->orderByDesc('competencia')
             ->get()
-            ->map(function ($mes) use ($servicos, $porCapitania) {
+            ->map(function ($mes) use ($servicos, $cadastros) {
                 $data = Carbon::parse($mes->competencia);
 
                 return [
-                    'capitanias' => ($porCapitania[$mes->competencia] ?? collect())
-                        ->map(fn($linha) => "{$linha->sigla}: {$linha->total} agend.")
-                        ->implode(' · '),
+                    'cadastros' => ($cadastros[$mes->competencia] ?? collect())
+                        ->map(fn($linha) => [
+                            'sigla' => $linha->sigla,
+                            'total' => (int) $linha->total,
+                            'url' => AgendamentoMarinhaResource::urlCadastro((int) $linha->id, $mes->competencia),
+                        ])
+                        ->values()
+                        ->all(),
                     'nome' => ucfirst($data->locale('pt_BR')->translatedFormat('F \d\e Y')),
                     'rotulo' => $data->format('m/Y'),
                     'url' => AgendamentoMarinhaResource::getUrl('mes', ['competencia' => $data->format('Y-m')]),
@@ -149,91 +147,10 @@ class ListMesesAgendamento extends Page
                         ->send();
                 }),
 
-            Actions\Action::make('cadastrar')
-                ->label('Cadastrar agendamentos')
+            Actions\Action::make('novoCadastro')
+                ->label('Novo cadastro')
                 ->icon('heroicon-o-plus')
-                ->modalHeading('Cadastrar agendamentos do mês')
-                ->modalDescription('Informe o mês e, para cada procurador, os clientes com GRU e serviço. O PROA divide os serviços entre os agendamentos do procurador.')
-                ->modalWidth(MaxWidth::SevenExtraLarge)
-                ->modalSubmitActionLabel('Cadastrar')
-                ->form([
-                    Forms\Components\Grid::make(2)->schema([
-                        Forms\Components\Select::make('competencia')
-                            ->label('Mês do atendimento')
-                            ->options(AgendamentoMarinha::competenciasDisponiveis())
-                            ->default(fn() => array_keys(AgendamentoMarinha::competenciasDisponiveis())[1])
-                            ->required()
-                            ->live()
-                            ->native(false)
-                            ->helperText('Pode repetir o cadastro no mesmo mês para outras capitanias ou procuradores.'),
-                    ]),
-
-                    // Um item por procurador + capitania: o mesmo procurador pode aparecer de novo em outra capitania.
-                    Forms\Components\Repeater::make('procuradores')
-                        ->label('Procuradores')
-                        ->addActionLabel('Adicionar procurador')
-                        ->defaultItems(1)
-                        ->minItems(1)
-                        ->reorderable(false)
-                        ->collapsible()
-                        ->columns(4)
-                        ->itemLabel(fn(array $state) => collect([
-                            AgendamentoMarinhaResource::opcoesProcuradores()[$state['prestador_id'] ?? null] ?? 'Procurador',
-                            Capitania::find($state['capitania_id'] ?? null)?->sigla,
-                        ])->filter()->implode(' · '))
-                        ->schema([
-                            Forms\Components\Select::make('prestador_id')
-                                ->label('Procurador')
-                                ->options(fn() => AgendamentoMarinhaResource::opcoesProcuradores())
-                                ->searchable()
-                                ->required()
-                                ->live()
-                                ->helperText(fn(Get $get) => AgendamentoMarinhaResource::textoVagas(
-                                    $get('prestador_id'), $get('capitania_id'), $get('../../competencia'),
-                                )),
-
-                            Forms\Components\Select::make('capitania_id')
-                                ->label('Capitania')
-                                ->options(fn() => AgendamentoMarinhaResource::opcoesCapitanias())
-                                ->default(fn() => Capitania::where('padrao', true)->value('id'))
-                                ->required()
-                                ->live()
-                                ->native(false),
-
-                            AgendamentoMarinhaResource::campoDataSugerida('../../competencia'),
-
-                            AgendamentoMarinhaResource::campoPeriodo(),
-
-                            Forms\Components\Repeater::make('clientes')
-                                ->label('Clientes')
-                                ->columnSpanFull()
-                                ->addActionLabel('Adicionar cliente')
-                                ->defaultItems(1)
-                                ->minItems(1)
-                                ->reorderable(false)
-                                ->columns(4)
-                                ->schema([
-                                    AgendamentoMarinhaResource::campoCpf(),
-                                    AgendamentoMarinhaResource::campoNome(),
-                                    AgendamentoMarinhaResource::campoGru()->unique('agendamento_solicitacoes', 'gru'),
-                                    AgendamentoMarinhaResource::campoServico(),
-                                ]),
-                        ]),
-                ])
-                ->action(function (array $data, Actions\Action $action) {
-                    try {
-                        $mes = AlocaSolicitacao::cadastrarLote($data);
-                    } catch (SemVagaException | InvalidArgumentException $e) {
-                        Notification::make()->title('Nada foi cadastrado')->body($e->getMessage())->danger()->send();
-                        $action->halt();
-
-                        return;
-                    }
-
-                    Notification::make()->title('Agendamentos cadastrados')->success()->send();
-
-                    $this->redirect(AgendamentoMarinhaResource::getUrl('mes', ['competencia' => $mes]));
-                }),
+                ->url(AgendamentoMarinhaResource::getUrl('cadastro')),
         ];
     }
 }

@@ -9,9 +9,8 @@ use App\Models\Cliente;
 use App\Models\Prestador;
 use App\Models\SisapServico;
 use App\Models\SolicitacaoAgendamento;
-use App\Services\Agendamento\AlocaSolicitacao;
+use App\Services\Agendamento\CadastroDoMes;
 use App\Services\Agendamento\RegistraResultadoAgendamento;
-use App\Services\Agendamento\SemVagaException;
 use App\Support\AcessoAgendamento;
 use Carbon\Carbon;
 use Closure;
@@ -28,9 +27,10 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Agendamento na Marinha em dois níveis:
+ * Agendamento na Marinha:
  * 1) tela de meses (Pages\ListMesesAgendamento);
- * 2) o mês aberto (Pages\VerMesAgendamento), com os serviços agrupados por procurador.
+ * 2) cadastro de uma Capitania + Mês (Pages\CadastroAgendamentos) — onde se incluem procuradores e clientes;
+ * 3) o mês aberto (Pages\VerMesAgendamento), para consulta e operação, agrupado por capitania · procurador.
  */
 class AgendamentoMarinhaResource extends Resource
 {
@@ -55,96 +55,10 @@ class AgendamentoMarinhaResource extends Resource
         return AcessoAgendamento::permitido();
     }
 
+    /** Inclusão e alteração de clientes acontecem só no cadastro da capitania/mês. */
     public static function form(Form $form): Form
     {
-        return $form
-            ->columns(2)
-            ->schema([
-                Forms\Components\Select::make('prestador_id')
-                    ->label('Procurador')
-                    ->options(fn() => static::opcoesProcuradores())
-                    ->searchable()
-                    ->required()
-                    ->live()
-                    ->helperText(fn(Get $get, ?SolicitacaoAgendamento $record) => static::textoVagas(
-                        $get('prestador_id'), $get('capitania_id'), $get('competencia'), $record,
-                    ))
-                    ->rule(fn(Get $get, ?SolicitacaoAgendamento $record) => function (string $attribute, $value, Closure $fail) use ($get, $record) {
-                        if ($value && $get('capitania_id') && $get('competencia')
-                            && AlocaSolicitacao::vagasLivres((int) $value, (int) $get('capitania_id'), $get('competencia'), $record) < 1) {
-                            $fail('Este procurador não tem mais vagas nesta capitania neste mês.');
-                        }
-                    }),
-
-                Forms\Components\Select::make('capitania_id')
-                    ->label('Capitania')
-                    ->options(fn() => static::opcoesCapitanias())
-                    ->default(fn() => Capitania::where('padrao', true)->value('id'))
-                    ->required()
-                    ->live()
-                    ->native(false),
-
-                Forms\Components\Select::make('competencia')
-                    ->label('Mês do atendimento')
-                    ->options(fn(?SolicitacaoAgendamento $record, $livewire) => static::opcoesCompetencia(
-                        $record?->competencia ?? static::competenciaDaPagina($livewire),
-                    ))
-                    ->default(fn($livewire) => static::competenciaDaPagina($livewire)?->toDateString()
-                        ?? array_keys(AgendamentoMarinha::competenciasDisponiveis())[1])
-                    ->formatStateUsing(fn($state) => $state ? Carbon::parse($state)->toDateString() : null)
-                    ->required()
-                    ->live()
-                    ->native(false),
-
-                static::campoDataSugerida('competencia')
-                    ->afterStateHydrated(function ($component, ?SolicitacaoAgendamento $record) {
-                        if ($record) {
-                            $component->state($record->agendamento?->data_sugerida?->toDateString());
-                        }
-                    }),
-
-                static::campoPeriodo()
-                    ->afterStateHydrated(function ($component, ?SolicitacaoAgendamento $record) {
-                        if ($record) {
-                            $component->state($record->agendamento?->periodo);
-                        }
-                    }),
-
-                static::campoServico(),
-                static::campoCpf(),
-                static::campoNome(),
-                static::campoGru()->unique(ignoreRecord: true),
-            ]);
-    }
-
-    /**
-     * @param  string  $caminhoCompetencia  caminho relativo do campo de mês (ex.: '../../competencia' dentro de repeater)
-     */
-    public static function campoDataSugerida(string $caminhoCompetencia): Forms\Components\DatePicker
-    {
-        return Forms\Components\DatePicker::make('data_sugerida')
-            ->label('Data sugerida')
-            ->native(false)
-            ->displayFormat('d/m/Y')
-            ->closeOnDateSelection()
-            ->helperText('Opcional. O PROA tenta esta data; sem vaga, a mais próxima. Vale para os agendamentos do procurador nesta capitania e mês.')
-            ->rule(fn(Get $get) => function (string $attribute, $value, Closure $fail) use ($get, $caminhoCompetencia) {
-                $mes = $get($caminhoCompetencia);
-
-                if ($value && $mes && Carbon::parse($value)->format('Y-m') !== Carbon::parse($mes)->format('Y-m')) {
-                    $fail('Escolha uma data dentro do mês do atendimento.');
-                }
-            });
-    }
-
-    public static function campoPeriodo(): Forms\Components\Select
-    {
-        return Forms\Components\Select::make('periodo')
-            ->label('Período preferido')
-            ->options(AgendamentoMarinha::periodos())
-            ->placeholder('Indiferente')
-            ->native(false)
-            ->helperText('Os dois agendamentos do procurador ficam neste período sempre que houver data que comporte.');
+        return $form->schema([]);
     }
 
     public static function table(Table $table): Table
@@ -153,10 +67,21 @@ class AgendamentoMarinhaResource extends Resource
             ->modifyQueryUsing(fn(Builder $query) => $query->with(['agendamento', 'prestador', 'capitania', 'servico']))
             // Ag. 1 antes do Ag. 2 dentro de cada procurador.
             ->defaultSort('agendamento_marinha_id')
+            // Hierarquia: mês (a página) → capitania + procurador (o grupo) → serviços.
             ->defaultGroup(
-                Group::make('prestador_id')
+                Group::make('capitania_id')
                     ->titlePrefixedWithLabel(false)
-                    ->getTitleFromRecordUsing(fn(SolicitacaoAgendamento $record) => $record->prestador?->nome ?? 'Procurador')
+                    ->getKeyFromRecordUsing(fn(SolicitacaoAgendamento $record) => "{$record->capitania_id}-{$record->prestador_id}")
+                    ->orderQueryUsing(fn(Builder $query, string $direction) => $query
+                        ->orderBy('capitania_id', $direction)
+                        ->orderBy('prestador_id', $direction))
+                    ->scopeQueryByKeyUsing(function (Builder $query, string $chave) {
+                        [$capitaniaId, $prestadorId] = array_pad(explode('-', $chave, 2), 2, null);
+
+                        return $query->where('capitania_id', $capitaniaId)->where('prestador_id', $prestadorId);
+                    })
+                    ->getTitleFromRecordUsing(fn(SolicitacaoAgendamento $record) => ($record->capitania?->sigla ?? 'Capitania')
+                        . ' · ' . ($record->prestador?->nome ?? 'Procurador'))
                     ->getDescriptionFromRecordUsing(fn(SolicitacaoAgendamento $record) => static::resumoProcurador($record))
                     ->collapsible()
             )
@@ -168,7 +93,7 @@ class AgendamentoMarinhaResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('agendamento.ordem')
                     ->label('Agendamento')
-                    ->formatStateUsing(fn($state, SolicitacaoAgendamento $record) => "Nº {$state} · {$record->capitania?->sigla}"),
+                    ->formatStateUsing(fn($state) => "{$state}º"),
 
                 Tables\Columns\TextColumn::make('cliente_nome')
                     ->label('Cliente')
@@ -214,13 +139,13 @@ class AgendamentoMarinhaResource extends Resource
                     ->description(fn(SolicitacaoAgendamento $record) => static::detalheAgendamento($record->agendamento)),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('prestador_id')
-                    ->label('Procurador')
-                    ->relationship('prestador', 'nome', fn(Builder $query) => $query->where('is_procurador', true)),
-
                 Tables\Filters\SelectFilter::make('capitania_id')
                     ->label('Capitania')
                     ->relationship('capitania', 'sigla'),
+
+                Tables\Filters\SelectFilter::make('prestador_id')
+                    ->label('Procurador')
+                    ->relationship('prestador', 'nome', fn(Builder $query) => $query->where('is_procurador', true)),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
@@ -232,15 +157,16 @@ class AgendamentoMarinhaResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
-                    Tables\Actions\EditAction::make()
-                        ->visible(fn(SolicitacaoAgendamento $record) => $record->editavel())
-                        ->using(fn(SolicitacaoAgendamento $record, array $data, $action) => static::salvar($data, $record, $action)),
+                    Tables\Actions\Action::make('editarCadastro')
+                        ->label('Editar cadastro')
+                        ->icon('heroicon-o-pencil-square')
+                        ->url(fn(SolicitacaoAgendamento $record) => static::urlCadastro($record->capitania_id, $record->competencia)),
 
                     Tables\Actions\Action::make('registrarResultado')
                         ->label('Registrar agendamento')
                         ->icon('heroicon-o-clipboard-document-check')
                         ->color('success')
-                        ->modalDescription(fn(SolicitacaoAgendamento $record) => "Vale para todos os serviços do agendamento nº {$record->agendamento?->ordem} de {$record->prestador?->nome}.")
+                        ->modalDescription(fn(SolicitacaoAgendamento $record) => "Vale para todos os clientes do {$record->agendamento?->ordem}º agendamento de {$record->prestador?->nome}.")
                         ->visible(fn(SolicitacaoAgendamento $record) => in_array($record->agendamento?->status, [
                             AgendamentoMarinha::STATUS_PENDENTE, AgendamentoMarinha::STATUS_FALHOU,
                         ]))
@@ -264,25 +190,51 @@ class AgendamentoMarinhaResource extends Resource
                             dataHora: Carbon::parse($data['data_hora']),
                         )),
 
-                    Tables\Actions\Action::make('cancelarAgendamento')
-                        ->label('Cancelar agendamento')
-                        ->icon('heroicon-o-x-circle')
+                    Tables\Actions\Action::make('excluirAgendamento')
+                        ->label('Excluir agendamento')
+                        ->icon('heroicon-o-trash')
                         ->color('danger')
                         ->requiresConfirmation()
-                        ->modalDescription('Cancela o agendamento inteiro no PROA e libera a cota do procurador. Se já estava marcado, cancele também no SISAP (até 24h antes).')
-                        ->visible(fn(SolicitacaoAgendamento $record) => $record->agendamento?->status !== AgendamentoMarinha::STATUS_CANCELADO)
-                        ->action(fn(SolicitacaoAgendamento $record) => $record->agendamento->update([
-                            'status' => AgendamentoMarinha::STATUS_CANCELADO,
-                        ])),
+                        ->modalHeading(fn(SolicitacaoAgendamento $record) => "Excluir o {$record->agendamento?->ordem}º agendamento de {$record->prestador?->nome}?")
+                        ->modalDescription(function (SolicitacaoAgendamento $record) {
+                            $agendamento = $record->agendamento;
+                            $clientes = $agendamento?->solicitacoes()->count() ?? 0;
+                            $aviso = $agendamento?->status === AgendamentoMarinha::STATUS_AGENDADO
+                                ? "Ele já foi marcado no SISAP (nº {$agendamento->numero}): cancele também no SISAP, até 24h antes. "
+                                : '';
 
-                    Tables\Actions\DeleteAction::make()
-                        ->visible(fn(SolicitacaoAgendamento $record) => $record->editavel())
-                        ->using(fn(SolicitacaoAgendamento $record) => AlocaSolicitacao::remover($record)),
+                            return $aviso . "O agendamento e os {$clientes} cliente(s) dele são apagados do PROA, a cota do procurador é liberada e as GRUs podem ser usadas de novo.";
+                        })
+                        ->modalSubmitActionLabel('Excluir')
+                        ->action(function (SolicitacaoAgendamento $record) {
+                            $clientes = CadastroDoMes::excluirAgendamento($record->agendamento);
+
+                            Notification::make()->title("Agendamento excluído com {$clientes} cliente(s).")->success()->send();
+                        }),
                 ]),
             ]);
     }
 
-    // --- Campos reaproveitados no cadastro em lote (Pages\ListMesesAgendamento) ---
+    /**
+     * Novo cadastro, opcionalmente já com o mês escolhido. O mês vai na query string: com só o primeiro
+     * dos dois parâmetros opcionais da rota, o Livewire falha ao montar a página.
+     */
+    public static function urlNovoCadastro(?string $competencia = null): string
+    {
+        $url = static::getUrl('cadastro');
+
+        return $competencia ? $url . '?mes=' . Carbon::parse(strlen($competencia) === 7 ? "{$competencia}-01" : $competencia)->format('Y-m') : $url;
+    }
+
+    public static function urlCadastro(int $capitaniaId, mixed $competencia): string
+    {
+        return static::getUrl('cadastro', [
+            'competencia' => Carbon::parse($competencia)->format('Y-m'),
+            'capitania' => $capitaniaId,
+        ]);
+    }
+
+    // --- Campos dos clientes, usados no cadastro (Pages\CadastroAgendamentos) ---
 
     public static function campoServico(): Forms\Components\Select
     {
@@ -330,7 +282,6 @@ class AgendamentoMarinhaResource extends Resource
             ->length(18)
             ->validationMessages([
                 'size' => 'A GRU deve ter 18 dígitos.',
-                'unique' => 'Esta GRU já foi cadastrada.',
             ]);
     }
 
@@ -344,34 +295,6 @@ class AgendamentoMarinhaResource extends Resource
         return Capitania::orderByDesc('padrao')->orderBy('nome')->pluck('nome', 'id')->all();
     }
 
-    public static function textoVagas(mixed $prestadorId, mixed $capitaniaId, mixed $competencia, ?SolicitacaoAgendamento $record = null): ?string
-    {
-        if (!$prestadorId || !$capitaniaId || !$competencia) {
-            return null;
-        }
-
-        $capitania = Capitania::find($capitaniaId);
-        $livres = AlocaSolicitacao::vagasLivres((int) $prestadorId, (int) $capitaniaId, $competencia, $record);
-        $total = (int) $capitania?->sisap_vagas_por_agendamento * (int) $capitania?->sisap_agendamentos_por_mes;
-
-        return "Vagas livres neste mês: {$livres} de {$total}.";
-    }
-
-    /**
-     * Grava pelo serviço de alocação; sem vaga, avisa e mantém o formulário aberto.
-     */
-    public static function salvar(array $data, ?SolicitacaoAgendamento $record, $action): SolicitacaoAgendamento
-    {
-        try {
-            return AlocaSolicitacao::salvar($data, $record);
-        } catch (SemVagaException | \InvalidArgumentException $e) {
-            Notification::make()->title($e->getMessage())->danger()->send();
-            $action->halt();
-
-            throw $e;
-        }
-    }
-
     public static function opcoesCompetencia(?Carbon $atual = null): array
     {
         $opcoes = AgendamentoMarinha::competenciasDisponiveis();
@@ -383,35 +306,29 @@ class AgendamentoMarinhaResource extends Resource
         return $opcoes;
     }
 
-    private static function competenciaDaPagina($livewire): ?Carbon
-    {
-        return $livewire instanceof Pages\VerMesAgendamento ? $livewire->dataCompetencia() : null;
-    }
-
     /**
-     * Linha abaixo do nome do procurador: um resumo de cada agendamento dele no mês.
+     * Linha abaixo de "CAPITANIA · Procurador": um resumo de cada agendamento dele no mês.
      */
     private static function resumoProcurador(SolicitacaoAgendamento $record): string
     {
-        $agendamentos = AgendamentoMarinha::with('capitania')
-            ->withCount('solicitacoes')
+        $agendamentos = AgendamentoMarinha::withCount('solicitacoes')
+            ->with('capitania')
             ->where('prestador_id', $record->prestador_id)
+            ->where('capitania_id', $record->capitania_id)
             ->whereDate('competencia', $record->competencia->toDateString())
+            ->where('status', '!=', AgendamentoMarinha::STATUS_CANCELADO)
             ->orderBy('ordem')
             ->get();
 
         $resumo = $agendamentos
-            ->map(fn(AgendamentoMarinha $a) => "Nº {$a->ordem} {$a->capitania?->sigla}: {$a->solicitacoes_count}/{$a->vagasTotais()} · "
+            ->values()
+            ->map(fn(AgendamentoMarinha $a, int $i) => ($i + 1) . "º: {$a->solicitacoes_count}/{$a->vagasTotais()} · "
                 . (AgendamentoMarinha::statuses()[$a->status] ?? $a->status))
             ->implode('  |  ');
 
-        $preferencias = $agendamentos
-            ->filter(fn(AgendamentoMarinha $a) => $a->rotuloPreferencia())
-            ->map(fn(AgendamentoMarinha $a) => "{$a->capitania?->sigla} " . $a->rotuloPreferencia())
-            ->unique()
-            ->implode('  |  ');
+        $preferencia = $agendamentos->first()?->rotuloPreferencia();
 
-        return $preferencias ? "{$resumo}  —  {$preferencias}" : $resumo;
+        return $preferencia ? "{$resumo}  —  {$preferencia}" : $resumo;
     }
 
     private static function detalheAgendamento(?AgendamentoMarinha $agendamento): ?string
@@ -441,6 +358,8 @@ class AgendamentoMarinhaResource extends Resource
     {
         return [
             'index' => Pages\ListMesesAgendamento::route('/'),
+            // Antes de "mes": senão "/cadastro" seria lido como um mês.
+            'cadastro' => Pages\CadastroAgendamentos::route('/cadastro/{competencia?}/{capitania?}'),
             'mes' => Pages\VerMesAgendamento::route('/{competencia}'),
         ];
     }

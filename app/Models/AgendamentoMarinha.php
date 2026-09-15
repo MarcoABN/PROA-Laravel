@@ -6,10 +6,11 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use LogicException;
 
 /**
  * Um agendamento do procurador no SISAP: agrupa até N solicitações (vagas) numa data/hora.
- * Não tem tela própria — é criado e descartado por AlocaSolicitacao.
+ * É criado e descartado pelo cadastro da Capitania + Mês (App\Services\Agendamento\CadastroDoMes).
  */
 class AgendamentoMarinha extends Model
 {
@@ -31,6 +32,16 @@ class AgendamentoMarinha extends Model
         'data_hora' => 'datetime',
         'data_sugerida' => 'date',
     ];
+
+    protected static function booted()
+    {
+        // Capitania + mês é a chave do cadastro: uma vez gravada, não muda.
+        static::updating(function (AgendamentoMarinha $agendamento) {
+            if ($agendamento->isDirty(['capitania_id', 'competencia'])) {
+                throw new LogicException('A capitania e o mês de um agendamento não podem ser alterados.');
+            }
+        });
+    }
 
     public static function periodos(): array
     {
