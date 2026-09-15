@@ -1,0 +1,8 @@
+{
+  "name": "proa-agendamento-marinha",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test \"tests/*.test.mjs\""
+  }
+}

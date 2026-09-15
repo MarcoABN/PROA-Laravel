@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\User;
 use App\Support\AcessoUsuarios;
+use App\Support\ExtensaoChrome;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -104,6 +105,11 @@ class UserResource extends Resource
                             ->label('Acessa os Usuários do Sistema')
                             ->helperText('Permite cadastrar usuários e trocar senhas. Conceder permissões continua sendo só do administrador.')
                             ->default(false),
+
+                        Forms\Components\Toggle::make('pode_acessar_agendamento')
+                            ->label('Acessa o Agendamento Marinha')
+                            ->helperText('Quando desligado, somem os Agendamentos Marinha, os Serviços do SISAP, o token da extensão dos procuradores e os dados SISAP das capitanias.')
+                            ->default(false),
                     ])->columns(2),
             ]);
     }
@@ -132,6 +138,21 @@ class UserResource extends Resource
                     ->label('Usuários')
                     ->boolean()
                     ->sortable()
+                    ->visible(fn(): bool => AcessoUsuarios::podeConcederPermissoes()),
+
+                Tables\Columns\IconColumn::make('pode_acessar_agendamento')
+                    ->label('Agendamento')
+                    ->boolean()
+                    ->sortable()
+                    ->visible(fn(): bool => AcessoUsuarios::podeConcederPermissoes()),
+
+                Tables\Columns\TextColumn::make('sisap_extensao_versao')
+                    ->label('Extensão')
+                    ->badge()
+                    ->color(fn(?string $state) => ExtensaoChrome::desatualizada($state) ? 'danger' : 'success')
+                    ->formatStateUsing(fn(?string $state) => ExtensaoChrome::desatualizada($state) ? "{$state} (desatualizada)" : $state)
+                    ->description(fn(User $record) => $record->sisap_extensao_vista_em ? 'usada em ' . $record->sisap_extensao_vista_em->format('d/m/Y H:i') : null)
+                    ->placeholder('—')
                     ->visible(fn(): bool => AcessoUsuarios::podeConcederPermissoes()),
 
                 // --- MOSTRAR ÚLTIMO ACESSO ---

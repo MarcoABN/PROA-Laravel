@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "PROA – Agendamento Marinha",
+  "version": "0.2.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkp6FSkh4mabH1vSzE0jIVM0onf3Mhigvli60p1hSUbJmKtALA2jjjMaOm5F48ibnm84aBOtwd0JmnM3uG38EhBRm2fsfjyRQyZRwCu7djVDGAmkV0OcoxtAGZPZbo7U8eKkOENUNEtMmI6BByIUdbYir8EmjgFexW2GtKG1HzS5ILXkBYmAEBzJv6r5TtQFGBxODNe/dIRFW+KB55GwdY3rR86JW26c3T5lIndKf+1kb+wZ+MZu8QpC7czjsiEwPO/G8EQc7jg8KU3FWOcLf6DfH881Kj4flL0WOCV/aWYUQsh2DP6+uZ0vAAA4tNZd2WpRQYcfDOZH75HW88lfL5QIDAQAB",
+  "description": "Preenche o agendamento para representante legal no SISAP com os dados do PROA e devolve o resultado.",
+  "minimum_chrome_version": "111",
+  "permissions": ["storage", "notifications"],
+  "icons": {
+    "48": "icons/icone48.png",
+    "128": "icons/icone128.png"
+  },
+  "host_permissions": [
+    "https://atendimento-dpc.marinha.mil.br/*",
+    "https://sistemas.dpc.mar.mil.br/*"
+  ],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "PROA – Agendamento Marinha (configurações)"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://atendimento-dpc.marinha.mil.br/sisap/agendamento/*",
+        "https://sistemas.dpc.mar.mil.br/sisap/agendamento/*"
+      ],
+      "js": ["page-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://atendimento-dpc.marinha.mil.br/sisap/agendamento/*",
+        "https://sistemas.dpc.mar.mil.br/sisap/agendamento/*"
+      ],
+      "js": ["lib.js", "content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

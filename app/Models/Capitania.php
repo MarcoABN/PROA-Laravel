@@ -19,11 +19,18 @@ class Capitania extends Model
         'numero',          // <--- Faltava
         'complemento',     // <--- Faltava
         'bairro',          // <--- Faltava
-        'cidade'           // <--- Faltava
+        'cidade',          // <--- Faltava
+        // Agendamento eletrônico (SISAP)
+        'sisap_nidom',
+        'sisap_vagas_por_agendamento',
+        'sisap_agendamentos_por_mes',
     ];
 
     protected $casts = [
         'padrao' => 'boolean',
+        'sisap_nidom' => 'integer',
+        'sisap_vagas_por_agendamento' => 'integer',
+        'sisap_agendamentos_por_mes' => 'integer',
     ];
 
     protected static function booted()

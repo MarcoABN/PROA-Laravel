@@ -6,6 +6,7 @@ namespace App\Models;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 
+use App\Models\Concerns\TemTokenSisap;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 // 2. ADICIONE "implements FilamentUser" AQUI
 class User extends Authenticatable implements FilamentUser
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, TemTokenSisap;
 
     /**
      * Conta do administrador do sistema. Já era tratada de forma especial
@@ -31,11 +32,13 @@ class User extends Authenticatable implements FilamentUser
         'last_login_at',
         'pode_acessar_financeiro',
         'pode_gerenciar_usuarios',
+        'pode_acessar_agendamento',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'sisap_token_hash',
     ];
 
     protected $casts = [
@@ -44,6 +47,9 @@ class User extends Authenticatable implements FilamentUser
         'last_login_at' => 'datetime',
         'pode_acessar_financeiro' => 'boolean',
         'pode_gerenciar_usuarios' => 'boolean',
+        'pode_acessar_agendamento' => 'boolean',
+        'sisap_token_gerado_em' => 'datetime',
+        'sisap_extensao_vista_em' => 'datetime',
     ];
 
     // 3. ADICIONE ESTA FUNÇÃO NO FINAL DA CLASSE
@@ -78,6 +84,26 @@ class User extends Authenticatable implements FilamentUser
     public function podeGerenciarUsuarios(): bool
     {
         return $this->ehAdministrador() || (bool) $this->pode_gerenciar_usuarios;
+    }
+
+    /**
+     * Agendamento Marinha. O administrador entra sempre, como na tela de Usuários,
+     * para nunca ficar trancado fora de uma área que ele mesmo libera.
+     */
+    public function podeAcessarAgendamento(): bool
+    {
+        return $this->ehAdministrador() || (bool) $this->pode_acessar_agendamento;
+    }
+
+    /**
+     * Token da extensão de um usuário do PROA: atende qualquer procurador (pelo CPF logado no SISAP).
+     * Deixa de valer se o usuário perder a permissão de agendamento.
+     */
+    public static function porTokenSisap(string $token): ?self
+    {
+        $usuario = static::where('sisap_token_hash', static::hashTokenSisap($token))->first();
+
+        return $usuario?->podeAcessarAgendamento() ? $usuario : null;
     }
 
     /**

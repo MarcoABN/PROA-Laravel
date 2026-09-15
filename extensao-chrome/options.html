@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>PROA – Agendamento Marinha</title>
+  <style>
+    body { font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; color: #111827; max-width: 560px; margin: 32px auto; padding: 0 16px; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    p { color: #4b5563; margin-top: 0; }
+    label { display: block; font-weight: 600; margin-top: 16px; }
+    input { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font: inherit; margin-top: 4px; }
+    button { margin-top: 16px; padding: 8px 16px; border: none; border-radius: 6px; background: #1d4ed8; color: #fff; font: inherit; cursor: pointer; }
+    .dica { font-weight: 400; color: #6b7280; font-size: 12px; }
+    #mensagem { margin-top: 16px; }
+    .ok { color: #047857; }
+    .erro { color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <h1>PROA – Agendamento Marinha</h1>
+  <p>Configure uma vez neste Chrome. Com o token de usuário, a extensão atende qualquer procurador:
+    ela carrega os agendamentos do CPF logado no SISAP.</p>
+
+  <form id="formulario">
+    <label for="url">Endereço do PROA
+      <span class="dica">— aparece junto com o token, na notificação do PROA</span>
+    </label>
+    <input id="url" type="url" placeholder="https://servidor.com.br/proa" required>
+
+    <label for="token">Token da extensão
+      <span class="dica">— PROA → Agendamentos Marinha → Token da extensão</span>
+    </label>
+    <input id="token" type="password" autocomplete="off" required>
+
+    <button type="submit">Salvar e testar</button>
+  </form>
+
+  <div id="mensagem"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>

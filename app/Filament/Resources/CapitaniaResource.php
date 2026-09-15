@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\CapitaniaResource\Pages;
 use App\Models\Capitania;
+use App\Support\AcessoAgendamento;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -46,6 +47,36 @@ class CapitaniaResource extends Resource
                                 ->label('Padrão')
                                 ->columnSpan(1),
                         ]),
+                    ]),
+
+                // Oculta para quem não acessa o agendamento. Componente oculto não é hidratado,
+                // então salvar a capitania não apaga os valores já gravados.
+                Forms\Components\Section::make('Agendamento eletrônico (SISAP)')
+                    ->visible(fn(): bool => AcessoAgendamento::permitido())
+                    ->description('Usado pelos agendamentos e pela extensão do Chrome.')
+                    ->columns(3)
+                    ->schema([
+                        Forms\Components\TextInput::make('sisap_nidom')
+                            ->label('Código da OM no SISAP')
+                            ->numeric()
+                            ->helperText('Ex.: CFGO = 136.'),
+
+                        Forms\Components\TextInput::make('sisap_vagas_por_agendamento')
+                            ->label('Vagas por agendamento')
+                            ->numeric()
+                            ->minValue(1)
+                            ->maxValue(20)
+                            ->default(3)
+                            ->required()
+                            ->helperText('Contador "Serviços X de N" do SISAP.'),
+
+                        Forms\Components\TextInput::make('sisap_agendamentos_por_mes')
+                            ->label('Agendamentos por procurador/mês')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(20)
+                            ->default(2)
+                            ->required(),
                     ]),
 
                 // --- ADICIONE ESTA SEÇÃO DE COMANDO ---

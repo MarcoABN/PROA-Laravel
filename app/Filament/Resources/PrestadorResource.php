@@ -4,9 +4,13 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PrestadorResource\Pages;
 use App\Models\Prestador;
+use App\Support\AcessoAgendamento;
+use App\Support\EnderecoPublico;
+use App\Support\ExtensaoChrome;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Support\RawJs;
 use Filament\Tables;
@@ -198,6 +202,16 @@ class PrestadorResource extends Resource
                 Tables\Columns\IconColumn::make('is_procurador')
                     ->boolean()
                     ->label('Procurador'),
+                // Só aparece para quem usa token individual de procurador na extensão.
+                Tables\Columns\TextColumn::make('sisap_extensao_versao')
+                    ->label('Extensão')
+                    ->badge()
+                    ->color(fn(?string $state) => ExtensaoChrome::desatualizada($state) ? 'danger' : 'success')
+                    ->formatStateUsing(fn(?string $state) => ExtensaoChrome::desatualizada($state) ? "{$state} (desatualizada)" : $state)
+                    ->description(fn(Prestador $record) => $record->sisap_extensao_vista_em ? 'usada em ' . $record->sisap_extensao_vista_em->format('d/m/Y H:i') : null)
+                    ->placeholder('—')
+                    ->toggleable()
+                    ->visible(fn(): bool => AcessoAgendamento::permitido()),
                 Tables\Columns\TextColumn::make('cidade')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
@@ -210,6 +224,27 @@ class PrestadorResource extends Resource
                     ->label('Apenas Procuradores'),
             ])
             ->actions([
+                Tables\Actions\Action::make('tokenSisap')
+                    ->label('Token da extensão')
+                    ->icon('heroicon-o-key')
+                    ->color('gray')
+                    ->visible(fn(Prestador $record) => $record->is_procurador && AcessoAgendamento::permitido())
+                    ->requiresConfirmation()
+                    ->modalHeading('Gerar token da extensão de agendamento')
+                    ->modalDescription(fn(Prestador $record) => $record->sisap_token_gerado_em
+                        ? "O token atual (gerado em {$record->sisap_token_gerado_em->format('d/m/Y H:i')}) deixará de funcionar no Chrome deste procurador."
+                        : 'Cole o token na extensão instalada no perfil do Chrome deste procurador.')
+                    ->action(function (Prestador $record) {
+                        $token = $record->gerarTokenSisap();
+
+                        Notification::make()
+                            ->title('Token gerado — copie agora')
+                            ->body(EnderecoPublico::instrucoesExtensao($token))
+                            ->persistent()
+                            ->success()
+                            ->send();
+                    }),
+
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
