@@ -157,6 +157,36 @@ class CadastroDoMes
         });
     }
 
+    /**
+     * Exclui um cliente de um agendamento ainda não marcado no SISAP (a GRU fica livre).
+     * Se era o único cliente, o agendamento vazio também é excluído.
+     *
+     * @return bool se o agendamento também foi excluído
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function excluirCliente(SolicitacaoAgendamento $solicitacao): bool
+    {
+        return DB::transaction(function () use ($solicitacao) {
+            $agendamento = AgendamentoMarinha::whereKey($solicitacao->agendamento_marinha_id)->lockForUpdate()->first();
+
+            if ($agendamento?->status === AgendamentoMarinha::STATUS_AGENDADO) {
+                throw new InvalidArgumentException("O {$agendamento->ordem}º agendamento já foi marcado no SISAP (nº {$agendamento->numero}): "
+                    . 'os clientes dele não podem ser excluídos um a um. Exclua o agendamento inteiro.');
+            }
+
+            if ($agendamento && $agendamento->solicitacoes()->whereKeyNot($solicitacao->id)->doesntExist()) {
+                static::excluirAgendamento($agendamento);
+
+                return true;
+            }
+
+            $solicitacao->delete();
+
+            return false;
+        });
+    }
+
     private static function gravar(Capitania $capitania, string $competencia, array $procuradores, bool $novo, string $rotulo): void
     {
         DB::transaction(function () use ($capitania, $competencia, $procuradores, $novo, $rotulo) {

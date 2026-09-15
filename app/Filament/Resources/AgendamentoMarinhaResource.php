@@ -25,6 +25,8 @@ use Filament\Tables;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\HtmlString;
 
 /**
  * Agendamento na Marinha:
@@ -190,26 +192,35 @@ class AgendamentoMarinhaResource extends Resource
                             dataHora: Carbon::parse($data['data_hora']),
                         )),
 
-                    Tables\Actions\Action::make('excluirAgendamento')
-                        ->label('Excluir agendamento')
+                    // Só este cliente. O agendamento inteiro se exclui pelo botão no cabeçalho do procurador.
+                    Tables\Actions\Action::make('excluirCliente')
+                        ->label('Excluir cliente')
                         ->icon('heroicon-o-trash')
                         ->color('danger')
+                        ->visible(fn(SolicitacaoAgendamento $record) => $record->editavel())
                         ->requiresConfirmation()
-                        ->modalHeading(fn(SolicitacaoAgendamento $record) => "Excluir o {$record->agendamento?->ordem}º agendamento de {$record->prestador?->nome}?")
+                        ->modalHeading(fn(SolicitacaoAgendamento $record) => 'Excluir ' . ($record->cliente_nome ?: SolicitacaoAgendamento::formatarCpf($record->cliente_cpf))
+                            . " do {$record->agendamento?->ordem}º agendamento?")
                         ->modalDescription(function (SolicitacaoAgendamento $record) {
-                            $agendamento = $record->agendamento;
-                            $clientes = $agendamento?->solicitacoes()->count() ?? 0;
-                            $aviso = $agendamento?->status === AgendamentoMarinha::STATUS_AGENDADO
-                                ? "Ele já foi marcado no SISAP (nº {$agendamento->numero}): cancele também no SISAP, até 24h antes. "
-                                : '';
+                            $ultimo = $record->agendamento?->solicitacoes()->whereKeyNot($record->id)->doesntExist();
 
-                            return $aviso . "O agendamento e os {$clientes} cliente(s) dele são apagados do PROA, a cota do procurador é liberada e as GRUs podem ser usadas de novo.";
+                            return "O cliente é apagado do PROA e a GRU {$record->gru} pode ser usada de novo."
+                                . ($ultimo ? " Ele é o único cliente: o {$record->agendamento?->ordem}º agendamento de {$record->prestador?->nome} também é excluído e a cota é liberada." : '');
                         })
                         ->modalSubmitActionLabel('Excluir')
                         ->action(function (SolicitacaoAgendamento $record) {
-                            $clientes = CadastroDoMes::excluirAgendamento($record->agendamento);
+                            try {
+                                $agendamentoExcluido = CadastroDoMes::excluirCliente($record);
+                            } catch (\InvalidArgumentException $e) {
+                                Notification::make()->title('Cliente não excluído')->body($e->getMessage())->danger()->send();
 
-                            Notification::make()->title("Agendamento excluído com {$clientes} cliente(s).")->success()->send();
+                                return;
+                            }
+
+                            Notification::make()
+                                ->title($agendamentoExcluido ? 'Cliente excluído. O agendamento ficou vazio e também foi excluído.' : 'Cliente excluído.')
+                                ->success()
+                                ->send();
                         }),
                 ]),
             ]);
@@ -307,9 +318,10 @@ class AgendamentoMarinhaResource extends Resource
     }
 
     /**
-     * Linha abaixo de "CAPITANIA · Procurador": um resumo de cada agendamento dele no mês.
+     * Linha abaixo de "CAPITANIA · Procurador": um resumo de cada agendamento dele no mês, com o botão
+     * que exclui o agendamento inteiro (ação excluirAgendamento da página do mês).
      */
-    private static function resumoProcurador(SolicitacaoAgendamento $record): string
+    private static function resumoProcurador(SolicitacaoAgendamento $record): HtmlString
     {
         $agendamentos = AgendamentoMarinha::withCount('solicitacoes')
             ->with('capitania')
@@ -322,13 +334,23 @@ class AgendamentoMarinhaResource extends Resource
 
         $resumo = $agendamentos
             ->values()
-            ->map(fn(AgendamentoMarinha $a, int $i) => ($i + 1) . "º: {$a->solicitacoes_count}/{$a->vagasTotais()} · "
+            ->map(fn(AgendamentoMarinha $a, int $i) => e(($i + 1) . "º: {$a->solicitacoes_count}/{$a->vagasTotais()} · "
                 . (AgendamentoMarinha::statuses()[$a->status] ?? $a->status))
+                . ' ' . static::botaoExcluirAgendamento($a, $i + 1))
             ->implode('  |  ');
 
         $preferencia = $agendamentos->first()?->rotuloPreferencia();
 
-        return $preferencia ? "{$resumo}  —  {$preferencia}" : $resumo;
+        return new HtmlString($preferencia ? "{$resumo}  —  " . e($preferencia) : $resumo);
+    }
+
+    private static function botaoExcluirAgendamento(AgendamentoMarinha $agendamento, int $posicao): string
+    {
+        // .stop: o clique no botão não recolhe o grupo.
+        return Blade::render(
+            '<x-filament::link tag="button" color="danger" size="sm" icon="heroicon-m-trash" x-on:click.stop="null" wire:click="mountAction(\'excluirAgendamento\', { agendamento: {{ $id }} })">Excluir {{ $posicao }}º</x-filament::link>',
+            ['id' => $agendamento->id, 'posicao' => $posicao],
+        );
     }
 
     private static function detalheAgendamento(?AgendamentoMarinha $agendamento): ?string

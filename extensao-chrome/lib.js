@@ -9,6 +9,8 @@
     return String(texto ?? '')
       .normalize('NFD')
       .replace(/[̀-ͯ]/g, '')
+      // Travessão/meia-risca (– — −) valem como hífen: o texto copiado de documentos costuma trazê-los.
+      .replace(/[‐-―−]/g, '-')
       .replace(/\s+/g, ' ')
       .trim()
       .toUpperCase();

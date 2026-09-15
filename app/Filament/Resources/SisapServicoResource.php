@@ -42,10 +42,10 @@ class SisapServicoResource extends Resource
                 Forms\Components\Section::make('Serviço')
                     ->schema([
                         Forms\Components\TextInput::make('sigla')
-                            ->label('Sigla')
+                            ->label('Nome nas listas')
                             ->required()
                             ->maxLength(50)
-                            ->helperText('Como aparece nas listas de agendamento. Ex.: INSC EMB, RNV EMB, TRANSF EMB.'),
+                            ->helperText('Tipo · serviço, para a lista ficar agrupada. Ex.: Embarcação · Inscrição, Moto Aquática · Renovação.'),
 
                         Forms\Components\Toggle::make('ativo')
                             ->label('Ativo')
@@ -68,7 +68,7 @@ class SisapServicoResource extends Resource
             ->defaultSort('sigla')
             ->columns([
                 Tables\Columns\TextColumn::make('sigla')
-                    ->label('Sigla')
+                    ->label('Nome nas listas')
                     ->badge()
                     ->searchable()
                     ->sortable(),

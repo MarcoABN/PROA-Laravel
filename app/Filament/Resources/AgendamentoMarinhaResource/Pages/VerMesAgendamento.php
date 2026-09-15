@@ -5,10 +5,12 @@ namespace App\Filament\Resources\AgendamentoMarinhaResource\Pages;
 use App\Filament\Resources\AgendamentoMarinhaResource;
 use App\Models\AgendamentoMarinha;
 use App\Models\Capitania;
+use App\Services\Agendamento\CadastroDoMes;
 use App\Support\AcessoAgendamento;
 use App\Support\ExtensaoChrome;
 use Carbon\Carbon;
 use Filament\Actions;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -66,6 +68,52 @@ class VerMesAgendamento extends ListRecords
     protected function getTableQuery(): ?Builder
     {
         return parent::getTableQuery()->whereDate('competencia', $this->dataCompetencia()->toDateString());
+    }
+
+    /**
+     * Exclui o agendamento inteiro com todos os clientes. Aberta pelo botão "Excluir Nº" no cabeçalho
+     * de cada procurador (AgendamentoMarinhaResource::resumoProcurador).
+     */
+    public function excluirAgendamentoAction(): Actions\Action
+    {
+        $agendamento = fn(array $arguments) => AgendamentoMarinha::with('prestador')
+            ->whereDate('competencia', $this->dataCompetencia()->toDateString())
+            ->find($arguments['agendamento'] ?? null);
+
+        return Actions\Action::make('excluirAgendamento')
+            ->requiresConfirmation()
+            ->color('danger')
+            ->icon('heroicon-o-trash')
+            ->modalHeading(fn(array $arguments) => ($a = $agendamento($arguments))
+                ? "Excluir o {$a->ordem}º agendamento de {$a->prestador?->nome}?"
+                : 'Agendamento não encontrado')
+            ->modalDescription(function (array $arguments) use ($agendamento) {
+                $a = $agendamento($arguments);
+
+                if (!$a) {
+                    return 'Ele pode já ter sido excluído. Atualize a página.';
+                }
+
+                $aviso = $a->status === AgendamentoMarinha::STATUS_AGENDADO
+                    ? "Ele já foi marcado no SISAP (nº {$a->numero}): cancele também no SISAP, até 24h antes. "
+                    : '';
+
+                return $aviso . 'O agendamento e os ' . $a->solicitacoes()->count() . ' cliente(s) dele são apagados do PROA, a cota do procurador é liberada e as GRUs podem ser usadas de novo.';
+            })
+            ->modalSubmitActionLabel('Excluir agendamento')
+            ->action(function (array $arguments) use ($agendamento) {
+                $a = $agendamento($arguments);
+
+                if (!$a) {
+                    Notification::make()->title('Agendamento não encontrado.')->warning()->send();
+
+                    return;
+                }
+
+                $clientes = CadastroDoMes::excluirAgendamento($a);
+
+                Notification::make()->title("Agendamento excluído com {$clientes} cliente(s).")->success()->send();
+            });
     }
 
     protected function getHeaderActions(): array

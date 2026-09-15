@@ -367,7 +367,7 @@ class CadastroAgendamentos extends Page implements HasForms
 
         if ($agendamento->status === AgendamentoMarinha::STATUS_AGENDADO) {
             return 'Marcado no SISAP para ' . ($agendamento->data_hora?->format('d/m/Y H:i') ?? '—')
-                . " · nº {$agendamento->numero} · chave {$agendamento->chave}. Somente consulta — para desfazer, use \"Excluir agendamento\" na tela do mês.";
+                . " · nº {$agendamento->numero} · chave {$agendamento->chave}. Somente consulta — para desfazer, use o botão \"Excluir {$agendamento->ordem}º\" do procurador na tela do mês.";
         }
 
         $status = AgendamentoMarinha::statuses()[$agendamento->status] ?? $agendamento->status;

@@ -98,6 +98,10 @@ test('normaliza acentos, espacos e caixa para comparar textos do SISAP', () => {
     L.normalizar('  TIE (Título de Inscrição)  -  RENOVAÇÃO '),
     'TIE (TITULO DE INSCRICAO) - RENOVACAO',
   );
+  assert.equal(
+    L.normalizar('TIE - MOTO AQUATICA – RENOVACAO — INSCRITA'),
+    'TIE - MOTO AQUATICA - RENOVACAO - INSCRITA',
+  );
   assert.equal(L.formatarCpf('00269107134'), '002.691.071-34');
   assert.equal(L.formatarData('2026-09-23'), '23/09/2026');
 });
