@@ -198,11 +198,12 @@ class UserResource extends Resource
         ];
     }
 
+    /**
+     * O administrador fica fora da lista (ele já entra em tudo e só ele concede permissões).
+     * Antes o filtro "email != x" também escondia usuários sem e-mail; o escopo trata o nulo.
+     */
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
-        return parent::getEloquentQuery()
-            ->where('email', '!=', User::EMAIL_ADMINISTRADOR);
-        // Ou use uma lógica mais abrangente, como:
-        // ->where('is_invisible', false);
+        return parent::getEloquentQuery()->semAdministradores();
     }
 }

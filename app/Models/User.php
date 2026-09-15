@@ -72,9 +72,43 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(LancamentoFinanceiro::class, 'user_id');
     }
 
+    /**
+     * E-mails de administrador (config/proa.php, PROA_ADMINISTRADORES no .env), já em minúsculas.
+     * A constante continua sendo o padrão quando nada é configurado.
+     *
+     * @return array<int, string>
+     */
+    public static function emailsAdministradores(): array
+    {
+        $configurados = (array) config('proa.administradores', []);
+
+        return $configurados !== [] ? $configurados : [mb_strtolower(self::EMAIL_ADMINISTRADOR)];
+    }
+
+    /** Ignora maiúsculas e espaços: "MarcoAnunes23@Gmail.com " também é o administrador. */
     public function ehAdministrador(): bool
     {
-        return $this->email === self::EMAIL_ADMINISTRADOR;
+        return in_array(mb_strtolower(trim((string) $this->email)), static::emailsAdministradores(), true);
+    }
+
+    /** Filtra fora as contas de administrador, sem descartar usuários com e-mail nulo. */
+    public function scopeSemAdministradores(Builder $query): Builder
+    {
+        $emails = static::emailsAdministradores();
+
+        return $query->where(function (Builder $q) use ($emails) {
+            $q->whereNull('email')
+                ->orWhereRaw(
+                    'LOWER(TRIM(email)) NOT IN (' . implode(',', array_fill(0, count($emails), '?')) . ')',
+                    $emails,
+                );
+        });
+    }
+
+    /** Gestão Financeira. O administrador entra sempre, como nas demais áreas restritas. */
+    public function podeAcessarFinanceiro(): bool
+    {
+        return $this->ehAdministrador() || (bool) $this->pode_acessar_financeiro;
     }
 
     /**
@@ -134,9 +168,6 @@ class User extends Authenticatable implements FilamentUser
      */
     public function scopeRecebeLancamento(Builder $query): Builder
     {
-        return $query->where(function (Builder $q) {
-            $q->whereNull('email')
-                ->orWhere('email', '!=', self::EMAIL_ADMINISTRADOR);
-        });
+        return $query->semAdministradores();
     }
 }

@@ -18,6 +18,6 @@ class AcessoFinanceiro
         /** @var User|null $user */
         $user = Auth::user();
 
-        return (bool) $user?->pode_acessar_financeiro;
+        return (bool) $user?->podeAcessarFinanceiro();
     }
 }
