@@ -147,7 +147,160 @@
     return m ? { usados: Number(m[1]), total: Number(m[2]) } : null;
   }
 
+  /**
+   * Separa as letras do CAPTCHA (cinza-escuro) das letras de ruído (cinza-claro) para o usuário
+   * ler com mais facilidade. Só trata a imagem: quem lê e digita é sempre o usuário.
+   *
+   * rgba: pixels da imagem (ImageData.data). Retorna a máscara (1 = letra) e o limiar de brilho usado.
+   * O limiar é automático (Otsu entre os pixels de tinta, preso à faixa mais escura) ou o informado.
+   */
+  function limparCaptcha(rgba, largura, altura, { limiar = null, fundo = 235, menorMancha = 6 } = {}) {
+    const total = largura * altura;
+    const brilho = new Uint8Array(total);
+    const histograma = new Array(256).fill(0);
+    let tinta = 0;
+
+    for (let i = 0; i < total; i++) {
+      const p = i * 4;
+      // Pixel transparente conta como fundo branco.
+      const alfa = rgba[p + 3] / 255;
+      const l = Math.round((0.299 * rgba[p] + 0.587 * rgba[p + 1] + 0.114 * rgba[p + 2]) * alfa + 255 * (1 - alfa));
+      brilho[i] = l;
+      if (l < fundo) {
+        histograma[l]++;
+        tinta++;
+      }
+    }
+
+    if (limiar === null) {
+      limiar = limiarAutomatico(histograma, tinta, fundo);
+    }
+
+    const mascara = new Uint8Array(total);
+    for (let i = 0; i < total; i++) {
+      mascara[i] = brilho[i] <= limiar ? 1 : 0;
+    }
+
+    removerManchas(mascara, largura, altura, menorMancha);
+
+    return { mascara, limiar };
+  }
+
+  function limiarAutomatico(histograma, tinta, fundo) {
+    if (tinta === 0) {
+      return 0;
+    }
+
+    // Otsu: o corte que melhor separa os tons de tinta em duas turmas (letras x ruído).
+    let somaTotal = 0;
+    for (let l = 0; l < fundo; l++) {
+      somaTotal += l * histograma[l];
+    }
+
+    let melhor = 0;
+    let melhorVariancia = -1;
+    let pesoEscuro = 0;
+    let somaEscuro = 0;
+
+    for (let l = 0; l < fundo; l++) {
+      pesoEscuro += histograma[l];
+      if (pesoEscuro === 0) {
+        continue;
+      }
+      const pesoClaro = tinta - pesoEscuro;
+      if (pesoClaro === 0) {
+        break;
+      }
+      somaEscuro += l * histograma[l];
+      const mediaEscuro = somaEscuro / pesoEscuro;
+      const mediaClaro = (somaTotal - somaEscuro) / pesoClaro;
+      const variancia = pesoEscuro * pesoClaro * (mediaEscuro - mediaClaro) ** 2;
+      if (variancia > melhorVariancia) {
+        melhorVariancia = variancia;
+        melhor = l;
+      }
+    }
+
+    // Com vários tons de ruído, o Otsu pode cortar entre dois cinzas claros: limita a faixa das
+    // letras a pouco acima do tom mais escuro presente (desconsidera 0,5% de pontos soltos).
+    let acumulado = 0;
+    let maisEscuro = 0;
+    for (let l = 0; l < fundo; l++) {
+      acumulado += histograma[l];
+      if (acumulado >= tinta * 0.005) {
+        maisEscuro = l;
+        break;
+      }
+    }
+
+    return Math.min(melhor, maisEscuro + 35);
+  }
+
+  /** Apaga grupos de pixels de letra menores que `menor` (pontas de ruído que passaram no limiar). */
+  function removerManchas(mascara, largura, altura, menor) {
+    if (menor <= 1) {
+      return;
+    }
+
+    const visto = new Uint8Array(mascara.length);
+    const pilha = [];
+    const grupo = [];
+
+    for (let inicio = 0; inicio < mascara.length; inicio++) {
+      if (!mascara[inicio] || visto[inicio]) {
+        continue;
+      }
+
+      grupo.length = 0;
+      pilha.push(inicio);
+      visto[inicio] = 1;
+
+      while (pilha.length) {
+        const i = pilha.pop();
+        grupo.push(i);
+        const x = i % largura;
+        const y = (i - x) / largura;
+
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= largura || ny >= altura) {
+              continue;
+            }
+            const j = ny * largura + nx;
+            if (mascara[j] && !visto[j]) {
+              visto[j] = 1;
+              pilha.push(j);
+            }
+          }
+        }
+      }
+
+      if (grupo.length < menor) {
+        for (const i of grupo) {
+          mascara[i] = 0;
+        }
+      }
+    }
+  }
+
+  /** Máscara → pixels RGBA: letras pretas sobre fundo branco. */
+  function pintarMascara(mascara) {
+    const rgba = new Uint8ClampedArray(mascara.length * 4);
+    for (let i = 0; i < mascara.length; i++) {
+      const cor = mascara[i] ? 17 : 255;
+      rgba[i * 4] = cor;
+      rgba[i * 4 + 1] = cor;
+      rgba[i * 4 + 2] = cor;
+      rgba[i * 4 + 3] = 255;
+    }
+    return rgba;
+  }
+
   const Lib = {
+    limparCaptcha,
+    pintarMascara,
     normalizar,
     somenteDigitos,
     formatarCpf,

@@ -65,7 +65,9 @@ compara para avisar quem está desatualizado.
      **Serviços do SISAP** no PROA;
    - na etapa 4, envia os horários livres ao PROA, que escolhe pela preferência do cadastro (data sugerida e
      período) mantendo os dois agendamentos do procurador na mesma data e período, e marca data e hora;
-   - na etapa 5, marca a ciência e coloca o cursor no CAPTCHA.
+   - na etapa 5, marca a ciência, coloca o cursor no CAPTCHA e mostra no painel a imagem do CAPTCHA
+     ampliada e sem as letras de ruído (as claras), para facilitar a leitura. Se o SISAP trocar a
+     imagem, o painel acompanha.
 4. **Digite o CAPTCHA e clique em FINALIZAR.** O resultado vai para o PROA na hora. Depois imprima o
    comprovante normalmente.
 

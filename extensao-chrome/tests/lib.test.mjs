@@ -93,6 +93,35 @@ test('identifica o procurador logado pelo auth.php e pelo cabecalho', () => {
   assert.equal(L.nomeDoCabecalho('sem login'), null);
 });
 
+test('separa as letras escuras do CAPTCHA do ruido claro', () => {
+  // 20x10 branco; letra 4x4 em cinza-escuro (#7d7d7d), ruído 4x4 em cinza-claro (#afafaf) e um ponto escuro solto.
+  const largura = 20;
+  const altura = 10;
+  const rgba = new Uint8ClampedArray(largura * altura * 4).fill(255);
+  const pintar = (x, y, cor) => rgba.set([cor, cor, cor, 255], (y * largura + x) * 4);
+
+  for (let y = 2; y < 6; y++) {
+    for (let x = 2; x < 6; x++) {
+      pintar(x, y, 0x7d);
+      pintar(x + 10, y, 0xaf);
+    }
+  }
+  pintar(18, 8, 0x7d);
+
+  const { mascara, limiar } = L.limparCaptcha(rgba, largura, altura);
+  const letra = (x, y) => mascara[y * largura + x];
+
+  assert.ok(limiar >= 0x7d && limiar < 0xaf, `limiar ${limiar}`);
+  assert.equal(letra(3, 3), 1);
+  assert.equal(letra(13, 3), 0, 'ruído claro some');
+  assert.equal(letra(18, 8), 0, 'ponto solto some');
+  assert.equal(mascara.reduce((a, b) => a + b, 0), 16);
+
+  const pixels = L.pintarMascara(mascara);
+  assert.equal(pixels[(3 * largura + 3) * 4], 17);
+  assert.equal(pixels[0], 255);
+});
+
 test('normaliza acentos, espacos e caixa para comparar textos do SISAP', () => {
   assert.equal(
     L.normalizar('  TIE (Título de Inscrição)  -  RENOVAÇÃO '),

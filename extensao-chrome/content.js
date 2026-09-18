@@ -4,7 +4,8 @@
  * Regras:
  * - Só clica e digita na tela do SISAP; nunca chama os endpoints dele por conta própria.
  * - Qualquer passo que não der para automatizar vira uma pausa: o usuário faz à mão e clica em Continuar.
- * - O CAPTCHA e o clique em FINALIZAR são sempre do usuário.
+ * - O CAPTCHA e o clique em FINALIZAR são sempre do usuário. A extensão só mostra a imagem sem o
+ *   ruído para facilitar a leitura; nunca lê nem preenche o código.
  *
  * O SISAP usa Quasar 0.x (classes q-if, q-popover, q-option) e um stepper próprio (.stepper-button).
  * Os seletores aceitam também as classes do Quasar 1.x, caso o site seja atualizado.
@@ -96,6 +97,8 @@
   let continuar = null;   // resolve da pausa atual
   let minimizado = false;
   let desdeAgenda = 0;
+  let captchaLimpo = null; // data URL do CAPTCHA sem o ruído, mostrado no painel
+  let vigiaCaptcha = null; // setInterval que refaz a imagem quando o SISAP troca o CAPTCHA
   const logs = [];
 
   const salvarJob = () => chrome.storage.local.set({ proaJob: job });
@@ -397,6 +400,7 @@
     executando = true;
     parar = false;
     logs.length = 0;
+    pararCaptcha();
     job = { id: agendamento.id, horarios: [], slot: null, resultado: null };
     await salvarJob();
     render();
@@ -799,7 +803,81 @@
     captcha.focus();
     captcha.style.outline = '3px solid #f59e0b';
 
+    acompanharCaptcha(captcha);
     avisar('Digite o CAPTCHA no SISAP', 'O agendamento chegou à confirmação. Digite o CAPTCHA e clique em Finalizar.');
+  }
+
+  /**
+   * Mostra no painel o CAPTCHA sem as letras de ruído, ampliado, para o usuário ler e digitar.
+   * Usa a imagem que já está na tela (baixar outra gera um código novo e passa pelo Cloudflare) e
+   * refaz quando o SISAP troca a imagem (recarregar, "Captcha inválido").
+   */
+  function acompanharCaptcha(campo) {
+    pararCaptcha();
+
+    let atual = null;
+    let chaveAtual = null;
+
+    vigiaCaptcha = setInterval(() => {
+      if (!campo.isConnected) {
+        pararCaptcha();
+        render();
+        return;
+      }
+
+      const img = imagemDoCaptcha(campo);
+      if (!img || !img.complete || !img.naturalWidth) {
+        return;
+      }
+
+      if (img !== atual) {
+        atual = img;
+        // Mesmo endereço recarregado (captcha.php de novo): o load avisa que a imagem mudou.
+        img.addEventListener('load', () => { chaveAtual = null; });
+      }
+
+      const chave = `${img.currentSrc || img.src}|${img.naturalWidth}x${img.naturalHeight}`;
+      if (chave !== chaveAtual) {
+        chaveAtual = chave;
+        desenharCaptcha(img);
+      }
+    }, 500);
+  }
+
+  function imagemDoCaptcha(campo) {
+    const porEndereco = todos('img').find((img) => /captcha/i.test(img.getAttribute('src') || ''));
+    if (porEndereco) {
+      return porEndereco;
+    }
+    const bloco = subirAte(campo, (el) => el.querySelector('img'));
+    return bloco ? bloco.querySelector('img') : null;
+  }
+
+  function desenharCaptcha(img) {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const { mascara } = L.limparCaptcha(data, canvas.width, canvas.height);
+      ctx.putImageData(new ImageData(L.pintarMascara(mascara), canvas.width, canvas.height), 0, 0);
+
+      captchaLimpo = canvas.toDataURL('image/png');
+    } catch (erro) {
+      // Ex.: imagem de outro endereço (o navegador não deixa ler os pixels).
+      captchaLimpo = null;
+      registrar('Não consegui limpar a imagem do CAPTCHA. Digite olhando a imagem do SISAP.', 'info');
+    }
+    render();
+  }
+
+  function pararCaptcha() {
+    clearInterval(vigiaCaptcha);
+    vigiaCaptcha = null;
+    captchaLimpo = null;
   }
 
   async function aoCapturar(captura) {
@@ -822,6 +900,7 @@
         return;
       }
 
+      pararCaptcha();
       job.resultado = {
         numero: resultado.numero,
         chave: resultado.chave,
@@ -1021,6 +1100,7 @@
         </header>
         <div class="corpo">
           ${faixaVersao}
+          ${captchaLimpo ? `<div class="captcha"><strong>CAPTCHA sem o ruído</strong> — digite estas letras no campo do SISAP e clique em Finalizar.<img src="${captchaLimpo}" alt="CAPTCHA sem o ruído"></div>` : ''}
           ${corpo}
           ${registro ? `<div class="registro">${registro}</div>` : ''}
           <div class="acoes">
@@ -1111,6 +1191,8 @@
     .faixa { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; }
     .acoes { display: flex; gap: 6px; margin-top: 6px; }
     .acoes button { flex: 1; }
+    .captcha { background: #fffbeb; border: 2px solid #f59e0b; border-radius: 8px; padding: 6px 8px; margin-bottom: 8px; color: #92400e; }
+    .captcha img { display: block; width: 100%; height: auto; margin-top: 6px; background: #fff; border-radius: 4px; }
   `;
 
   function montar() {
