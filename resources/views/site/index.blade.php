@@ -1,155 +1,17 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+@extends('site.layout')
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+@section('title', 'Campeão Náutica | Despachante Marítimo e Escola Naval em Goiânia')
+@section('description', '⚓Campeão Náutica: Arrais, Motonauta e Regularização. Atendemos todo o Brasil. +20 anos de tradição, simulado online e recursos. Fale conosco: (62) 99859-9357.')
+@section('keywords', 'despachante náutico, escola naval, arrais amador, motonauta, marinha do brasil, regularização de barcos, goiânia')
+@section('og_title', 'Campeão Náutica | Despachante Marítimo e Escola Naval')
+@section('og_description', 'Regularize sua embarcação ou tire sua habilitação com especialistas. Mais de 20 anos de tradição.')
 
-    {{-- SEO Básico --}}
-    <title>Campeão Náutica | Despachante Marítimo e Escola Naval em Goiânia</title>
-    <meta name="description"
-        content="⚓Campeão Náutica: Arrais, Motonauta e Regularização. Atendemos todo o Brasil. +20 anos de tradição, simulado online e recursos. Fale conosco: (62) 99859-9357.">
-    <meta name="keywords"
-        content="despachante náutico, escola naval, arrais amador, motonauta, marinha do brasil, regularização de barcos, goiânia">
-    <link rel="canonical" href="{{ url()->current() }}">
-    <meta name="theme-color" content="#0a1f33">
-
-    {{-- Favicon para Pesquisa Google (Arquivo em /public) --}}
-    <link rel="shortcut icon" href="{{ asset('favicon.png') }}" type="image/jpeg">
-    <link rel="icon" href="{{ asset('favicon.png') }}" type="image/jpeg" sizes="32x32">
-    <link rel="apple-touch-icon" href="{{ asset('favicon.png') }}">
-
-    {{-- Open Graph / Social Media --}}
-    <meta property="og:type" content="website">
-    <meta property="og:locale" content="pt_BR">
-    <meta property="og:url" content="{{ url()->current() }}">
-    <meta property="og:title" content="Campeão Náutica | Despachante Marítimo e Escola Naval">
-    <meta property="og:description"
-        content="Regularize sua embarcação ou tire sua habilitação com especialistas. Mais de 20 anos de tradição.">
-    <meta property="og:image" content="{{ asset('images/logo_campeao.jpg') }}">
-    <meta property="og:image:type" content="image/jpeg">
-
-    {{-- Schema.org Structured Data (Correção com @@ para evitar ParseError) --}}
-    <script type="application/ld+json">
-    {
-      "@@context": "https://schema.org",
-      "@@type": "LocalBusiness",
-      "name": "Campeão Náutica",
-      "image": "{{ asset('images/logo_campeao.jpg') }}",
-      "logo": "{{ asset('images/logo_campeao.jpg') }}",
-      "@@id": "https://campeaonautica.com.br",
-      "url": "https://campeaonautica.com.br",
-      "telephone": "+5562998599357",
-      "address": {
-        "@@type": "PostalAddress",
-        "streetAddress": "Avenida 24 de Outubro, 3047",
-        "addressLocality": "Goiânia",
-        "addressRegion": "GO",
-        "postalCode": "74435-090",
-        "addressCountry": "BR"
-      },
-      "geo": {
-        "@@type": "GeoCoordinates",
-        "latitude": -16.6710,
-        "longitude": -49.2845
-      },
-      "openingHoursSpecification": {
-        "@@type": "OpeningHoursSpecification",
-        "dayOfWeek": [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday"
-        ],
-        "opens": "08:00",
-        "closes": "18:00"
-      }
-    }
-    </script>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        navy: { DEFAULT: '#0a1f33', 800: '#12304d', 700: '#1c4266' },
-                        buoy: { DEFAULT: '#ff5a1f', dark: '#e04710' },
-                        mist: '#f3f5f7',
-                    },
-                    fontFamily: {
-                        sans: ['Geist', 'system-ui', 'sans-serif'],
-                        mono: ['"Geist Mono"', 'ui-monospace', 'monospace'],
-                    },
-                },
-            },
-        };
-    </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
-        rel="stylesheet">
-
-    <style>
-        html { scroll-behavior: smooth; scroll-padding-top: 6rem; }
-        body { font-family: 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-        details > summary { list-style: none; }
-        details > summary::-webkit-details-marker { display: none; }
-        details[open] .menu-closed, details:not([open]) .menu-open { display: none; }
-    </style>
-</head>
-
-<body class="bg-white text-navy">
-
+@section('content')
     @php
-        $whatsapp = 'https://wa.me/5562998599357';
-        $instagram = 'https://www.instagram.com/campeao.despachantenautico10';
-        $endereco = 'Avenida 24 de Outubro, 3047, Aeroviário, Goiânia - GO, 74435-090';
-        $mapa = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($endereco);
-        $mapaEmbed = 'https://www.google.com/maps?q=' . urlencode($endereco) . '&output=embed';
+        $site = config('site');
+        $mapa = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($site['endereco']['mapa_busca']);
+        $mapaEmbed = 'https://www.google.com/maps?q=' . urlencode($site['endereco']['mapa_busca']) . '&output=embed';
     @endphp
-
-    {{-- Navegação --}}
-    <nav class="fixed inset-x-0 top-0 z-50 bg-white/85 backdrop-blur-lg border-b border-navy/[0.06]">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <a href="{{ url('/') }}" class="flex items-center gap-2.5">
-                <img src="{{ asset('images/logo_campeao.jpg') }}" alt="Logotipo Campeão Náutica"
-                    class="h-9 w-9 rounded-lg object-contain bg-white ring-1 ring-navy/10">
-                <span class="font-semibold tracking-tight">Campeão Náutica</span>
-            </a>
-
-            <div class="hidden md:flex items-center gap-1 text-sm">
-                <a href="#servicos" class="px-3 py-2 rounded-lg text-navy/70 hover:text-navy hover:bg-mist transition">Serviços</a>
-                <a href="#simulado" class="px-3 py-2 rounded-lg text-navy/70 hover:text-navy hover:bg-mist transition">Simulado</a>
-                <a href="#sobre" class="px-3 py-2 rounded-lg text-navy/70 hover:text-navy hover:bg-mist transition">Sobre nós</a>
-                <a href="{{ $instagram }}" target="_blank" rel="noopener" class="px-3 py-2 rounded-lg text-navy/70 hover:text-navy hover:bg-mist transition">Instagram</a>
-                <span class="mx-2 h-5 w-px bg-navy/10"></span>
-                <a href="/admin/login" class="px-3 py-2 font-mono text-xs text-navy/50 hover:text-navy transition">PROA</a>
-                <a href="/login" class="ml-1 rounded-lg bg-navy px-4 py-2 font-medium text-white hover:bg-navy-700 transition">
-                    Área do Cliente
-                </a>
-            </div>
-
-            {{-- Menu mobile --}}
-            <details class="md:hidden">
-                <summary class="cursor-pointer rounded-lg p-2 hover:bg-mist" aria-label="Abrir menu">
-                    <svg class="menu-closed h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-                    <svg class="menu-open h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
-                </summary>
-                <div class="absolute inset-x-0 top-16 border-b border-navy/10 bg-white px-4 pb-5 pt-2 shadow-lg shadow-navy/5">
-                    <a href="#servicos" class="block rounded-lg px-3 py-3 hover:bg-mist">Serviços</a>
-                    <a href="#simulado" class="block rounded-lg px-3 py-3 hover:bg-mist">Simulado</a>
-                    <a href="#sobre" class="block rounded-lg px-3 py-3 hover:bg-mist">Sobre nós</a>
-                    <a href="{{ $instagram }}" target="_blank" rel="noopener" class="block rounded-lg px-3 py-3 hover:bg-mist">Instagram</a>
-                    <div class="mt-3 grid grid-cols-2 gap-2">
-                        <a href="/admin/login" class="rounded-lg border border-navy/15 px-3 py-2.5 text-center font-mono text-xs leading-5">PROA</a>
-                        <a href="/login" class="rounded-lg bg-navy px-3 py-2.5 text-center text-sm font-medium text-white">Área do Cliente</a>
-                    </div>
-                </div>
-            </details>
-        </div>
-    </nav>
 
     {{-- Hero --}}
     <header class="px-2 pt-[4.5rem] sm:px-3">
@@ -180,9 +42,9 @@
                         regularização de embarcações em todo o Brasil.
                     </p>
                     <div class="mt-10 flex flex-col gap-3 sm:flex-row">
-                        <a href="{{ $whatsapp }}" target="_blank" rel="noopener"
+                        <a href="{{ $site['whatsapp'] }}" target="_blank" rel="noopener"
                             class="inline-flex items-center justify-center gap-2.5 rounded-xl bg-buoy px-6 py-3.5 font-medium text-white transition hover:bg-buoy-dark">
-                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.1-.3-.2-.6-.3zM12 21.8c-1.8 0-3.5-.5-5-1.4l-.4-.2-3.7 1 1-3.6-.2-.4C2.7 15.6 2.2 13.8 2.2 12 2.2 6.6 6.6 2.2 12 2.2S21.8 6.6 21.8 12 17.4 21.8 12 21.8zM12 0C5.4 0 0 5.4 0 12c0 2.1.6 4.2 1.6 6L0 24l6.2-1.6c1.8 1 3.8 1.5 5.8 1.5 6.6 0 12-5.4 12-12S18.6 0 12 0z"/></svg>
+                            @include('site.partials.icone-whatsapp')
                             WhatsApp (62) 99859-9357
                         </a>
                         <a href="/login"
@@ -196,43 +58,7 @@
                 {{-- Cartão de atendimento --}}
                 <aside class="self-end lg:col-span-5 lg:pl-6">
                     <div class="rounded-2xl bg-white/[0.06] p-2 ring-1 ring-inset ring-white/10 backdrop-blur">
-                        <div class="rounded-xl bg-white p-6 text-navy">
-                            <div class="flex items-center justify-between">
-                                <h2 class="font-semibold">Atendimento</h2>
-                                <span class="inline-flex items-center gap-1.5 font-mono text-xs text-navy/60">
-                                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                                    Seg–Sex · 8h–18h
-                                </span>
-                            </div>
-                            <ul class="mt-5 space-y-1 text-sm">
-                                <li>
-                                    <a href="{{ $whatsapp }}" target="_blank" rel="noopener" class="-mx-2 flex items-center justify-between rounded-lg px-2 py-2.5 hover:bg-mist">
-                                        <span class="text-navy/60">WhatsApp</span>
-                                        <span class="font-mono font-medium">(62) 9 9859-9357</span>
-                                    </a>
-                                </li>
-                                <li>
-                                    <a href="tel:+5562996577973" class="-mx-2 flex items-center justify-between rounded-lg px-2 py-2.5 hover:bg-mist">
-                                        <span class="text-navy/60">Telefone</span>
-                                        <span class="font-mono font-medium">(62) 9 9657-7973</span>
-                                    </a>
-                                </li>
-                                <li>
-                                    <a href="mailto:contato@campeaonautica.com.br" class="-mx-2 flex items-center justify-between gap-4 rounded-lg px-2 py-2.5 hover:bg-mist">
-                                        <span class="text-navy/60">E-mail</span>
-                                        <span class="truncate font-medium">contato@campeaonautica.com.br</span>
-                                    </a>
-                                </li>
-                            </ul>
-                            <a href="{{ $mapa }}" target="_blank" rel="noopener"
-                                class="mt-4 flex items-start gap-3 rounded-xl bg-mist p-4 text-sm transition hover:bg-navy/[0.07]">
-                                <svg class="mt-0.5 h-4 w-4 shrink-0 text-buoy" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 00-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 00-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z"/></svg>
-                                <span>
-                                    Av. 24 de Outubro, 3047 — Aeroviário<br>
-                                    <span class="text-navy/60">Goiânia, GO · Ver no mapa</span>
-                                </span>
-                            </a>
-                        </div>
+                        @include('site.partials.atendimento')
                     </div>
                 </aside>
             </div>
@@ -278,8 +104,7 @@
 
             <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 @forelse($servicos as $servico)
-                    <a href="{{ $whatsapp }}?text={{ rawurlencode('Olá! Gostaria de um orçamento para: ' . $servico->nome) }}"
-                        target="_blank" rel="noopener"
+                    <a href="{{ route('site.servico', $servico) }}"
                         class="group flex flex-col rounded-2xl border border-navy/10 p-7 transition duration-300 hover:border-navy hover:bg-navy hover:text-white">
                         <span class="font-mono text-xs text-navy/40 transition group-hover:text-white/50">
                             {{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }}
@@ -287,52 +112,21 @@
                         <h3 class="mt-10 text-xl font-semibold tracking-tight">{{ $servico->nome }}</h3>
                         <p class="mt-3 flex-1 leading-relaxed text-navy/60 transition group-hover:text-white/70">{{ $servico->descricao }}</p>
                         <span class="mt-8 inline-flex items-center gap-2 text-sm font-medium text-buoy">
-                            Pedir orçamento
+                            Saiba mais
                             <span class="transition group-hover:translate-x-1" aria-hidden="true">→</span>
                         </span>
                     </a>
                 @empty
                     <div class="col-span-full rounded-2xl border border-dashed border-navy/15 p-10 text-center text-navy/60">
                         Nenhum serviço cadastrado no momento. Fale com a gente pelo
-                        <a href="{{ $whatsapp }}" class="font-medium text-buoy">WhatsApp</a>.
+                        <a href="{{ $site['whatsapp'] }}" class="font-medium text-buoy">WhatsApp</a>.
                     </div>
                 @endforelse
             </div>
         </div>
     </section>
 
-    {{-- Como funciona --}}
-    <section class="bg-mist py-20 md:py-28">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <p class="font-mono text-xs uppercase tracking-[0.18em] text-buoy">Como funciona</p>
-            <h2 class="mt-4 text-balance max-w-2xl text-4xl font-semibold tracking-[-0.03em] md:text-5xl">
-                Você fala com a gente. O resto é com a gente.
-            </h2>
-
-            <ol class="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <li class="rounded-2xl bg-white p-7">
-                    <span class="flex h-9 w-9 items-center justify-center rounded-full bg-navy font-mono text-sm text-white">1</span>
-                    <h3 class="mt-6 font-semibold">Conte o que precisa</h3>
-                    <p class="mt-2 text-sm leading-relaxed text-navy/60">Pelo WhatsApp, por telefone ou aqui no escritório.</p>
-                </li>
-                <li class="rounded-2xl bg-white p-7">
-                    <span class="flex h-9 w-9 items-center justify-center rounded-full bg-navy font-mono text-sm text-white">2</span>
-                    <h3 class="mt-6 font-semibold">Receba a lista de documentos</h3>
-                    <p class="mt-2 text-sm leading-relaxed text-navy/60">Conferimos tudo antes de dar entrada, para evitar exigências depois.</p>
-                </li>
-                <li class="rounded-2xl bg-white p-7">
-                    <span class="flex h-9 w-9 items-center justify-center rounded-full bg-navy font-mono text-sm text-white">3</span>
-                    <h3 class="mt-6 font-semibold">Damos entrada na Marinha</h3>
-                    <p class="mt-2 text-sm leading-relaxed text-navy/60">Agendamento, protocolo e acompanhamento junto à Capitania.</p>
-                </li>
-                <li class="rounded-2xl bg-white p-7">
-                    <span class="flex h-9 w-9 items-center justify-center rounded-full bg-buoy font-mono text-sm text-white">4</span>
-                    <h3 class="mt-6 font-semibold">Pronto, é só retirar</h3>
-                    <p class="mt-2 text-sm leading-relaxed text-navy/60">Avisamos você assim que o documento estiver liberado.</p>
-                </li>
-            </ol>
-        </div>
-    </section>
+    @include('site.partials.como-funciona')
 
     {{-- Simulado --}}
     <section id="simulado" class="py-20 md:py-28">
@@ -386,6 +180,8 @@
         </div>
     </section>
 
+    @include('site.partials.faq', ['faq' => $site['faq'], 'id' => 'perguntas'])
+
     {{-- Sobre --}}
     <section id="sobre" class="px-2 pb-2 sm:px-3 sm:pb-3">
         <div class="rounded-3xl bg-mist">
@@ -410,7 +206,7 @@
                         <div>
                             <dt class="font-mono text-xs uppercase tracking-wider text-navy/45">Endereço</dt>
                             <dd class="mt-2 leading-relaxed">
-                                Avenida 24 de Outubro, 3047<br>
+                                {{ $site['endereco']['rua'] }}<br>
                                 Quadra 17 Lote 28, Bairro Aeroviário<br>
                                 Goiânia - GO · CEP 74435-090
                             </dd>
@@ -437,62 +233,4 @@
             </div>
         </div>
     </section>
-
-    {{-- Rodapé --}}
-    <footer class="px-2 pb-2 sm:px-3 sm:pb-3">
-        <div class="rounded-3xl bg-navy text-white">
-            <div class="mx-auto max-w-7xl px-5 py-16 sm:px-8">
-                <div class="flex flex-col justify-between gap-8 border-b border-white/10 pb-12 md:flex-row md:items-center">
-                    <p class="max-w-lg text-2xl font-semibold tracking-tight md:text-3xl">
-                        Precisa regularizar a embarcação ou tirar a habilitação?
-                    </p>
-                    <a href="{{ $whatsapp }}" target="_blank" rel="noopener"
-                        class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-buoy px-6 py-3.5 font-medium transition hover:bg-buoy-dark">
-                        Fale com um despachante
-                        <span aria-hidden="true">→</span>
-                    </a>
-                </div>
-
-                <div class="grid gap-10 pt-12 text-sm md:grid-cols-12">
-                    <div class="md:col-span-5">
-                        <div class="flex items-center gap-2.5">
-                            <img src="{{ asset('images/logo_campeao.jpg') }}" alt="Campeão Náutica"
-                                class="h-10 w-10 rounded-lg bg-white object-contain">
-                            <span class="font-semibold">Campeão Náutica</span>
-                        </div>
-                        <p class="mt-4 max-w-xs leading-relaxed text-white/55">
-                            Referência em assessoria naval e regularização junto à Marinha do Brasil.
-                        </p>
-                    </div>
-
-                    <div class="md:col-span-4">
-                        <h4 class="font-mono text-xs uppercase tracking-wider text-white/40">Contatos</h4>
-                        <ul class="mt-4 space-y-2.5 text-white/75">
-                            <li><a href="mailto:contato@campeaonautica.com.br" class="hover:text-white">contato@campeaonautica.com.br</a></li>
-                            <li><a href="mailto:campeaonautica@gmail.com" class="hover:text-white">campeaonautica@gmail.com</a></li>
-                            <li><a href="{{ $whatsapp }}" target="_blank" rel="noopener" class="hover:text-white">(62) 9 9859-9357 · WhatsApp</a></li>
-                            <li><a href="tel:+5562996577973" class="hover:text-white">(62) 9 9657-7973</a></li>
-                            <li><a href="{{ $instagram }}" target="_blank" rel="noopener" class="hover:text-white">Instagram: @campeao.despachantenautico10</a></li>
-                        </ul>
-                    </div>
-
-                    <div class="md:col-span-3">
-                        <h4 class="font-mono text-xs uppercase tracking-wider text-white/40">Acesso rápido</h4>
-                        <ul class="mt-4 space-y-2.5 text-white/75">
-                            <li><a href="/login" class="hover:text-white">Área do Cliente (Simulador)</a></li>
-                            <li><a href="#servicos" class="hover:text-white">Serviços</a></li>
-                            <li><a href="/admin/login" class="hover:text-white">PROA</a></li>
-                        </ul>
-                    </div>
-                </div>
-
-                <p class="mt-14 font-mono text-xs text-white/35">
-                    &copy; {{ date('Y') }} Campeão Náutica · CNPJ 53.775.360/0001-21 · Goiânia - GO
-                </p>
-            </div>
-        </div>
-    </footer>
-
-</body>
-
-</html>
+@endsection

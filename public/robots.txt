@@ -1,2 +1,8 @@
 User-agent: *
-Disallow:
+Disallow: /admin
+Disallow: /cliente
+Disallow: /login
+Disallow: /propostas
+Disallow: /livewire
+
+Sitemap: https://campeaonautica.com.br/sitemap.xml

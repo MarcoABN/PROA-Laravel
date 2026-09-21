@@ -58,6 +58,44 @@ class ServicoResource extends Resource
                     ->label('Ativo')
                     ->default(true)
                     ->required(),
+
+                \Filament\Forms\Components\Section::make('Página do serviço no site')
+                    ->description(fn(?Servico $record) => $record?->slug
+                        ? 'Publicada em ' . route('site.servico', $record->slug)
+                        : 'Cada serviço ativo ganha uma página própria no site, indexada pelo Google.')
+                    ->collapsible()
+                    ->schema([
+                        \Filament\Forms\Components\TextInput::make('titulo_seo')
+                            ->label('Título para o Google')
+                            ->maxLength(70)
+                            ->helperText('Até 70 caracteres. Ex.: "Arrais Amador em Goiânia | Campeão Náutica". Em branco, usa "Nome do serviço em Goiânia | Campeão Náutica".'),
+
+                        \Filament\Forms\Components\Textarea::make('meta_descricao')
+                            ->label('Descrição para o Google')
+                            ->maxLength(160)
+                            ->rows(2)
+                            ->helperText('Até 160 caracteres. Texto que aparece abaixo do título na busca. Em branco, usa a descrição acima.'),
+
+                        \Filament\Forms\Components\RichEditor::make('conteudo')
+                            ->label('Texto da página')
+                            ->toolbarButtons(['h2', 'h3', 'bold', 'italic', 'link', 'bulletList', 'orderedList', 'blockquote', 'undo', 'redo'])
+                            ->helperText('Explique o serviço com detalhes: para quem é, documentos necessários, etapas e prazos. Páginas com 400 palavras ou mais tendem a se posicionar melhor.')
+                            ->columnSpanFull(),
+
+                        \Filament\Forms\Components\Repeater::make('faq')
+                            ->label('Perguntas frequentes')
+                            ->schema([
+                                \Filament\Forms\Components\TextInput::make('pergunta')->required(),
+                                \Filament\Forms\Components\Textarea::make('resposta')->required()->rows(3),
+                            ])
+                            ->itemLabel(fn(array $state): ?string => $state['pergunta'] ?? null)
+                            ->addActionLabel('Adicionar pergunta')
+                            ->collapsible()
+                            ->defaultItems(0)
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
             ]);
     }
 
