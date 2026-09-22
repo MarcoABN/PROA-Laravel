@@ -141,6 +141,7 @@
                 <a href="{{ route('site.index') }}#servicos" class="px-3 py-2 rounded-lg text-navy/70 hover:text-navy hover:bg-mist transition">Serviços</a>
                 <a href="{{ route('site.index') }}#simulado" class="px-3 py-2 rounded-lg text-navy/70 hover:text-navy hover:bg-mist transition">Simulado</a>
                 <a href="{{ route('site.index') }}#sobre" class="px-3 py-2 rounded-lg text-navy/70 hover:text-navy hover:bg-mist transition">Sobre nós</a>
+                <a href="{{ route('site.blog') }}" class="px-3 py-2 rounded-lg text-navy/70 hover:text-navy hover:bg-mist transition">Blog</a>
                 <a href="{{ $site['instagram'] }}" target="_blank" rel="noopener" class="px-3 py-2 rounded-lg text-navy/70 hover:text-navy hover:bg-mist transition">Instagram</a>
                 <span class="mx-2 h-5 w-px bg-navy/10"></span>
                 <a href="/admin/login" class="px-3 py-2 font-mono text-xs text-navy/50 hover:text-navy transition">PROA</a>
@@ -159,6 +160,7 @@
                     <a href="{{ route('site.index') }}#servicos" class="block rounded-lg px-3 py-3 hover:bg-mist">Serviços</a>
                     <a href="{{ route('site.index') }}#simulado" class="block rounded-lg px-3 py-3 hover:bg-mist">Simulado</a>
                     <a href="{{ route('site.index') }}#sobre" class="block rounded-lg px-3 py-3 hover:bg-mist">Sobre nós</a>
+                    <a href="{{ route('site.blog') }}" class="block rounded-lg px-3 py-3 hover:bg-mist">Blog</a>
                     <a href="{{ $site['instagram'] }}" target="_blank" rel="noopener" class="block rounded-lg px-3 py-3 hover:bg-mist">Instagram</a>
                     <div class="mt-3 grid grid-cols-2 gap-2">
                         <a href="/admin/login" class="rounded-lg border border-navy/15 px-3 py-2.5 text-center font-mono text-xs leading-5">PROA</a>
@@ -224,6 +226,7 @@
                         <h4 class="font-mono text-xs uppercase tracking-wider text-white/40">Acesso rápido</h4>
                         <ul class="mt-4 space-y-2.5 text-white/75">
                             <li><a href="/login" class="hover:text-white">Área do Cliente (Simulador)</a></li>
+                            <li><a href="{{ route('site.blog') }}" class="hover:text-white">Blog</a></li>
                             <li><a href="/admin/login" class="hover:text-white">PROA</a></li>
                         </ul>
                     </div>

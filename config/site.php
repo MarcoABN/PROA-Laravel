@@ -12,7 +12,7 @@ return [
 
     'nome' => 'Campeão Náutica',
     'url' => 'https://campeaonautica.com.br',
-    'descricao' => 'Despachante náutico e escola de navegação em Goiânia. Habilitação de Arrais Amador e Motonauta em Goiás e regularização de embarcações em todo o Brasil.',
+    'descricao' => 'Despachante náutico e escola náutica em Goiânia. Habilitação de Arrais Amador e Motonauta em Goiás e regularização de embarcações em todo o Brasil.',
 
     'whatsapp' => 'https://wa.me/5562998599357',
     'whatsapp_exibicao' => '(62) 9 9859-9357',

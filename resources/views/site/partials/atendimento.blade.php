@@ -3,7 +3,7 @@
     $mapa = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($site['endereco']['mapa_busca']);
 @endphp
 <div class="rounded-xl bg-white p-6 text-navy">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <h2 class="font-semibold">Atendimento</h2>
         <span class="inline-flex items-center gap-1.5 font-mono text-xs text-navy/60">
             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
@@ -12,21 +12,21 @@
     </div>
     <ul class="mt-5 space-y-1 text-sm">
         <li>
-            <a href="{{ $site['whatsapp'] }}" target="_blank" rel="noopener" class="-mx-2 flex items-center justify-between rounded-lg px-2 py-2.5 hover:bg-mist">
+            <a href="{{ $site['whatsapp'] }}" target="_blank" rel="noopener" class="-mx-2 flex flex-wrap items-center justify-between gap-x-4 rounded-lg px-2 py-2.5 hover:bg-mist">
                 <span class="text-navy/60">WhatsApp</span>
                 <span class="font-mono font-medium">{{ $site['whatsapp_exibicao'] }}</span>
             </a>
         </li>
         <li>
-            <a href="tel:{{ $site['telefone2'] }}" class="-mx-2 flex items-center justify-between rounded-lg px-2 py-2.5 hover:bg-mist">
+            <a href="tel:{{ $site['telefone2'] }}" class="-mx-2 flex flex-wrap items-center justify-between gap-x-4 rounded-lg px-2 py-2.5 hover:bg-mist">
                 <span class="text-navy/60">Telefone</span>
                 <span class="font-mono font-medium">{{ $site['telefone2_exibicao'] }}</span>
             </a>
         </li>
         <li>
-            <a href="mailto:{{ $site['email'] }}" class="-mx-2 flex items-center justify-between gap-4 rounded-lg px-2 py-2.5 hover:bg-mist">
+            <a href="mailto:{{ $site['email'] }}" class="-mx-2 flex flex-wrap items-center justify-between gap-x-4 rounded-lg px-2 py-2.5 hover:bg-mist">
                 <span class="text-navy/60">E-mail</span>
-                <span class="truncate font-medium">{{ $site['email'] }}</span>
+                <span class="break-all font-medium">{{ $site['email'] }}</span>
             </a>
         </li>
     </ul>

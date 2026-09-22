@@ -18,6 +18,8 @@ use App\Livewire\SimuladoNaval;
 // 1. Rota Pública (Site)
 Route::get('/', [SiteController::class, 'index'])->name('site.index');
 Route::get('/servicos/{servico:slug}', [SiteController::class, 'servico'])->name('site.servico');
+Route::get('/blog', [SiteController::class, 'blog'])->name('site.blog');
+Route::get('/blog/{artigo:slug}', [SiteController::class, 'artigo'])->name('site.artigo');
 
 // Sitemap gerado na hora a partir dos serviços ativos. Não manter um public/sitemap.xml
 // no servidor: o Apache serve o arquivo estático no lugar desta rota.

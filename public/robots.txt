@@ -1,7 +1,7 @@
 User-agent: *
+Allow: /admin/login
 Disallow: /admin
 Disallow: /cliente
-Disallow: /login
 Disallow: /propostas
 Disallow: /livewire
 

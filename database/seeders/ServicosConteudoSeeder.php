@@ -48,8 +48,8 @@ class ServicosConteudoSeeder extends Seeder
         return [
 
             'habilitacao' => [
-                'titulo_seo' => 'Arrais Amador e Motonauta em Goiânia | Habilitação Náutica',
-                'meta_descricao' => 'Tire, renove ou peça a 2ª via da sua habilitação náutica de Arrais Amador ou Motonauta. Escola náutica em Goiânia com alunos de todo o estado de Goiás.',
+                'titulo_seo' => 'Habilitação Náutica em Goiânia: Emissão, Renovação e 2ª Via',
+                'meta_descricao' => 'Emissão, renovação e 2ª via da habilitação náutica (CHA) de Arrais Amador e Motonauta. Escola náutica em Goiânia com alunos de todo o estado de Goiás.',
                 'conteudo' => <<<'HTML'
 <h2>Habilitação náutica em Goiânia</h2>
 <p>Para conduzir uma lancha, um barco de passeio ou um jet ski em rios, lagos e represas, a Marinha do Brasil exige a Carteira de Habilitação de Amador (CHA). A Campeão Náutica prepara você para a prova e cuida de toda a documentação, da inscrição até a entrega da carteira.</p>

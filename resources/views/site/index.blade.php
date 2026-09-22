@@ -1,9 +1,9 @@
 @extends('site.layout')
 
-@section('title', 'Campeão Náutica | Despachante Marítimo e Escola Naval em Goiânia')
+@section('title', 'Despachante Náutico e Escola Náutica em Goiânia | Campeão Náutica')
 @section('description', '⚓Campeão Náutica: Arrais, Motonauta e Regularização. Atendemos todo o Brasil. +20 anos de tradição, simulado online e recursos. Fale conosco: (62) 99859-9357.')
-@section('keywords', 'despachante náutico, escola naval, arrais amador, motonauta, marinha do brasil, regularização de barcos, goiânia')
-@section('og_title', 'Campeão Náutica | Despachante Marítimo e Escola Naval')
+@section('keywords', 'despachante náutico, escola náutica, arrais amador, motonauta, marinha do brasil, regularização de barcos, goiânia')
+@section('og_title', 'Campeão Náutica | Despachante Náutico e Escola Náutica em Goiânia')
 @section('og_description', 'Regularize sua embarcação ou tire sua habilitação com especialistas. Mais de 20 anos de tradição.')
 
 @section('content')
@@ -34,7 +34,7 @@
             <div class="relative mx-auto grid max-w-7xl gap-12 px-5 pb-14 pt-16 sm:px-8 md:pt-24 lg:grid-cols-12 lg:gap-10 lg:pb-20">
                 <div class="lg:col-span-7">
                     <h1 class="text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-6xl lg:text-[4.25rem]">
-                        Despachante náutico e escola de navegação.
+                        Despachante náutico e escola náutica em Goiânia.
                         <span class="text-white/45">Documentos em dia, habilitação na mão.</span>
                     </h1>
                     <p class="mt-7 max-w-xl text-lg leading-relaxed text-white/70">
@@ -179,6 +179,32 @@
             </div>
         </div>
     </section>
+
+    {{-- Últimos artigos do blog --}}
+    @if(($artigos ?? collect())->isNotEmpty())
+        <section class="bg-mist py-20 md:py-28">
+            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div class="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+                    <div class="max-w-2xl">
+                        <p class="font-mono text-xs uppercase tracking-[0.18em] text-buoy">Blog</p>
+                        <h2 class="mt-4 text-balance text-4xl font-semibold tracking-[-0.03em] md:text-5xl">
+                            Guias para quem navega.
+                        </h2>
+                    </div>
+                    <a href="{{ route('site.blog') }}" class="text-sm font-medium underline underline-offset-4 decoration-buoy/60 hover:decoration-navy">
+                        Ver todos os artigos
+                    </a>
+                </div>
+                <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    @foreach($artigos as $artigo)
+                        <div class="rounded-2xl bg-white">
+                            @include('site.partials.card-artigo', ['artigo' => $artigo])
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </section>
+    @endif
 
     @include('site.partials.faq', ['faq' => $site['faq'], 'id' => 'perguntas'])
 
