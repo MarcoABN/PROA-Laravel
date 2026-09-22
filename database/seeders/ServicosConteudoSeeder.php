@@ -69,7 +69,7 @@ class ServicosConteudoSeeder extends Seeder
 <li>Renovação e 2ª via da habilitação</li>
 </ul>
 <h2>Documentos</h2>
-<p>Em geral, são pedidos documento de identidade com foto, CPF, comprovante de residência e atestado médico. A lista exata depende da categoria e do tipo de pedido (primeira habilitação, renovação ou 2ª via). Conferimos tudo com você antes de dar entrada, para evitar exigências e retrabalho.</p>
+<p>Em geral, são pedidos documento de identidade com foto, CPF e comprovante de residência. A lista exata depende da categoria e do tipo de pedido (primeira habilitação, renovação ou 2ª via). Conferimos tudo com você antes de dar entrada, para evitar exigências e retrabalho.</p>
 <h2>Simulado online para alunos</h2>
 <p>Nossos alunos têm acesso à Área do Cliente, onde treinam com questões no formato da prova da Marinha. É a melhor forma de chegar no dia do exame sabendo exatamente o que esperar.</p>
 HTML,
