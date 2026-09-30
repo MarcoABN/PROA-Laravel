@@ -192,7 +192,7 @@ class CadastroAgendamentos extends Page implements HasForms
                     ->reorderable(false)
                     ->collapsible()
                     ->defaultItems(0)
-                    ->itemLabel(fn(array $state) => AgendamentoMarinhaResource::opcoesProcuradores()[$state['prestador_id'] ?? null] ?? 'Novo procurador')
+                    ->itemLabel(fn(array $state) => $this->resumoDoProcurador($state))
                     ->schema([
                         Forms\Components\Grid::make(3)->schema([
                             Forms\Components\Select::make('prestador_id')
@@ -219,7 +219,8 @@ class CadastroAgendamentos extends Page implements HasForms
                                 ->maxDate(fn() => $this->competenciaAtual() ? Carbon::parse($this->competenciaAtual())->endOfMonth()->startOfDay() : null)
                                 ->defaultFocusedDate(fn() => $this->competenciaAtual() ? Carbon::parse($this->competenciaAtual())->startOfMonth() : null)
                                 ->disabled(fn() => !$this->competenciaAtual())
-                                ->helperText(fn() => $this->competenciaAtual()
+                                // Dicas no ícone, não em texto de ajuda: cada linha a menos conta com vários procuradores.
+                                ->hintIcon('heroicon-m-information-circle', tooltip: fn() => $this->competenciaAtual()
                                     ? 'Opcional. Sem vaga nesta data, o PROA escolhe a mais próxima. Em vermelho: fins de semana e feriados.'
                                     : 'Escolha primeiro o mês do atendimento.')
                                 ->validationMessages([
@@ -232,7 +233,7 @@ class CadastroAgendamentos extends Page implements HasForms
                                 ->options(AgendamentoMarinha::periodos())
                                 ->placeholder('Indiferente')
                                 ->native(false)
-                                ->helperText('Os dois agendamentos ficam neste período sempre que houver data que comporte.'),
+                                ->hintIcon('heroicon-m-information-circle', tooltip: 'Os dois agendamentos ficam neste período sempre que houver data que comporte.'),
                         ]),
 
                         $this->secaoAgendamento(1),
@@ -256,14 +257,16 @@ class CadastroAgendamentos extends Page implements HasForms
                     ->reorderable(false)
                     ->defaultItems(0)
                     ->maxItems(fn() => $this->vagasPorAgendamento())
-                    ->columns(4)
+                    // Um cliente por linha, rótulos só na primeira (CSS em cadastro.blade.php).
+                    ->extraAttributes(['class' => 'proa-clientes'])
+                    ->columns(10)
                     ->disabled(fn(Get $get) => $this->marcado($get('id')))
                     ->schema([
                         Forms\Components\Hidden::make('id'),
-                        AgendamentoMarinhaResource::campoDocumento(),
-                        AgendamentoMarinhaResource::campoNome(),
-                        AgendamentoMarinhaResource::campoGru(),
-                        AgendamentoMarinhaResource::campoServico(),
+                        AgendamentoMarinhaResource::campoDocumento()->columnSpan(2),
+                        AgendamentoMarinhaResource::campoNome()->columnSpan(3),
+                        AgendamentoMarinhaResource::campoGru()->columnSpan(2),
+                        AgendamentoMarinhaResource::campoServico()->columnSpan(3),
                     ]),
             ]);
     }
@@ -385,5 +388,24 @@ class CadastroAgendamentos extends Page implements HasForms
         $erro = $agendamento->status === AgendamentoMarinha::STATUS_FALHOU && $agendamento->erro ? " — {$agendamento->erro}" : '';
 
         return "Nº {$agendamento->ordem} · {$status}{$erro} · até {$vagas} cliente(s).";
+    }
+
+    /** Título do bloco do procurador: dá para conferir tudo com os blocos recolhidos. */
+    private function resumoDoProcurador(array $bloco): string
+    {
+        $partes = [AgendamentoMarinhaResource::opcoesProcuradores()[$bloco['prestador_id'] ?? null] ?? 'Novo procurador'];
+
+        if (filled($bloco['data_sugerida'] ?? null)) {
+            $partes[] = Carbon::parse($bloco['data_sugerida'])->format('d/m');
+        }
+
+        if (filled($bloco['periodo'] ?? null)) {
+            $partes[] = AgendamentoMarinha::periodos()[$bloco['periodo']] ?? $bloco['periodo'];
+        }
+
+        $clientes = collect([1, 2])->map(fn(int $ordem) => count($bloco["agendamento_{$ordem}"]['clientes'] ?? []));
+        $partes[] = "1º: {$clientes[0]} · 2º: {$clientes[1]} cliente(s)";
+
+        return implode(' · ', $partes);
     }
 }
