@@ -66,7 +66,10 @@ compara para avisar quem está desatualizado.
    - na etapa 3, informa cada CPF ou CNPJ (escolhendo o "Tipo doc"), cada GRU e escolhe o serviço pelo texto cadastrado em
      **Serviços do SISAP** no PROA. Se o SISAP recusar uma GRU (ex.: "GRU informada JÁ FOI UTILIZADA") ou um
      CPF/CNPJ, a extensão tira a linha da tela pela lixeira, marca o cliente como **Descartado** no PROA (com o
-     motivo) e segue com os demais. Ele só volta a ser enviado depois de corrigido no cadastro;
+     motivo) e segue com os demais. Ele só volta a ser enviado depois de corrigido no cadastro. Para a vaga
+     não ficar queimada, o PROA traz um cliente do outro agendamento ainda não marcado do procurador (mesma
+     capitania e mês — o 2º, ou o 1º se o 2º for feito antes) e a extensão o inclui na mesma tela; o
+     descartado vai para aquele agendamento, onde pode ser corrigido antes de ele ser feito;
    - na etapa 4, envia os horários livres ao PROA, que escolhe pela preferência do cadastro (data sugerida e
      período) mantendo os dois agendamentos do procurador na mesma data e período, e marca data e hora;
    - na etapa 5, marca a ciência, coloca o cursor no CAPTCHA e mostra no painel a imagem do CAPTCHA

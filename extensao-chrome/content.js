@@ -655,16 +655,33 @@
 
     let enviados = 0;
     let houveDescarte = false;
+    const fila = [...agendamento.interessados];
 
     // Recusa do SISAP num cliente não derruba o agendamento: o cliente sai e o PROA fica sabendo.
+    // Para a vaga não ficar queimada, o PROA traz um cliente do outro agendamento ainda não marcado do
+    // procurador (1º ou 2º; o descartado vai para lá) e o devolve aqui: ele entra no fim da fila, nesta mesma tela.
     const descartar = async (servicos, motivo) => {
       houveDescarte = true;
-      registrar(`${motivo} Cliente descartado; seguindo com os demais.`, 'erro');
-      await proa('descartar', { id: agendamento.id, corpo: { solicitacao_ids: servicos.map((s) => s.solicitacao_id), motivo } })
-        .catch((erro) => registrar(`Não consegui registrar o descarte no PROA: ${erro.message}`, 'erro'));
+      registrar(`${motivo} Cliente descartado.`, 'erro');
+
+      try {
+        const resposta = await proa('descartar', {
+          id: agendamento.id,
+          corpo: { solicitacao_ids: servicos.map((s) => s.solicitacao_id), motivo, trocar: true },
+        });
+
+        for (const substituto of (resposta && resposta.substitutos) || []) {
+          fila.push(substituto);
+          registrar(`${substituto.nome || L.formatarDocumento(substituto.documento)} vem do outro agendamento para ocupar a vaga; `
+            + 'o descartado foi para o lugar dele, para ser corrigido antes.', 'info');
+        }
+      } catch (erro) {
+        registrar(`Não consegui registrar o descarte no PROA: ${erro.message}`, 'erro');
+      }
     };
 
-    for (const pessoa of agendamento.interessados) {
+    while (fila.length) {
+      const pessoa = fila.shift();
       // "documento" pode ser CPF ou CNPJ; "cpf" é o nome antigo do campo no PROA.
       const numero = pessoa.documento || pessoa.cpf;
       const tipo = pessoa.tipo_documento || L.tipoDocumento(numero);

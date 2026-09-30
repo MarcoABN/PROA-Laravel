@@ -8,6 +8,8 @@ use App\Models\Prestador;
 use App\Models\SolicitacaoAgendamento;
 use App\Services\Agendamento\EscolhaDeHorario;
 use App\Services\Agendamento\RegistraResultadoAgendamento;
+use App\Services\Agendamento\RemanejamentoDeClientes;
+use Illuminate\Support\Collection;
 use App\Support\ExtensaoChrome;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -118,6 +120,10 @@ class SisapAgendamentoController extends Controller
     /**
      * O SISAP recusou um cliente (GRU já utilizada, documento inválido...): a extensão o tira da tela
      * e segue com os demais. Ele não é mais enviado até ser corrigido no cadastro.
+     *
+     * Para a vaga não ficar queimada, cada descartado troca de lugar com um cliente do próximo agendamento
+     * do procurador (RemanejamentoDeClientes). Os substitutos voltam na resposta para a extensão
+     * incluí-los na mesma tela.
      */
     public function descartar(Request $request, AgendamentoMarinha $agendamento): JsonResponse
     {
@@ -127,22 +133,36 @@ class SisapAgendamentoController extends Controller
             'solicitacao_ids' => ['required', 'array', 'min:1'],
             'solicitacao_ids.*' => ['integer'],
             'motivo' => ['required', 'string', 'max:2000'],
+            // Só a extensão que sabe incluir o substituto na tela pede a troca (0.2.5+); sem isso,
+            // o substituto entraria no agendamento sem ter ido para o SISAP.
+            'trocar' => ['sometimes', 'boolean'],
         ]);
 
         // Depois de marcado no SISAP, a lista de clientes que foram não muda mais.
-        if ($agendamento->status !== AgendamentoMarinha::STATUS_AGENDADO) {
-            $agendamento->solicitacoes()
-                ->whereKey($dados['solicitacao_ids'])
-                ->get()
-                ->each(fn(SolicitacaoAgendamento $s) => $s->descartar($dados['motivo']));
+        if ($agendamento->status === AgendamentoMarinha::STATUS_AGENDADO) {
+            return response()->json(['ok' => true, 'substitutos' => []]);
         }
 
-        return response()->json(['ok' => true]);
+        $descartadas = $agendamento->solicitacoes()
+            ->whereKey($dados['solicitacao_ids'])
+            ->whereNull('descartada_em')
+            ->get()
+            ->each(fn(SolicitacaoAgendamento $s) => $s->descartar($dados['motivo']));
+
+        $substitutos = ($dados['trocar'] ?? false)
+            ? RemanejamentoDeClientes::trocarDescartados($agendamento, $descartadas)
+            : collect();
+
+        return response()->json([
+            'ok' => true,
+            'substitutos' => $this->interessados($substitutos),
+        ]);
     }
 
-    private function formatar(AgendamentoMarinha $agendamento): array
+    /** Solicitações ativas agrupadas por pessoa, no formato que a extensão preenche no SISAP. */
+    private function interessados(Collection $solicitacoes): Collection
     {
-        $interessados = $agendamento->solicitacoes
+        return $solicitacoes
             ->reject(fn(SolicitacaoAgendamento $s) => $s->descartada())
             ->sortBy('id')
             ->groupBy('cliente_documento')
@@ -160,6 +180,11 @@ class SisapAgendamentoController extends Controller
                 ])->values(),
             ])
             ->values();
+    }
+
+    private function formatar(AgendamentoMarinha $agendamento): array
+    {
+        $interessados = $this->interessados($agendamento->solicitacoes);
 
         return [
             'id' => $agendamento->id,
