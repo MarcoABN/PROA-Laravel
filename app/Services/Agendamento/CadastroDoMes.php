@@ -65,11 +65,13 @@ class CadastroDoMes
             ->groupBy('prestador_id')
             ->map(function (Collection $agendamentos, $prestadorId) {
                 $agendamentos = $agendamentos->values();
-                $primeiro = $agendamentos->first();
+                // A preferência só é regravada nos não marcados: é deles que ela vem, quando houver.
+                $primeiro = $agendamentos->firstWhere('status', '!=', AgendamentoMarinha::STATUS_AGENDADO) ?? $agendamentos->first();
 
                 $bloco = [
                     'prestador_id' => (int) $prestadorId,
                     'data_sugerida' => $primeiro->data_sugerida?->toDateString(),
+                    'segunda_data_sugerida' => $primeiro->segunda_data_sugerida?->toDateString(),
                     'periodo' => $primeiro->periodo,
                 ];
 
@@ -105,7 +107,7 @@ class CadastroDoMes
     }
 
     /**
-     * @param  array  $procuradores  blocos do formulário: prestador_id, data_sugerida, periodo,
+     * @param  array  $procuradores  blocos do formulário: prestador_id, data_sugerida, segunda_data_sugerida, periodo,
      *                               agendamento_1/agendamento_2 => [id, clientes => [id, cliente_documento, cliente_nome, gru, sisap_servico_id]]
      * @param  bool  $novo  criando o cadastro (a chave não pode existir) ou editando
      *
@@ -261,7 +263,11 @@ class CadastroDoMes
                         'status' => AgendamentoMarinha::STATUS_PENDENTE,
                     ]);
 
-                    $agendamento->update(['data_sugerida' => $bloco['data_sugerida'], 'periodo' => $bloco['periodo']]);
+                    $agendamento->update([
+                        'data_sugerida' => $bloco['data_sugerida'],
+                        'segunda_data_sugerida' => $bloco['segunda_data_sugerida'],
+                        'periodo' => $bloco['periodo'],
+                    ]);
 
                     foreach ($slot['clientes'] as $cliente) {
                         $solicitacao = $cliente['id']
@@ -302,6 +308,7 @@ class CadastroDoMes
             $normalizado = [
                 'prestador_id' => (int) ($bloco['prestador_id'] ?? 0),
                 'data_sugerida' => filled($bloco['data_sugerida'] ?? null) ? Carbon::parse($bloco['data_sugerida'])->toDateString() : null,
+                'segunda_data_sugerida' => filled($bloco['segunda_data_sugerida'] ?? null) ? Carbon::parse($bloco['segunda_data_sugerida'])->toDateString() : null,
                 'periodo' => in_array($bloco['periodo'] ?? null, array_keys(AgendamentoMarinha::periodos()), true) ? $bloco['periodo'] : null,
             ];
 
@@ -356,6 +363,20 @@ class CadastroDoMes
 
             if ($bloco['data_sugerida'] && substr($bloco['data_sugerida'], 0, 7) !== $mes) {
                 throw new InvalidArgumentException("{$nome}: a data sugerida precisa estar dentro de {$rotulo}.");
+            }
+
+            if ($bloco['segunda_data_sugerida']) {
+                if (!$bloco['data_sugerida']) {
+                    throw new InvalidArgumentException("{$nome}: informe a 1ª data sugerida antes da 2ª.");
+                }
+
+                if (substr($bloco['segunda_data_sugerida'], 0, 7) !== $mes) {
+                    throw new InvalidArgumentException("{$nome}: a 2ª data sugerida precisa estar dentro de {$rotulo}.");
+                }
+
+                if ($bloco['segunda_data_sugerida'] === $bloco['data_sugerida']) {
+                    throw new InvalidArgumentException("{$nome}: a 2ª data sugerida precisa ser diferente da 1ª.");
+                }
             }
 
             $slotAnteriorPreenchido = true;

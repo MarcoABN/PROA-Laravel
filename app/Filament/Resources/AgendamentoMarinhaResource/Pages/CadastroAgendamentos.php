@@ -163,7 +163,7 @@ class CadastroAgendamentos extends Page implements HasForms
 
                                 // Datas sugeridas do mês anterior deixam de valer.
                                 $set('procuradores', collect($get('procuradores') ?? [])
-                                    ->map(fn(array $bloco) => ['data_sugerida' => null] + $bloco)
+                                    ->map(fn(array $bloco) => ['data_sugerida' => null, 'segunda_data_sugerida' => null] + $bloco)
                                     ->all());
                             }),
 
@@ -194,7 +194,7 @@ class CadastroAgendamentos extends Page implements HasForms
                     ->defaultItems(0)
                     ->itemLabel(fn(array $state) => $this->resumoDoProcurador($state))
                     ->schema([
-                        Forms\Components\Grid::make(3)->schema([
+                        Forms\Components\Grid::make(4)->schema([
                             Forms\Components\Select::make('prestador_id')
                                 ->label('Procurador')
                                 ->options(fn() => AgendamentoMarinhaResource::opcoesProcuradores())
@@ -207,26 +207,13 @@ class CadastroAgendamentos extends Page implements HasForms
                                 ->disabled(fn(Get $get) => $this->marcado($get('agendamento_1.id')) || $this->marcado($get('agendamento_2.id')))
                                 ->dehydrated(),
 
-                            Forms\Components\DatePicker::make('data_sugerida')
-                                ->label('Data sugerida')
-                                ->native(false)
-                                ->view('filament.forms.components.data-com-feriados')
-                                ->weekStartsOnSunday()
-                                ->displayFormat('d/m/Y')
-                                ->closeOnDateSelection()
-                                // Só dias do mês do atendimento; o calendário já abre nele.
-                                ->minDate(fn() => $this->competenciaAtual() ? Carbon::parse($this->competenciaAtual())->startOfMonth() : null)
-                                ->maxDate(fn() => $this->competenciaAtual() ? Carbon::parse($this->competenciaAtual())->endOfMonth()->startOfDay() : null)
-                                ->defaultFocusedDate(fn() => $this->competenciaAtual() ? Carbon::parse($this->competenciaAtual())->startOfMonth() : null)
-                                ->disabled(fn() => !$this->competenciaAtual())
-                                // Dicas no ícone, não em texto de ajuda: cada linha a menos conta com vários procuradores.
-                                ->hintIcon('heroicon-m-information-circle', tooltip: fn() => $this->competenciaAtual()
-                                    ? 'Opcional. Sem vaga nesta data, o PROA escolhe a mais próxima. Em vermelho: fins de semana e feriados.'
-                                    : 'Escolha primeiro o mês do atendimento.')
-                                ->validationMessages([
-                                    'after_or_equal' => 'Escolha uma data dentro do mês do atendimento.',
-                                    'before_or_equal' => 'Escolha uma data dentro do mês do atendimento.',
-                                ]),
+                            $this->campoDataSugerida('data_sugerida', '1ª data sugerida',
+                                'Opcional. Tentada primeiro: vale se nela couberem os dois agendamentos no período.')
+                                ->live(),
+
+                            $this->campoDataSugerida('segunda_data_sugerida', '2ª data sugerida',
+                                'Opcional. Tentada se a 1ª não comportar os dois agendamentos. Sem nenhuma das duas, o PROA procura a data mais próxima da 1ª.')
+                                ->disabled(fn(Get $get) => !$this->competenciaAtual() || blank($get('data_sugerida'))),
 
                             Forms\Components\Select::make('periodo')
                                 ->label('Período preferido')
@@ -239,6 +226,33 @@ class CadastroAgendamentos extends Page implements HasForms
                         $this->secaoAgendamento(1),
                         $this->secaoAgendamento(2),
                     ]),
+            ]);
+    }
+
+    /** Calendário restrito ao mês do atendimento, com fins de semana e feriados em vermelho. */
+    private function campoDataSugerida(string $nome, string $rotulo, string $dica): Forms\Components\DatePicker
+    {
+        $mes = fn() => $this->competenciaAtual() ? Carbon::parse($this->competenciaAtual()) : null;
+
+        return Forms\Components\DatePicker::make($nome)
+            ->label($rotulo)
+            ->native(false)
+            ->view('filament.forms.components.data-com-feriados')
+            ->weekStartsOnSunday()
+            ->displayFormat('d/m/Y')
+            ->closeOnDateSelection()
+            // Só dias do mês do atendimento; o calendário já abre nele.
+            ->minDate(fn() => $mes()?->startOfMonth())
+            ->maxDate(fn() => $mes()?->endOfMonth()->startOfDay())
+            ->defaultFocusedDate(fn() => $mes()?->startOfMonth())
+            ->disabled(fn() => !$this->competenciaAtual())
+            // Dicas no ícone, não em texto de ajuda: cada linha a menos conta com vários procuradores.
+            ->hintIcon('heroicon-m-information-circle', tooltip: fn() => $this->competenciaAtual()
+                ? "{$dica} Em vermelho: fins de semana e feriados."
+                : 'Escolha primeiro o mês do atendimento.')
+            ->validationMessages([
+                'after_or_equal' => 'Escolha uma data dentro do mês do atendimento.',
+                'before_or_equal' => 'Escolha uma data dentro do mês do atendimento.',
             ]);
     }
 
@@ -395,8 +409,12 @@ class CadastroAgendamentos extends Page implements HasForms
     {
         $partes = [AgendamentoMarinhaResource::opcoesProcuradores()[$bloco['prestador_id'] ?? null] ?? 'Novo procurador'];
 
-        if (filled($bloco['data_sugerida'] ?? null)) {
-            $partes[] = Carbon::parse($bloco['data_sugerida'])->format('d/m');
+        $datas = collect([$bloco['data_sugerida'] ?? null, $bloco['segunda_data_sugerida'] ?? null])
+            ->filter()
+            ->map(fn(string $data) => Carbon::parse($data)->format('d/m'));
+
+        if ($datas->isNotEmpty()) {
+            $partes[] = $datas->implode(' ou ');
         }
 
         if (filled($bloco['periodo'] ?? null)) {

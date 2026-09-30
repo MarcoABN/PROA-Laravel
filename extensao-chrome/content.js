@@ -1106,8 +1106,9 @@
     if (!preferencia) {
       return '';
     }
+    const datas = [preferencia.data, preferencia.segunda_data].filter(Boolean).map(L.formatarData).join(' ou ');
     const partes = [
-      preferencia.data ? L.formatarData(preferencia.data) : null,
+      datas || null,
       { manha: 'Matutino', tarde: 'Vespertino' }[preferencia.periodo] || null,
     ].filter(Boolean);
     return partes.length ? `Preferência: ${partes.join(' · ')}` : '';

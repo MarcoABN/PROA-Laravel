@@ -31,6 +31,7 @@ class AgendamentoMarinha extends Model
         'competencia' => 'date',
         'data_hora' => 'datetime',
         'data_sugerida' => 'date',
+        'segunda_data_sugerida' => 'date',
     ];
 
     protected static function booted()
@@ -53,8 +54,13 @@ class AgendamentoMarinha extends Model
 
     public function rotuloPreferencia(): ?string
     {
-        $partes = array_filter([
+        $datas = implode(' ou ', array_filter([
             $this->data_sugerida?->format('d/m'),
+            $this->segunda_data_sugerida?->format('d/m'),
+        ]));
+
+        $partes = array_filter([
+            $datas,
             static::periodos()[$this->periodo] ?? null,
         ]);
 

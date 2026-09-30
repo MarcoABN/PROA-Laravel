@@ -60,10 +60,12 @@ class SisapAgendamentoController extends Controller
         // Sem referência, a data sempre é escolhida com espaço para um segundo agendamento no mesmo período.
         $plano = $referencia
             ? null
-            : EscolhaDeHorario::planejarPar($horarios, $agendamento->data_sugerida, $agendamento->periodo);
+            : EscolhaDeHorario::planejarPar($horarios, $agendamento->data_sugerida, $agendamento->periodo, $agendamento->segunda_data_sugerida);
 
         return response()->json([
-            'horario' => EscolhaDeHorario::escolher($horarios, $referencia, $agendamento->data_sugerida, $agendamento->periodo),
+            'horario' => EscolhaDeHorario::escolher(
+                $horarios, $referencia, $agendamento->data_sugerida, $agendamento->periodo, $agendamento->segunda_data_sugerida,
+            ),
             'referencia' => $referencia?->format('Y-m-d H:i'),
             'plano' => $plano,
             'preferencia' => $this->preferencia($agendamento),
@@ -191,6 +193,7 @@ class SisapAgendamentoController extends Controller
     {
         return [
             'data' => $agendamento->data_sugerida?->toDateString(),
+            'segunda_data' => $agendamento->segunda_data_sugerida?->toDateString(),
             'periodo' => $agendamento->periodo,
         ];
     }
