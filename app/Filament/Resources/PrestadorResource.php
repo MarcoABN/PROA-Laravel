@@ -5,12 +5,11 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PrestadorResource\Pages;
 use App\Models\Prestador;
 use App\Support\AcessoAgendamento;
-use App\Support\EnderecoPublico;
+use App\Support\AcoesTokenSisap;
 use App\Support\ExtensaoChrome;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
-use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Support\RawJs;
 use Filament\Tables;
@@ -224,26 +223,18 @@ class PrestadorResource extends Resource
                     ->label('Apenas Procuradores'),
             ])
             ->actions([
-                Tables\Actions\Action::make('tokenSisap')
+                Tables\Actions\ActionGroup::make([
+                    AcoesTokenSisap::gerar(
+                        Tables\Actions\Action::make('gerarTokenSisap'),
+                        fn(Prestador $record) => $record,
+                        'Token individual: só atende este procurador. Cole-o na extensão do Chrome em que ele faz login no SISAP.',
+                    ),
+                    AcoesTokenSisap::revogar(Tables\Actions\Action::make('revogarTokensSisap'), fn(Prestador $record) => $record),
+                ])
                     ->label('Token da extensão')
                     ->icon('heroicon-o-key')
                     ->color('gray')
-                    ->visible(fn(Prestador $record) => $record->is_procurador && AcessoAgendamento::permitido())
-                    ->requiresConfirmation()
-                    ->modalHeading('Gerar token da extensão de agendamento')
-                    ->modalDescription(fn(Prestador $record) => $record->sisap_token_gerado_em
-                        ? "O token atual (gerado em {$record->sisap_token_gerado_em->format('d/m/Y H:i')}) deixará de funcionar no Chrome deste procurador."
-                        : 'Cole o token na extensão instalada no perfil do Chrome deste procurador.')
-                    ->action(function (Prestador $record) {
-                        $token = $record->gerarTokenSisap();
-
-                        Notification::make()
-                            ->title('Token gerado — copie agora')
-                            ->body(EnderecoPublico::instrucoesExtensao($token))
-                            ->persistent()
-                            ->success()
-                            ->send();
-                    }),
+                    ->visible(fn(Prestador $record) => $record->is_procurador && AcessoAgendamento::permitido()),
 
                 Tables\Actions\EditAction::make(),
             ])

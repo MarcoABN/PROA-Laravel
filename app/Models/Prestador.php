@@ -16,12 +16,9 @@ class Prestador extends Model
 
     protected $guarded = [];
 
-    protected $hidden = ['sisap_token_hash'];
-
     protected $casts = [
         'dt_emissao' => 'date',
         'cha_dtemissao' => 'date',
-        'sisap_token_gerado_em' => 'datetime',
         'sisap_extensao_vista_em' => 'datetime',
         // ... outros campos
     ];
@@ -35,7 +32,7 @@ class Prestador extends Model
     public static function porTokenSisap(string $token): ?self
     {
         return static::where('is_procurador', true)
-            ->where('sisap_token_hash', static::hashTokenSisap($token))
+            ->comTokenSisap($token)
             ->first();
     }
 

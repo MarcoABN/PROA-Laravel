@@ -14,9 +14,11 @@ e devolve o resultado (data, hora, número e chave) ao PROA.
 1. No PROA: **Agendamentos Marinha** → **Baixar extensão**. Extraia o zip numa pasta fixa (ex.: `C:\PROA`).
 2. No Chrome: abra `chrome://extensions`, ligue o **Modo do desenvolvedor**, clique em
    **Carregar sem compactação** e escolha a pasta `proa-agendamento-marinha`.
-3. No PROA: **Agendamentos Marinha** → **Token da extensão**. Copie o endereço e o token (aparecem uma
-   única vez). É um token do seu usuário: vale para **qualquer procurador** e deixa de funcionar se você
-   perder a permissão de agendamento.
+3. No PROA: **Agendamentos Marinha** → **Tokens da extensão** → **Gerar token**, com o nome do navegador.
+   Copie o endereço e o token (aparecem uma única vez). É um token do seu usuário: vale para **qualquer
+   procurador** e deixa de funcionar se você perder a permissão de agendamento. Gere **um token para cada
+   navegador** (perfil do Chrome): gerar outro não derruba os anteriores. Em **Revogar tokens** você desliga
+   só o navegador que quiser.
 4. Clique no ícone da extensão → informe o **endereço do PROA** e o **token** → **Salvar e testar**.
    Os dois aparecem juntos na notificação do PROA ao gerar o token. O endereço pode ter caminho
    (ex.: `https://servidor.com.br/proa`), caso o PROA fique num subcaminho do nginx.
@@ -35,8 +37,8 @@ A extensão lê o **CPF logado no SISAP** e carrega os agendamentos daquele proc
 procurador, clique em **SAIR** no SISAP e entre pelo gov.br com a outra conta: o painel troca sozinho.
 Não troque de conta no meio de um agendamento.
 
-O token individual de procurador (Instrutores / Procuradores → Token da extensão) continua funcionando,
-mas só atende aquele procurador.
+O token individual de procurador (Instrutores / Procuradores → Token da extensão → Gerar token) continua
+funcionando, mas só atende aquele procurador. Também pode haver vários, um por navegador.
 
 ### Atualização
 

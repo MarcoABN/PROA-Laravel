@@ -5,11 +5,10 @@ namespace App\Filament\Resources\AgendamentoMarinhaResource\Pages;
 use App\Filament\Resources\AgendamentoMarinhaResource;
 use App\Models\AgendamentoMarinha;
 use App\Support\AcessoAgendamento;
-use App\Support\EnderecoPublico;
+use App\Support\AcoesTokenSisap;
 use App\Support\ExtensaoChrome;
 use Carbon\Carbon;
 use Filament\Actions;
-use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -115,7 +114,7 @@ class ListMesesAgendamento extends Page
                     . '<li>Baixe o zip e extraia numa pasta fixa, por exemplo <code>C:\PROA</code> (não apague nem mova depois).</li>'
                     . '<li>No Chrome, abra <code>chrome://extensions</code> e ligue o <strong>Modo do desenvolvedor</strong>.</li>'
                     . '<li>Clique em <strong>Carregar sem compactação</strong> e escolha a pasta <code>proa-agendamento-marinha</code>.</li>'
-                    . '<li>Clique no ícone da extensão e informe o endereço e o token (botão <strong>Token da extensão</strong>).</li>'
+                    . '<li>Clique no ícone da extensão e informe o endereço e o token (<strong>Tokens da extensão → Gerar token</strong>, um para cada navegador).</li>'
                     . '<li>Para atualizar: extraia o zip novo por cima da mesma pasta e clique em <strong>Recarregar (↻)</strong> na extensão.</li>'
                     . '</ol>'
                 ))
@@ -124,28 +123,18 @@ class ListMesesAgendamento extends Page
                     ->download(ExtensaoChrome::gerarZip(), ExtensaoChrome::nomeDoArquivo())
                     ->deleteFileAfterSend()),
 
-            Actions\Action::make('tokenExtensao')
-                ->label('Token da extensão')
+            Actions\ActionGroup::make([
+                AcoesTokenSisap::gerar(
+                    Actions\Action::make('gerarTokenExtensao'),
+                    fn() => Auth::user(),
+                    'O token vale para qualquer procurador: a extensão carrega os agendamentos do CPF logado no SISAP.',
+                ),
+                AcoesTokenSisap::revogar(Actions\Action::make('revogarTokensExtensao'), fn() => Auth::user()),
+            ])
+                ->label('Tokens da extensão')
                 ->icon('heroicon-o-key')
                 ->color('gray')
-                ->requiresConfirmation()
-                ->modalHeading('Gerar seu token da extensão')
-                ->modalDescription(function () {
-                    $geradoEm = Auth::user()?->sisap_token_gerado_em;
-
-                    return 'O token vale para qualquer procurador: a extensão carrega os agendamentos do CPF logado no SISAP. '
-                        . ($geradoEm ? "Seu token atual (gerado em {$geradoEm->format('d/m/Y H:i')}) deixará de funcionar." : '');
-                })
-                ->action(function () {
-                    $token = Auth::user()->gerarTokenSisap();
-
-                    Notification::make()
-                        ->title('Token gerado — copie agora')
-                        ->body(EnderecoPublico::instrucoesExtensao($token))
-                        ->persistent()
-                        ->success()
-                        ->send();
-                }),
+                ->button(),
 
             Actions\Action::make('novoCadastro')
                 ->label('Novo cadastro')

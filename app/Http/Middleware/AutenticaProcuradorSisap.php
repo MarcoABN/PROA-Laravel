@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Prestador;
+use App\Models\SisapToken;
 use App\Models\User;
 use App\Support\ExtensaoChrome;
 use Closure;
@@ -26,11 +27,16 @@ class AutenticaProcuradorSisap
         $token = $request->bearerToken();
         $cpf = preg_replace('/\D/', '', (string) $request->header('X-Procurador-Cpf'));
 
+        // Uso por navegador: cada token é de um Chrome.
+        if ($token) {
+            SisapToken::porValor($token)?->registrarUso($request->header('X-Extensao-Versao'));
+        }
+
         if ($token && ($prestador = Prestador::porTokenSisap($token))) {
             if ($cpf !== '' && $cpf !== preg_replace('/\D/', '', (string) $prestador->cpfcnpj)) {
                 return response()->json([
                     'message' => "O SISAP está logado com outro CPF, mas o token da extensão é do procurador {$prestador->nome}. "
-                        . 'Use um token de usuário (Agendamentos Marinha → Token da extensão) para trocar de procurador.',
+                        . 'Use um token de usuário (Agendamentos Marinha → Tokens da extensão → Gerar token) para trocar de procurador.',
                 ], 403);
             }
 

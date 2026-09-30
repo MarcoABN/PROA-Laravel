@@ -38,7 +38,6 @@ class User extends Authenticatable implements FilamentUser
     protected $hidden = [
         'password',
         'remember_token',
-        'sisap_token_hash',
     ];
 
     protected $casts = [
@@ -48,7 +47,6 @@ class User extends Authenticatable implements FilamentUser
         'pode_acessar_financeiro' => 'boolean',
         'pode_gerenciar_usuarios' => 'boolean',
         'pode_acessar_agendamento' => 'boolean',
-        'sisap_token_gerado_em' => 'datetime',
         'sisap_extensao_vista_em' => 'datetime',
     ];
 
@@ -135,7 +133,7 @@ class User extends Authenticatable implements FilamentUser
      */
     public static function porTokenSisap(string $token): ?self
     {
-        $usuario = static::where('sisap_token_hash', static::hashTokenSisap($token))->first();
+        $usuario = static::comTokenSisap($token)->first();
 
         return $usuario?->podeAcessarAgendamento() ? $usuario : null;
     }

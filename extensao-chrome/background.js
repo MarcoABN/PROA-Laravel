@@ -54,7 +54,7 @@ async function chamarProa(acao, dados) {
   }
 
   if (resposta.status === 401) {
-    throw new Error('Token inválido, revogado ou sem permissão de agendamento. Gere um novo no PROA (Agendamentos Marinha → Token da extensão).');
+    throw new Error('Token inválido, revogado ou sem permissão de agendamento. Gere um novo no PROA (Agendamentos Marinha → Tokens da extensão → Gerar token).');
   }
 
   if (!resposta.ok) {
