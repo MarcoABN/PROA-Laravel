@@ -80,6 +80,12 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::BODY_END,
                 fn(): View => view('filament.components.normam-modal'),
             )
+            // Agendamentos Marinha: o título em texto puro do grupo fica só para leitores de tela; o visível,
+            // com a capitania em vermelho, está na descrição (AgendamentoMarinhaResource::resumoProcurador).
+            ->renderHook(
+                PanelsRenderHook::STYLES_AFTER,
+                fn(): string => '<style>.fi-ta-group-header:has(.proa-grupo-titulo) h4{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}</style>',
+            )
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

@@ -331,25 +331,19 @@ class AgendamentoMarinhaResource extends Resource
     }
 
     /**
-     * Linha abaixo de "CAPITANIA · Procurador": um resumo de cada agendamento dele no mês, com o botão
-     * que exclui o agendamento inteiro (ação excluirAgendamento da página do mês).
+     * Título do grupo em texto puro: o Filament o usa também como chave para recolher o grupo e como
+     * rótulo do botão (atributos HTML), então não pode ter marcação. Na tela ele fica oculto
+     * (CSS em AdminPanelProvider) e a versão formatada abre a descrição (resumoProcurador).
      */
-    /** @var array<string, HtmlString> */
-    private static array $titulosProcurador = [];
-
-    /**
-     * "PROCURADOR · CAPITANIA POR EXTENSO" com a capitania em vermelho. A tabela do Filament compara o
-     * título de cada linha com o da anterior (!==) para abrir um grupo novo: por isso o mesmo objeto
-     * é reaproveitado para todas as linhas do grupo.
-     */
-    private static function tituloProcurador(SolicitacaoAgendamento $record): HtmlString
+    private static function tituloProcurador(SolicitacaoAgendamento $record): string
     {
-        return static::$titulosProcurador["{$record->capitania_id}-{$record->prestador_id}"] ??= new HtmlString(
-            e($record->prestador?->nome ?? 'Procurador')
-            . ' · <span class="text-danger-600 dark:text-danger-400">' . e($record->capitania?->nome ?? 'Capitania') . '</span>'
-        );
+        return ($record->prestador?->nome ?? 'Procurador') . ' · ' . ($record->capitania?->nome ?? 'Capitania');
     }
 
+    /**
+     * "PROCURADOR · CAPITANIA POR EXTENSO" (capitania em vermelho) e, abaixo, um resumo de cada agendamento
+     * dele no mês, com o botão que exclui o agendamento inteiro (ação excluirAgendamento da página do mês).
+     */
     private static function resumoProcurador(SolicitacaoAgendamento $record): HtmlString
     {
         $agendamentos = AgendamentoMarinha::withCount(['solicitacoes' => fn(Builder $q) => $q->whereNull('descartada_em')])
@@ -370,7 +364,10 @@ class AgendamentoMarinhaResource extends Resource
 
         $preferencia = $agendamentos->first()?->rotuloPreferencia();
 
-        return new HtmlString($preferencia ? "{$resumo}  —  " . e($preferencia) : $resumo);
+        $titulo = '<span class="proa-grupo-titulo text-gray-950 dark:text-white font-medium">' . e($record->prestador?->nome ?? 'Procurador') . '</span>'
+            . ' · <span class="text-danger-600 dark:text-danger-400 font-medium">' . e($record->capitania?->nome ?? 'Capitania') . '</span><br>';
+
+        return new HtmlString($titulo . ($preferencia ? "{$resumo}  —  " . e($preferencia) : $resumo));
     }
 
     private static function botaoExcluirAgendamento(AgendamentoMarinha $agendamento, int $posicao): string
