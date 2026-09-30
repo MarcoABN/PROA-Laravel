@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +21,7 @@ class SolicitacaoAgendamento extends Model
 
     protected $casts = [
         'competencia' => 'date',
+        'descartada_em' => 'datetime',
     ];
 
     protected static function booted()
@@ -27,6 +29,12 @@ class SolicitacaoAgendamento extends Model
         static::saving(function (SolicitacaoAgendamento $solicitacao) {
             $solicitacao->cliente_documento = static::somenteDigitos($solicitacao->cliente_documento);
             $solicitacao->gru = static::somenteDigitos($solicitacao->gru);
+
+            // Corrigiu o que o SISAP recusou: o cliente volta a ser enviado.
+            if ($solicitacao->exists && $solicitacao->isDirty(['cliente_documento', 'gru', 'sisap_servico_id']) && !$solicitacao->isDirty('descartada_em')) {
+                $solicitacao->descartada_em = null;
+                $solicitacao->motivo_descarte = null;
+            }
 
             // Se o CPF/CNPJ já é cliente do PROA, vincula e aproveita o nome.
             if ($solicitacao->isDirty('cliente_documento') || !$solicitacao->cliente_id) {
@@ -80,10 +88,26 @@ class SolicitacaoAgendamento extends Model
 
     /**
      * Enquanto o agendamento não foi marcado no SISAP, o serviço ainda pode ser alterado ou removido.
+     * O descartado nunca foi para o SISAP, então pode ser excluído mesmo depois.
      */
     public function editavel(): bool
     {
-        return $this->agendamento?->status !== AgendamentoMarinha::STATUS_AGENDADO;
+        return $this->descartada() || $this->agendamento?->status !== AgendamentoMarinha::STATUS_AGENDADO;
+    }
+
+    public function descartada(): bool
+    {
+        return $this->descartada_em !== null;
+    }
+
+    public function descartar(string $motivo): void
+    {
+        $this->forceFill(['descartada_em' => now(), 'motivo_descarte' => $motivo])->save();
+    }
+
+    public function scopeAtivas(Builder $query): Builder
+    {
+        return $query->whereNull('descartada_em');
     }
 
     public static function somenteDigitos(?string $valor): string

@@ -602,15 +602,75 @@
     return esperar(achar, { descricao: 'uma linha de interessado em branco' });
   }
 
+  /** Lixeira do SISAP: ícone "delete" do Material, classe com delete/trash ou dica "Excluir/Remover". */
+  function ehLixeira(el) {
+    const classes = String(el.className?.baseVal ?? el.className ?? '');
+    const dica = L.normalizar(el.getAttribute('title') || el.getAttribute('aria-label') || '');
+    return /^DELETE(_FOREVER|_OUTLINE)?$/.test(L.normalizar(el.innerText))
+      || /delete|trash|lixeira/i.test(classes)
+      || /EXCLUIR|REMOVER|APAGAR/.test(dica);
+  }
+
+  const SEL_LIXEIRA = 'button, .q-btn, i, .q-icon, [class*="delete"], [class*="trash"], [title], [aria-label]';
+
+  /**
+   * Tira da tela do SISAP a linha do campo (interessado ou GRU) pela lixeira mais próxima dele.
+   * Se não conseguir, pede para o usuário remover à mão.
+   */
+  async function removerDaTela(campo, descricao) {
+    try {
+      const linha = subirAte(campo, (el) => todos(SEL_LIXEIRA, el).some(ehLixeira));
+      const icone = linha && todos(SEL_LIXEIRA, linha).find(ehLixeira);
+      if (!icone) {
+        throw new Error('lixeira não encontrada');
+      }
+
+      clicar(icone.closest('button, .q-btn') || icone);
+
+      // Algumas telas pedem confirmação antes de excluir.
+      const confirmar = await esperar(
+        () => todos('.modal-content, .modal, .q-dialog, .q-modal')
+          .flatMap((m) => todos('button, .q-btn', m))
+          .find((b) => /^(SIM|OK|CONFIRMAR|EXCLUIR|REMOVER)$/.test(L.normalizar(b.innerText))),
+        { timeout: 1500, descricao: 'a confirmação' },
+      ).catch(() => null);
+      if (confirmar) {
+        clicar(confirmar);
+      }
+
+      await esperar(() => !campo.isConnected || !visivel(campo), { timeout: 5000, descricao: `${descricao} removida` });
+    } catch (erro) {
+      if (erro instanceof Parado) {
+        throw erro;
+      }
+      await pausar(`Não consegui remover ${descricao} do SISAP (${erro.message}). Clique na lixeira dela no SISAP e depois em Continuar.`);
+      if (parar) {
+        throw new Parado();
+      }
+    }
+  }
+
   async function etapa3(agendamento) {
     await esperarEtapa(3);
+
+    let enviados = 0;
+    let houveDescarte = false;
+
+    // Recusa do SISAP num cliente não derruba o agendamento: o cliente sai e o PROA fica sabendo.
+    const descartar = async (servicos, motivo) => {
+      houveDescarte = true;
+      registrar(`${motivo} Cliente descartado; seguindo com os demais.`, 'erro');
+      await proa('descartar', { id: agendamento.id, corpo: { solicitacao_ids: servicos.map((s) => s.solicitacao_id), motivo } })
+        .catch((erro) => registrar(`Não consegui registrar o descarte no PROA: ${erro.message}`, 'erro'));
+    };
 
     for (const pessoa of agendamento.interessados) {
       // "documento" pode ser CPF ou CNPJ; "cpf" é o nome antigo do campo no PROA.
       const numero = pessoa.documento || pessoa.cpf;
       const tipo = pessoa.tipo_documento || L.tipoDocumento(numero);
       if (!tipo) {
-        throw new ErroSisap(`O documento ${numero} do cliente ${pessoa.nome || ''} não é CPF nem CNPJ.`);
+        await descartar(pessoa.servicos, `O documento ${numero} do cliente ${pessoa.nome || ''} não é CPF nem CNPJ.`);
+        continue;
       }
       const doc = `${tipo} ${L.formatarDocumento(numero)}`;
 
@@ -624,7 +684,9 @@
       const consulta = await digitarEConsultar(campoDoc, numero, 'buscarcpfcnpj', doc);
 
       if (!consulta || consulta.lvalido === false) {
-        throw new ErroSisap(`O SISAP considerou inválido o ${doc}.`);
+        await descartar(pessoa.servicos, `O SISAP considerou inválido o ${doc}.`);
+        await removerDaTela(campoDoc, `a linha do ${doc}`);
+        continue;
       }
 
       if (consulta.lencontrado === false) {
@@ -638,6 +700,8 @@
         { descricao: `a área de serviços do ${doc}` },
       );
 
+      let aceitos = 0;
+
       for (const servico of pessoa.servicos) {
         clicar(await esperar(() => botao('ADICIONAR SERVICO', bloco), { descricao: 'o botão "Adicionar serviço"' }));
 
@@ -648,17 +712,34 @@
         const validacao = await digitarEConsultar(campoGru, servico.gru, 'validargruinformada', `GRU ${servico.gru}`);
 
         if (!validacao || validacao.lretorno !== true) {
-          throw new ErroSisap(`GRU ${servico.gru} (${doc}):${(validacao && validacao.cmensagem) || 'recusada pelo SISAP'}.`);
+          const motivo = String((validacao && validacao.cmensagem) || 'recusada pelo SISAP').trim();
+          await descartar([servico], `GRU ${servico.gru} (${doc}): ${motivo}`);
+          await removerDaTela(campoGru, `a linha da GRU ${servico.gru}`);
+          continue;
         }
 
         await escolherServico(campoGru, servico.descricao_sisap);
+        aceitos++;
       }
+
+      // Sem nenhum serviço aceito, o interessado também sai da tela.
+      if (aceitos === 0) {
+        await removerDaTela(campoDoc, `a linha do ${doc}`);
+      }
+      enviados += aceitos;
     }
 
-    const esperado = agendamento.interessados.reduce((total, p) => total + p.servicos.length, 0);
+    if (houveDescarte) {
+      atualizarLista();
+    }
+
+    if (enviados === 0) {
+      throw new ErroSisap('O SISAP recusou todos os clientes deste agendamento. Corrija-os no cadastro do PROA.');
+    }
+
     const contador = L.contadorServicos(textoPagina());
-    if (contador && contador.usados !== esperado) {
-      throw new Error(`o SISAP mostra ${contador.usados} serviço(s), mas o PROA tem ${esperado}`);
+    if (contador && contador.usados !== enviados) {
+      throw new Error(`o SISAP mostra ${contador.usados} serviço(s), mas a extensão incluiu ${enviados}`);
     }
 
     desdeAgenda = Date.now();
@@ -1044,6 +1125,10 @@
         <td title="${esc(s.descricao_sisap)}">${esc(s.sigla)}</td>
       </tr>`).join('')).join('');
 
+    const descartados = (ag.descartados || [])
+      .map((d) => `${esc(d.nome || L.formatarDocumento(d.documento))} · GRU ${esc(d.gru)}${d.motivo ? ` — ${esc(d.motivo)}` : ''}`)
+      .join('<br>');
+
     return `
       <div class="ag">
         <div class="ag-topo">
@@ -1054,7 +1139,8 @@
         ${textoPreferencia(ag.preferencia) ? `<div class="sub">${esc(textoPreferencia(ag.preferencia))}</div>` : ''}
         ${ag.status === 'falhou' && ag.erro ? `<div class="sub erro">${esc(ag.erro)}</div>` : ''}
         <table>${linhas}</table>
-        <button class="principal" data-acao="agendar" data-id="${ag.id}" ${executando ? 'disabled' : ''}>Agendar no SISAP</button>
+        ${descartados.length ? `<div class="sub erro">Descartados pelo SISAP (não serão enviados até serem corrigidos no PROA):<br>${descartados}</div>` : ''}
+        <button class="principal" data-acao="agendar" data-id="${ag.id}" ${executando || !ag.interessados.length ? 'disabled' : ''}>Agendar no SISAP</button>
       </div>`;
   }
 

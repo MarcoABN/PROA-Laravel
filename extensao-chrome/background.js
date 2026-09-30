@@ -9,6 +9,7 @@ const ROTAS = {
   horario: (d) => ['POST', `/agendamentos/${d.id}/escolher-horario`],
   resultado: (d) => ['POST', `/agendamentos/${d.id}/resultado`],
   falha: (d) => ['POST', `/agendamentos/${d.id}/falha`],
+  descartar: (d) => ['POST', `/agendamentos/${d.id}/descartar`],
 };
 
 async function chamarProa(acao, dados) {

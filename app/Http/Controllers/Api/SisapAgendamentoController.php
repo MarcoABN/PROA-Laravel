@@ -113,9 +113,35 @@ class SisapAgendamentoController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * O SISAP recusou um cliente (GRU já utilizada, documento inválido...): a extensão o tira da tela
+     * e segue com os demais. Ele não é mais enviado até ser corrigido no cadastro.
+     */
+    public function descartar(Request $request, AgendamentoMarinha $agendamento): JsonResponse
+    {
+        $this->autorizar($request, $agendamento);
+
+        $dados = $request->validate([
+            'solicitacao_ids' => ['required', 'array', 'min:1'],
+            'solicitacao_ids.*' => ['integer'],
+            'motivo' => ['required', 'string', 'max:2000'],
+        ]);
+
+        // Depois de marcado no SISAP, a lista de clientes que foram não muda mais.
+        if ($agendamento->status !== AgendamentoMarinha::STATUS_AGENDADO) {
+            $agendamento->solicitacoes()
+                ->whereKey($dados['solicitacao_ids'])
+                ->get()
+                ->each(fn(SolicitacaoAgendamento $s) => $s->descartar($dados['motivo']));
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     private function formatar(AgendamentoMarinha $agendamento): array
     {
         $interessados = $agendamento->solicitacoes
+            ->reject(fn(SolicitacaoAgendamento $s) => $s->descartada())
             ->sortBy('id')
             ->groupBy('cliente_documento')
             ->map(fn($solicitacoes, $documento) => [
@@ -148,6 +174,16 @@ class SisapAgendamentoController extends Controller
             'referencia_horario' => $agendamento->referenciaDeHorario()?->format('Y-m-d H:i'),
             'preferencia' => $this->preferencia($agendamento),
             'interessados' => $interessados,
+            // Recusados pelo SISAP numa tentativa anterior: o painel mostra, mas não envia.
+            'descartados' => $agendamento->solicitacoes
+                ->filter(fn(SolicitacaoAgendamento $s) => $s->descartada())
+                ->map(fn(SolicitacaoAgendamento $s) => [
+                    'nome' => $s->cliente_nome,
+                    'documento' => $s->cliente_documento,
+                    'gru' => $s->gru,
+                    'motivo' => $s->motivo_descarte,
+                ])
+                ->values(),
         ];
     }
 

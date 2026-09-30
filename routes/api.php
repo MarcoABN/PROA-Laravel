@@ -20,4 +20,5 @@ Route::prefix('sisap')
         Route::post('agendamentos/{agendamento}/escolher-horario', [SisapAgendamentoController::class, 'escolherHorario']);
         Route::post('agendamentos/{agendamento}/resultado', [SisapAgendamentoController::class, 'resultado']);
         Route::post('agendamentos/{agendamento}/falha', [SisapAgendamentoController::class, 'falha']);
+        Route::post('agendamentos/{agendamento}/descartar', [SisapAgendamentoController::class, 'descartar']);
     });

@@ -83,8 +83,7 @@ class AgendamentoMarinhaResource extends Resource
 
                         return $query->where('capitania_id', $capitaniaId)->where('prestador_id', $prestadorId);
                     })
-                    ->getTitleFromRecordUsing(fn(SolicitacaoAgendamento $record) => ($record->capitania?->sigla ?? 'Capitania')
-                        . ' · ' . ($record->prestador?->nome ?? 'Procurador'))
+                    ->getTitleFromRecordUsing(fn(SolicitacaoAgendamento $record) => static::tituloProcurador($record))
                     ->getDescriptionFromRecordUsing(fn(SolicitacaoAgendamento $record) => static::resumoProcurador($record))
                     ->collapsible()
             )
@@ -134,12 +133,16 @@ class AgendamentoMarinhaResource extends Resource
                     ->badge()
                     ->tooltip(fn(SolicitacaoAgendamento $record) => $record->servico?->descricao_sisap),
 
+                // O descarte é do cliente (o SISAP recusou); os demais status são do agendamento.
                 Tables\Columns\TextColumn::make('agendamento.status')
                     ->label('Status')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => AgendamentoMarinha::statuses()[$state] ?? $state)
-                    ->color(fn(string $state) => AgendamentoMarinha::coresStatus()[$state] ?? 'gray')
-                    ->description(fn(SolicitacaoAgendamento $record) => static::detalheAgendamento($record->agendamento)),
+                    ->state(fn(SolicitacaoAgendamento $record) => $record->descartada() ? 'descartado' : $record->agendamento?->status)
+                    ->formatStateUsing(fn(string $state) => $state === 'descartado' ? 'Descartado' : (AgendamentoMarinha::statuses()[$state] ?? $state))
+                    ->color(fn(string $state) => $state === 'descartado' ? 'danger' : (AgendamentoMarinha::coresStatus()[$state] ?? 'gray'))
+                    ->description(fn(SolicitacaoAgendamento $record) => $record->descartada()
+                        ? $record->motivo_descarte . ' Corrija no cadastro (GRU, CPF/CNPJ ou serviço) para enviar de novo, ou exclua o cliente.'
+                        : static::detalheAgendamento($record->agendamento)),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('capitania_id')
@@ -203,7 +206,9 @@ class AgendamentoMarinhaResource extends Resource
                         ->modalHeading(fn(SolicitacaoAgendamento $record) => 'Excluir ' . ($record->cliente_nome ?: SolicitacaoAgendamento::formatarDocumento($record->cliente_documento))
                             . " do {$record->agendamento?->ordem}º agendamento?")
                         ->modalDescription(function (SolicitacaoAgendamento $record) {
-                            $ultimo = $record->agendamento?->solicitacoes()->whereKeyNot($record->id)->doesntExist();
+                            // Descartado de agendamento já marcado sai sozinho (CadastroDoMes::excluirCliente).
+                            $ultimo = $record->agendamento?->status !== AgendamentoMarinha::STATUS_AGENDADO
+                                && $record->agendamento?->solicitacoes()->whereKeyNot($record->id)->doesntExist();
 
                             return "O cliente é apagado do PROA e a GRU {$record->gru} pode ser usada de novo."
                                 . ($ultimo ? " Ele é o único cliente: o {$record->agendamento?->ordem}º agendamento de {$record->prestador?->nome} também é excluído e a cota é liberada." : '');
@@ -329,9 +334,25 @@ class AgendamentoMarinhaResource extends Resource
      * Linha abaixo de "CAPITANIA · Procurador": um resumo de cada agendamento dele no mês, com o botão
      * que exclui o agendamento inteiro (ação excluirAgendamento da página do mês).
      */
+    /** @var array<string, HtmlString> */
+    private static array $titulosProcurador = [];
+
+    /**
+     * "PROCURADOR · CAPITANIA POR EXTENSO" com a capitania em vermelho. A tabela do Filament compara o
+     * título de cada linha com o da anterior (!==) para abrir um grupo novo: por isso o mesmo objeto
+     * é reaproveitado para todas as linhas do grupo.
+     */
+    private static function tituloProcurador(SolicitacaoAgendamento $record): HtmlString
+    {
+        return static::$titulosProcurador["{$record->capitania_id}-{$record->prestador_id}"] ??= new HtmlString(
+            e($record->prestador?->nome ?? 'Procurador')
+            . ' · <span class="text-danger-600 dark:text-danger-400">' . e($record->capitania?->nome ?? 'Capitania') . '</span>'
+        );
+    }
+
     private static function resumoProcurador(SolicitacaoAgendamento $record): HtmlString
     {
-        $agendamentos = AgendamentoMarinha::withCount('solicitacoes')
+        $agendamentos = AgendamentoMarinha::withCount(['solicitacoes' => fn(Builder $q) => $q->whereNull('descartada_em')])
             ->with('capitania')
             ->where('prestador_id', $record->prestador_id)
             ->where('capitania_id', $record->capitania_id)

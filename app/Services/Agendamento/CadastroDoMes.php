@@ -171,6 +171,13 @@ class CadastroDoMes
             $agendamento = AgendamentoMarinha::whereKey($solicitacao->agendamento_marinha_id)->lockForUpdate()->first();
 
             if ($agendamento?->status === AgendamentoMarinha::STATUS_AGENDADO) {
+                // O descartado não foi para o SISAP: sai sem mexer no agendamento marcado.
+                if ($solicitacao->descartada()) {
+                    $solicitacao->delete();
+
+                    return false;
+                }
+
                 throw new InvalidArgumentException("O {$agendamento->ordem}º agendamento já foi marcado no SISAP (nº {$agendamento->numero}): "
                     . 'os clientes dele não podem ser excluídos um a um. Exclua o agendamento inteiro.');
             }
