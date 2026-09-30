@@ -8,8 +8,8 @@ use DateTimeInterface;
 /**
  * Escolhe qual horário livre do SISAP a extensão deve marcar.
  *
- * 1. Com referência (já existe agendamento marcado do mesmo procurador ou do mesmo cliente na
- *    capitania/mês): mesma data, mesmo período e horário mais próximo da referência. Aqui um horário
+ * 1. Com referência (já existe o outro agendamento do mesmo procurador marcado na capitania/mês):
+ *    mesma data, mesmo período e horário mais próximo da referência. Aqui um horário
  *    único basta, porque o primeiro já está garantido.
  *
  * 2. Sem referência: a data escolhida precisa comportar um segundo agendamento no mesmo período, mesmo

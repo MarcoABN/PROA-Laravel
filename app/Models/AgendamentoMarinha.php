@@ -123,29 +123,23 @@ class AgendamentoMarinha extends Model
     }
 
     /**
-     * Horário que este agendamento deve tentar acompanhar (mesma data, horário vizinho).
+     * Horário que este agendamento deve tentar acompanhar (mesma data, horário vizinho): o outro
+     * agendamento já marcado do mesmo procurador na capitania e mês, em qualquer ordem (1º ou 2º).
      *
-     * Prioridade: um cliente deste agendamento que já foi marcado em outro agendamento;
-     * senão, o outro agendamento já marcado do mesmo procurador.
-     * Ambos restritos à mesma capitania e competência.
+     * Só o procurador comparece (o cliente não vai), então o que importa é ele ter os dois no mesmo
+     * dia; em que datas estão os clientes não pesa.
      */
     public function referenciaDeHorario(): ?Carbon
     {
-        $base = static::query()
+        $referencia = static::query()
             ->whereKeyNot($this->getKey())
             ->where('status', self::STATUS_AGENDADO)
             ->whereNotNull('data_hora')
+            ->where('prestador_id', $this->prestador_id)
             ->where('capitania_id', $this->capitania_id)
             ->whereDate('competencia', $this->competencia->toDateString())
-            ->orderBy('data_hora');
-
-        $documentos = $this->solicitacoes()->pluck('cliente_documento')->unique()->values();
-
-        $porCliente = $documentos->isEmpty() ? null : (clone $base)
-            ->whereHas('solicitacoes', fn($q) => $q->whereIn('cliente_documento', $documentos))
+            ->orderBy('data_hora')
             ->value('data_hora');
-
-        $referencia = $porCliente ?? (clone $base)->where('prestador_id', $this->prestador_id)->value('data_hora');
 
         return $referencia ? Carbon::parse($referencia) : null;
     }
