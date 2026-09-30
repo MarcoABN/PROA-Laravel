@@ -48,9 +48,9 @@ class PrestadorResource extends Resource
                             ->label('CPF/CNPJ')
                             ->helperText('Pessoa física (CPF) ou jurídica (CNPJ) — a máscara se ajusta sozinha.')
                             ->required()
-                            // Máscara dinâmica: alterna para CNPJ se passar de 14 caracteres digitados
+                            // Máscara dinâmica: CNPJ quando há mais de 11 dígitos (conta só dígitos, para colar número sem pontuação)
                             ->mask(RawJs::make(<<<'JS'
-        $input.length > 14 ? '99.999.999/9999-99' : '999.999.999-99'
+        $input.replace(/\D/g, '').length > 11 ? '99.999.999/9999-99' : '999.999.999-99'
     JS))
                             // Remove os caracteres de formatação antes de validar e salvar no banco
                             ->stripCharacters(['.', '-', '/'])

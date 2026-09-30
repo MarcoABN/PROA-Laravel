@@ -261,9 +261,9 @@ class AgendamentoMarinhaResource extends Resource
     {
         return Forms\Components\TextInput::make('cliente_documento')
             ->label('CPF/CNPJ do cliente')
-            // Máscara dinâmica, como no cadastro de clientes: passa para CNPJ ao digitar além do CPF.
+            // Máscara dinâmica: CNPJ quando há mais de 11 dígitos (conta só dígitos, para colar número sem pontuação)
             ->mask(RawJs::make(<<<'JS'
-        $input.length > 14 ? '99.999.999/9999-99' : '999.999.999-99'
+        $input.replace(/\D/g, '').length > 11 ? '99.999.999/9999-99' : '999.999.999-99'
     JS))
             ->stripCharacters(['.', '-', '/'])
             ->formatStateUsing(fn(?string $state) => $state ? SolicitacaoAgendamento::formatarDocumento($state) : null)
