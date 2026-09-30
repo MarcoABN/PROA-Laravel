@@ -133,10 +133,10 @@ class AgendamentoMarinha extends Model
             ->whereDate('competencia', $this->competencia->toDateString())
             ->orderBy('data_hora');
 
-        $cpfs = $this->solicitacoes()->pluck('cliente_cpf')->unique()->values();
+        $documentos = $this->solicitacoes()->pluck('cliente_documento')->unique()->values();
 
-        $porCliente = $cpfs->isEmpty() ? null : (clone $base)
-            ->whereHas('solicitacoes', fn($q) => $q->whereIn('cliente_cpf', $cpfs))
+        $porCliente = $documentos->isEmpty() ? null : (clone $base)
+            ->whereHas('solicitacoes', fn($q) => $q->whereIn('cliente_documento', $documentos))
             ->value('data_hora');
 
         $referencia = $porCliente ?? (clone $base)->where('prestador_id', $this->prestador_id)->value('data_hora');

@@ -21,6 +21,7 @@ use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Support\Enums\IconPosition;
+use Filament\Support\RawJs;
 use Filament\Tables;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
@@ -88,7 +89,7 @@ class AgendamentoMarinhaResource extends Resource
                     ->collapsible()
             )
             ->groupingSettingsHidden()
-            // Clique na linha não abre nada: o clique em CPF e GRU é para copiar.
+            // Clique na linha não abre nada: o clique em CPF/CNPJ e GRU é para copiar.
             ->recordAction(null)
             ->recordUrl(null)
             ->paginated(false)
@@ -106,16 +107,16 @@ class AgendamentoMarinhaResource extends Resource
                         $query->where(fn(Builder $q) => $q
                             ->where('cliente_nome', 'ilike', "%{$search}%")
                             ->when($digitos !== '', fn(Builder $q) => $q
-                                ->orWhere('cliente_cpf', 'like', "%{$digitos}%")
+                                ->orWhere('cliente_documento', 'like', "%{$digitos}%")
                                 ->orWhere('gru', 'like', "%{$digitos}%")));
                     }),
 
-                Tables\Columns\TextColumn::make('cliente_cpf')
-                    ->label('CPF')
-                    ->formatStateUsing(fn(string $state) => SolicitacaoAgendamento::formatarCpf($state))
+                Tables\Columns\TextColumn::make('cliente_documento')
+                    ->label('CPF/CNPJ')
+                    ->formatStateUsing(fn(string $state) => SolicitacaoAgendamento::formatarDocumento($state))
                     ->copyable()
-                    ->copyableState(fn(SolicitacaoAgendamento $record) => $record->cliente_cpf)
-                    ->copyMessage('CPF copiado')
+                    ->copyableState(fn(SolicitacaoAgendamento $record) => $record->cliente_documento)
+                    ->copyMessage('Documento copiado')
                     ->icon('heroicon-m-document-duplicate')
                     ->iconPosition(IconPosition::After)
                     ->fontFamily('mono'),
@@ -199,7 +200,7 @@ class AgendamentoMarinhaResource extends Resource
                         ->color('danger')
                         ->visible(fn(SolicitacaoAgendamento $record) => $record->editavel())
                         ->requiresConfirmation()
-                        ->modalHeading(fn(SolicitacaoAgendamento $record) => 'Excluir ' . ($record->cliente_nome ?: SolicitacaoAgendamento::formatarCpf($record->cliente_cpf))
+                        ->modalHeading(fn(SolicitacaoAgendamento $record) => 'Excluir ' . ($record->cliente_nome ?: SolicitacaoAgendamento::formatarDocumento($record->cliente_documento))
                             . " do {$record->agendamento?->ordem}º agendamento?")
                         ->modalDescription(function (SolicitacaoAgendamento $record) {
                             $ultimo = $record->agendamento?->solicitacoes()->whereKeyNot($record->id)->doesntExist();
@@ -256,17 +257,24 @@ class AgendamentoMarinhaResource extends Resource
             ->required();
     }
 
-    public static function campoCpf(): Forms\Components\TextInput
+    public static function campoDocumento(): Forms\Components\TextInput
     {
-        return Forms\Components\TextInput::make('cliente_cpf')
-            ->label('CPF do cliente')
-            ->mask('999.999.999-99')
-            ->stripCharacters(['.', '-'])
-            ->formatStateUsing(fn(?string $state) => $state ? SolicitacaoAgendamento::formatarCpf($state) : null)
+        return Forms\Components\TextInput::make('cliente_documento')
+            ->label('CPF/CNPJ do cliente')
+            // Máscara dinâmica, como no cadastro de clientes: passa para CNPJ ao digitar além do CPF.
+            ->mask(RawJs::make(<<<'JS'
+        $input.length > 14 ? '99.999.999/9999-99' : '999.999.999-99'
+    JS))
+            ->stripCharacters(['.', '-', '/'])
+            ->formatStateUsing(fn(?string $state) => $state ? SolicitacaoAgendamento::formatarDocumento($state) : null)
             ->required()
             ->rule(fn() => function (string $attribute, $value, Closure $fail) {
-                if (!SolicitacaoAgendamento::cpfValido($value)) {
-                    $fail('CPF inválido.');
+                if (!SolicitacaoAgendamento::documentoValido($value)) {
+                    $fail(match (SolicitacaoAgendamento::tipoDocumento($value)) {
+                        'CPF' => 'CPF inválido.',
+                        'CNPJ' => 'CNPJ inválido.',
+                        default => 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos).',
+                    });
                 }
             })
             ->live(onBlur: true)

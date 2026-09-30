@@ -132,5 +132,10 @@ test('normaliza acentos, espacos e caixa para comparar textos do SISAP', () => {
     'TIE - MOTO AQUATICA - RENOVACAO - INSCRITA',
   );
   assert.equal(L.formatarCpf('00269107134'), '002.691.071-34');
+  assert.equal(L.formatarDocumento('00269107134'), '002.691.071-34');
+  assert.equal(L.formatarDocumento('11222333000181'), '11.222.333/0001-81');
+  assert.equal(L.tipoDocumento('002.691.071-34'), 'CPF');
+  assert.equal(L.tipoDocumento('11.222.333/0001-81'), 'CNPJ');
+  assert.equal(L.tipoDocumento('123'), null);
   assert.equal(L.formatarData('2026-09-23'), '23/09/2026');
 });

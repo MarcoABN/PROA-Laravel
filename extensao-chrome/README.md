@@ -7,7 +7,7 @@ e devolve o resultado (data, hora, número e chave) ao PROA.
   internos do site por conta própria, para não acionar o bloqueio do Cloudflare.
 - O **CAPTCHA e o clique em FINALIZAR são sempre do usuário**.
 - Se algum passo não puder ser automatizado, a extensão **pausa** e pede para você fazer aquele passo
-  à mão. O painel tem botões para copiar CPF e GRU.
+  à mão. O painel tem botões para copiar CPF/CNPJ e GRU.
 
 ## Instalação
 
@@ -61,7 +61,7 @@ compara para avisar quem está desatualizado.
      escolhe a capitania do cadastro no PROA (pelo código SISAP da capitania) e abre o agendamento para
      representante legal;
    - passa pelas etapas 1 e 2;
-   - na etapa 3, informa cada CPF, cada GRU e escolhe o serviço pelo texto cadastrado em
+   - na etapa 3, informa cada CPF ou CNPJ (escolhendo o "Tipo doc"), cada GRU e escolhe o serviço pelo texto cadastrado em
      **Serviços do SISAP** no PROA;
    - na etapa 4, envia os horários livres ao PROA, que escolhe pela preferência do cadastro (data sugerida e
      período) mantendo os dois agendamentos do procurador na mesma data e período, e marca data e hora;

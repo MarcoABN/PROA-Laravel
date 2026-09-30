@@ -25,6 +25,16 @@
     return d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : String(valor ?? '');
   }
 
+  /** "CPF" (11 dígitos) ou "CNPJ" (14 dígitos), como as opções do "Tipo doc" do SISAP; null se não for nenhum. */
+  function tipoDocumento(valor) {
+    return { 11: 'CPF', 14: 'CNPJ' }[somenteDigitos(valor).length] || null;
+  }
+
+  function formatarDocumento(valor) {
+    const d = somenteDigitos(valor);
+    return d.length === 14 ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : formatarCpf(valor);
+  }
+
   function formatarData(ymd) {
     const [ano, mes, dia] = String(ymd ?? '').split('-');
     return ano && mes && dia ? `${dia}/${mes}/${ano}` : String(ymd ?? '');
@@ -304,6 +314,8 @@
     normalizar,
     somenteDigitos,
     formatarCpf,
+    tipoDocumento,
+    formatarDocumento,
     formatarData,
     primeiro,
     extrairHorarios,

@@ -160,6 +160,11 @@ class CadastroAgendamentos extends Page implements HasForms
                                 if ($state && $get('capitania_id') && CadastroDoMes::existe((int) $get('capitania_id'), $state)) {
                                     $set('capitania_id', null);
                                 }
+
+                                // Datas sugeridas do mês anterior deixam de valer.
+                                $set('procuradores', collect($get('procuradores') ?? [])
+                                    ->map(fn(array $bloco) => ['data_sugerida' => null] + $bloco)
+                                    ->all());
                             }),
 
                         Forms\Components\Select::make('capitania_id')
@@ -205,16 +210,22 @@ class CadastroAgendamentos extends Page implements HasForms
                             Forms\Components\DatePicker::make('data_sugerida')
                                 ->label('Data sugerida')
                                 ->native(false)
+                                ->view('filament.forms.components.data-com-feriados')
+                                ->weekStartsOnSunday()
                                 ->displayFormat('d/m/Y')
                                 ->closeOnDateSelection()
-                                ->helperText('Opcional. Sem vaga nesta data, o PROA escolhe a mais próxima.')
-                                ->rule(fn() => function (string $attribute, $value, Closure $fail) {
-                                    $mes = $this->competenciaAtual();
-
-                                    if ($value && $mes && Carbon::parse($value)->format('Y-m') !== Carbon::parse($mes)->format('Y-m')) {
-                                        $fail('Escolha uma data dentro do mês do atendimento.');
-                                    }
-                                }),
+                                // Só dias do mês do atendimento; o calendário já abre nele.
+                                ->minDate(fn() => $this->competenciaAtual() ? Carbon::parse($this->competenciaAtual())->startOfMonth() : null)
+                                ->maxDate(fn() => $this->competenciaAtual() ? Carbon::parse($this->competenciaAtual())->endOfMonth()->startOfDay() : null)
+                                ->defaultFocusedDate(fn() => $this->competenciaAtual() ? Carbon::parse($this->competenciaAtual())->startOfMonth() : null)
+                                ->disabled(fn() => !$this->competenciaAtual())
+                                ->helperText(fn() => $this->competenciaAtual()
+                                    ? 'Opcional. Sem vaga nesta data, o PROA escolhe a mais próxima. Em vermelho: fins de semana e feriados.'
+                                    : 'Escolha primeiro o mês do atendimento.')
+                                ->validationMessages([
+                                    'after_or_equal' => 'Escolha uma data dentro do mês do atendimento.',
+                                    'before_or_equal' => 'Escolha uma data dentro do mês do atendimento.',
+                                ]),
 
                             Forms\Components\Select::make('periodo')
                                 ->label('Período preferido')
@@ -249,7 +260,7 @@ class CadastroAgendamentos extends Page implements HasForms
                     ->disabled(fn(Get $get) => $this->marcado($get('id')))
                     ->schema([
                         Forms\Components\Hidden::make('id'),
-                        AgendamentoMarinhaResource::campoCpf(),
+                        AgendamentoMarinhaResource::campoDocumento(),
                         AgendamentoMarinhaResource::campoNome(),
                         AgendamentoMarinhaResource::campoGru(),
                         AgendamentoMarinhaResource::campoServico(),

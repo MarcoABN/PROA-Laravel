@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use LogicException;
 
 /**
- * Um serviço de um cliente a ser agendado pelo procurador: CPF + GRU + serviço.
+ * Um serviço de um cliente a ser agendado pelo procurador: CPF ou CNPJ + GRU + serviço.
  * Cada GRU ocupa uma vaga. Grave sempre pelo cadastro da Capitania + Mês
  * (App\Services\Agendamento\CadastroDoMes), que mantém procurador, capitania e mês coerentes com o agendamento.
  */
@@ -25,12 +25,12 @@ class SolicitacaoAgendamento extends Model
     protected static function booted()
     {
         static::saving(function (SolicitacaoAgendamento $solicitacao) {
-            $solicitacao->cliente_cpf = static::somenteDigitos($solicitacao->cliente_cpf);
+            $solicitacao->cliente_documento = static::somenteDigitos($solicitacao->cliente_documento);
             $solicitacao->gru = static::somenteDigitos($solicitacao->gru);
 
-            // Se o CPF já é cliente do PROA, vincula e aproveita o nome.
-            if ($solicitacao->isDirty('cliente_cpf') || !$solicitacao->cliente_id) {
-                $cliente = Cliente::where('cpfcnpj', $solicitacao->cliente_cpf)->first();
+            // Se o CPF/CNPJ já é cliente do PROA, vincula e aproveita o nome.
+            if ($solicitacao->isDirty('cliente_documento') || !$solicitacao->cliente_id) {
+                $cliente = Cliente::where('cpfcnpj', $solicitacao->cliente_documento)->first();
                 $solicitacao->cliente_id = $cliente?->id;
                 $solicitacao->cliente_nome = $solicitacao->cliente_nome ?: $cliente?->nome;
             }
@@ -91,6 +91,21 @@ class SolicitacaoAgendamento extends Model
         return preg_replace('/\D/', '', (string) $valor);
     }
 
+    /** "CPF" (11 dígitos) ou "CNPJ" (14 dígitos), como no "Tipo doc" do SISAP; null se não for nenhum dos dois. */
+    public static function tipoDocumento(?string $documento): ?string
+    {
+        return match (strlen(static::somenteDigitos($documento))) {
+            11 => 'CPF',
+            14 => 'CNPJ',
+            default => null,
+        };
+    }
+
+    public static function documentoValido(?string $documento): bool
+    {
+        return static::cpfValido($documento) || static::cnpjValido($documento);
+    }
+
     public static function cpfValido(?string $cpf): bool
     {
         $cpf = static::somenteDigitos($cpf);
@@ -113,12 +128,40 @@ class SolicitacaoAgendamento extends Model
         return true;
     }
 
-    public static function formatarCpf(?string $cpf): string
+    public static function cnpjValido(?string $cnpj): bool
     {
-        $digitos = static::somenteDigitos($cpf);
+        $cnpj = static::somenteDigitos($cnpj);
 
-        return strlen($digitos) === 11
-            ? preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $digitos)
-            : (string) $cpf;
+        if (strlen($cnpj) !== 14 || preg_match('/^(\d)\1{13}$/', $cnpj)) {
+            return false;
+        }
+
+        foreach ([12, 13] as $posicao) {
+            $soma = 0;
+            $peso = $posicao - 7;
+            for ($i = 0; $i < $posicao; $i++) {
+                $soma += (int) $cnpj[$i] * $peso;
+                $peso = $peso === 2 ? 9 : $peso - 1;
+            }
+
+            $resto = $soma % 11;
+            if ((int) $cnpj[$posicao] !== ($resto < 2 ? 0 : 11 - $resto)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** Máscara de CPF ou CNPJ conforme a quantidade de dígitos; outros valores voltam como estão. */
+    public static function formatarDocumento(?string $documento): string
+    {
+        $digitos = static::somenteDigitos($documento);
+
+        return match (strlen($digitos)) {
+            11 => preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $digitos),
+            14 => preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $digitos),
+            default => (string) $documento,
+        };
     }
 }

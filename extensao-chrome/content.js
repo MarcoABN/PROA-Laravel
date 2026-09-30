@@ -606,28 +606,36 @@
     await esperarEtapa(3);
 
     for (const pessoa of agendamento.interessados) {
-      const cpfFormatado = L.formatarCpf(pessoa.cpf);
+      // "documento" pode ser CPF ou CNPJ; "cpf" é o nome antigo do campo no PROA.
+      const numero = pessoa.documento || pessoa.cpf;
+      const tipo = pessoa.tipo_documento || L.tipoDocumento(numero);
+      if (!tipo) {
+        throw new ErroSisap(`O documento ${numero} do cliente ${pessoa.nome || ''} não é CPF nem CNPJ.`);
+      }
+      const doc = `${tipo} ${L.formatarDocumento(numero)}`;
 
       const tipoDoc = await tipoDocLivre();
-      await escolherNoSelect(tipoDoc, 'CPF', { descricao: 'a opção CPF em "Tipo doc"' });
+      await escolherNoSelect(tipoDoc, tipo, { descricao: `a opção ${tipo} em "Tipo doc"` });
 
-      const campoCpf = await esperar(() => inputsPorRotulo('DO CPF').find((input) => !input.value && !input.disabled), {
-        descricao: 'o campo "Nº do CPF"',
+      const campoDoc = await esperar(() => inputsPorRotulo(`DO ${tipo}`).find((input) => !input.value && !input.disabled), {
+        descricao: `o campo "Nº do ${tipo}"`,
       });
 
-      const consulta = await digitarEConsultar(campoCpf, pessoa.cpf, 'buscarcpfcnpj', `CPF ${cpfFormatado}`);
+      const consulta = await digitarEConsultar(campoDoc, numero, 'buscarcpfcnpj', doc);
 
       if (!consulta || consulta.lvalido === false) {
-        throw new ErroSisap(`O SISAP considerou inválido o CPF ${cpfFormatado}.`);
+        throw new ErroSisap(`O SISAP considerou inválido o ${doc}.`);
       }
 
       if (consulta.lencontrado === false) {
-        await pausar(`O CPF ${cpfFormatado} não tem cadastro na Marinha. Preencha os dados obrigatórios dele no SISAP e clique em Continuar.`);
+        await pausar(`O ${doc} não tem cadastro na Marinha. Preencha os dados obrigatórios no SISAP e clique em Continuar.`);
       }
 
+      // Área do interessado: o menor ancestral com um único campo de documento (CPF ou CNPJ) e o botão de serviço.
+      const camposDeDocumento = (el) => inputsPorRotulo('DO CPF', el).length + inputsPorRotulo('DO CNPJ', el).length;
       const bloco = await esperar(
-        () => subirAte(campoCpf, (el) => inputsPorRotulo('DO CPF', el).length === 1 && botao('ADICIONAR SERVICO', el)),
-        { descricao: `a área de serviços do CPF ${cpfFormatado}` },
+        () => subirAte(campoDoc, (el) => camposDeDocumento(el) === 1 && botao('ADICIONAR SERVICO', el)),
+        { descricao: `a área de serviços do ${doc}` },
       );
 
       for (const servico of pessoa.servicos) {
@@ -640,7 +648,7 @@
         const validacao = await digitarEConsultar(campoGru, servico.gru, 'validargruinformada', `GRU ${servico.gru}`);
 
         if (!validacao || validacao.lretorno !== true) {
-          throw new ErroSisap(`GRU ${servico.gru} (CPF ${cpfFormatado}): ${(validacao && validacao.cmensagem) || 'recusada pelo SISAP'}.`);
+          throw new ErroSisap(`GRU ${servico.gru} (${doc}):${(validacao && validacao.cmensagem) || 'recusada pelo SISAP'}.`);
         }
 
         await escolherServico(campoGru, servico.descricao_sisap);
@@ -1031,7 +1039,7 @@
     const linhas = ag.interessados.map((p) => p.servicos.map((s, i) => `
       <tr>
         <td>${i === 0 ? esc(p.nome || '—') : ''}</td>
-        <td>${i === 0 ? `<button class="copiar" data-acao="copiar" data-valor="${esc(p.cpf)}" title="Copiar CPF">${esc(L.formatarCpf(p.cpf))}</button>` : ''}</td>
+        <td>${i === 0 ? `<button class="copiar" data-acao="copiar" data-valor="${esc(p.documento || p.cpf)}" title="Copiar CPF/CNPJ">${esc(L.formatarDocumento(p.documento || p.cpf))}</button>` : ''}</td>
         <td><button class="copiar" data-acao="copiar" data-valor="${esc(s.gru)}" title="Copiar GRU">${esc(s.gru)}</button></td>
         <td title="${esc(s.descricao_sisap)}">${esc(s.sigla)}</td>
       </tr>`).join('')).join('');

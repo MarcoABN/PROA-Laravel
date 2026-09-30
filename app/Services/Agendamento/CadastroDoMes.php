@@ -81,7 +81,7 @@ class CadastroDoMes
                         'clientes' => $agendamento
                             ? $agendamento->solicitacoes->map(fn(SolicitacaoAgendamento $s) => [
                                 'id' => $s->id,
-                                'cliente_cpf' => $s->cliente_cpf,
+                                'cliente_documento' => $s->cliente_documento,
                                 'cliente_nome' => $s->cliente_nome,
                                 'gru' => $s->gru,
                                 'sisap_servico_id' => $s->sisap_servico_id,
@@ -106,7 +106,7 @@ class CadastroDoMes
 
     /**
      * @param  array  $procuradores  blocos do formulário: prestador_id, data_sugerida, periodo,
-     *                               agendamento_1/agendamento_2 => [id, clientes => [id, cliente_cpf, cliente_nome, gru, sisap_servico_id]]
+     *                               agendamento_1/agendamento_2 => [id, clientes => [id, cliente_documento, cliente_nome, gru, sisap_servico_id]]
      * @param  bool  $novo  criando o cadastro (a chave não pode existir) ou editando
      *
      * @throws InvalidArgumentException
@@ -268,7 +268,7 @@ class CadastroDoMes
                         ]))->fill([
                             'agendamento_marinha_id' => $agendamento->id,
                             'prestador_id' => $bloco['prestador_id'],
-                            'cliente_cpf' => $cliente['cliente_cpf'],
+                            'cliente_documento' => $cliente['cliente_documento'],
                             'cliente_nome' => $cliente['cliente_nome'],
                             'gru' => $cliente['gru'],
                             'sisap_servico_id' => $cliente['sisap_servico_id'],
@@ -305,7 +305,7 @@ class CadastroDoMes
                     'id' => filled($slot['id'] ?? null) ? (int) $slot['id'] : null,
                     'clientes' => collect($slot['clientes'] ?? [])->map(fn($c) => [
                         'id' => filled($c['id'] ?? null) ? (int) $c['id'] : null,
-                        'cliente_cpf' => SolicitacaoAgendamento::somenteDigitos($c['cliente_cpf'] ?? ''),
+                        'cliente_documento' => SolicitacaoAgendamento::somenteDigitos($c['cliente_documento'] ?? ''),
                         'cliente_nome' => filled($c['cliente_nome'] ?? null) ? trim($c['cliente_nome']) : null,
                         'gru' => SolicitacaoAgendamento::somenteDigitos($c['gru'] ?? ''),
                         'sisap_servico_id' => filled($c['sisap_servico_id'] ?? null) ? (int) $c['sisap_servico_id'] : null,
@@ -370,8 +370,8 @@ class CadastroDoMes
                 }
 
                 foreach ($slot['clientes'] as $cliente) {
-                    if (!SolicitacaoAgendamento::cpfValido($cliente['cliente_cpf'])) {
-                        throw new InvalidArgumentException("{$nome}: CPF inválido no {$ordem}º agendamento.");
+                    if (!SolicitacaoAgendamento::documentoValido($cliente['cliente_documento'])) {
+                        throw new InvalidArgumentException("{$nome}: CPF/CNPJ inválido no {$ordem}º agendamento.");
                     }
 
                     if (strlen($cliente['gru']) !== 18) {

@@ -117,9 +117,12 @@ class SisapAgendamentoController extends Controller
     {
         $interessados = $agendamento->solicitacoes
             ->sortBy('id')
-            ->groupBy('cliente_cpf')
-            ->map(fn($solicitacoes, $cpf) => [
-                'cpf' => (string) $cpf,
+            ->groupBy('cliente_documento')
+            ->map(fn($solicitacoes, $documento) => [
+                'documento' => (string) $documento,
+                'tipo_documento' => SolicitacaoAgendamento::tipoDocumento((string) $documento),
+                // Extensões até a 0.2.2 só conhecem "cpf".
+                'cpf' => (string) $documento,
                 'nome' => $solicitacoes->first()->cliente_nome,
                 'servicos' => $solicitacoes->map(fn(SolicitacaoAgendamento $s) => [
                     'solicitacao_id' => $s->id,
