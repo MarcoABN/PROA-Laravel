@@ -12,7 +12,7 @@ return [
 
     'nome' => 'Campeão Náutica',
     'url' => 'https://campeaonautica.com.br',
-    'descricao' => 'Despachante náutico e escola náutica em Goiânia. Habilitação de Arrais Amador e Motonauta em Goiás e regularização de embarcações em todo o Brasil.',
+    'descricao' => 'Escola náutica autorizada pela Marinha do Brasil e despachante náutico em Goiânia. Habilitação de Arrais Amador e Motonauta em Goiás e regularização de embarcações em todo o Brasil.',
 
     'whatsapp' => 'https://wa.me/5562998599357',
     'whatsapp_exibicao' => '(62) 9 9859-9357',
@@ -42,6 +42,10 @@ return [
         [
             'pergunta' => 'Vocês atendem clientes de fora de Goiânia?',
             'resposta' => 'Sim. Preparamos alunos de todo o estado de Goiás para Arrais Amador e Motonauta e cuidamos da regularização de embarcações em qualquer estado do Brasil.',
+        ],
+        [
+            'pergunta' => 'A Campeão Náutica é uma escola náutica autorizada pela Marinha?',
+            'resposta' => 'Sim. Somos escola náutica autorizada pela Marinha do Brasil e atuamos em Goiânia há mais de 20 anos, preparando alunos para as provas de Arrais Amador e Motonauta.',
         ],
         [
             'pergunta' => 'Qual a diferença entre Arrais Amador e Motonauta?',

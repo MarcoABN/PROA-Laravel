@@ -39,7 +39,8 @@
     @php
         $negocio = [
             '@context' => 'https://schema.org',
-            '@type' => 'LocalBusiness',
+            // Também é escola: ajuda o Google a associar o site às buscas por "escola náutica"
+            '@type' => ['LocalBusiness', 'EducationalOrganization'],
             '@id' => $site['url'],
             'name' => $site['nome'],
             'description' => $site['descricao'],

@@ -82,7 +82,8 @@ class SisapAgendamentoController extends Controller
             'numero' => ['required', 'string', 'max:50'],
             'chave' => ['required', 'string', 'max:20'],
             'data_hora' => ['required', 'date_format:Y-m-d H:i'],
-            'sisap_id' => ['nullable', 'string', 'max:50'],
+            // cidagendamento do SISAP é um token criptografado, bem maior que um id numérico.
+            'sisap_id' => ['nullable', 'string', 'max:2000'],
             'comprovante_link' => ['nullable', 'string', 'max:2000'],
         ]);
 

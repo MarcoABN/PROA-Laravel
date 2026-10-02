@@ -38,8 +38,8 @@
                         <span class="text-white/45">Documentos em dia, habilitação na mão.</span>
                     </h1>
                     <p class="mt-7 max-w-xl text-lg leading-relaxed text-white/70">
-                        Há mais de 20 anos no mercado. Habilitação de Arrais Amador e Motonauta em Goiás e
-                        regularização de embarcações em todo o Brasil.
+                        Escola náutica autorizada pela Marinha do Brasil, há mais de 20 anos. Habilitação de
+                        Arrais Amador e Motonauta em Goiás e regularização de embarcações em todo o Brasil.
                     </p>
                     <div class="mt-10 flex flex-col gap-3 sm:flex-row">
                         <a href="{{ $site['whatsapp'] }}" target="_blank" rel="noopener"
@@ -71,8 +71,8 @@
                         <dd class="mt-1.5 font-medium">Mais de 20 anos</dd>
                     </div>
                     <div class="border-white/10 py-6 pl-4 max-lg:border-l lg:border-r lg:px-6">
-                        <dt class="font-mono text-xs uppercase tracking-wider text-white/45">Habilitação</dt>
-                        <dd class="mt-1.5 font-medium">Arrais e Motonauta em todo GO</dd>
+                        <dt class="font-mono text-xs uppercase tracking-wider text-white/45">Escola náutica</dt>
+                        <dd class="mt-1.5 font-medium">Autorizada pela Marinha</dd>
                     </div>
                     <div class="border-white/10 py-6 pr-4 max-lg:border-t lg:border-r lg:px-6">
                         <dt class="font-mono text-xs uppercase tracking-wider text-white/45">Alcance</dt>
@@ -219,8 +219,9 @@
                     </h2>
                     <div class="mt-6 space-y-4 text-lg leading-relaxed text-navy/65">
                         <p>
-                            A Campeão Náutica e Assessoria Naval trabalha há mais de duas décadas para tirar a
-                            burocracia do caminho de quem quer navegar com segurança.
+                            A Campeão Náutica e Assessoria Naval é escola náutica autorizada pela Marinha do Brasil
+                            e trabalha há mais de duas décadas para tirar a burocracia do caminho de quem quer
+                            navegar com segurança.
                         </p>
                         <p>
                             O mesmo time que prepara você para a prova cuida da inscrição, da documentação da
