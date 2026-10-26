@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     default-jre \
     libreoffice-writer \
     libreoffice-java-common \
+    fonts-crosextra-carlito \
     pdftk-java \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 

@@ -25,13 +25,14 @@ class PedidoInformacao implements AnexoInterface
                 ->validationMessages(['required' => 'Informe o número do protocolo']),
 
             Textarea::make('solicitacao')
-                ->label('Venho Requerer')
-                ->placeholder('Descreva o que está sendo solicitado...')
-                ->helperText('Texto que aparece no documento logo após "Venho Requerer:".')
+                ->label('Informação Solicitada')
+                ->placeholder('Descreva a informação que está sendo solicitada...')
+                ->helperText('Texto que aparece no documento abaixo de "2. INFORMAÇÃO SOLICITADA".')
                 ->rows(4)
                 ->required()
-                ->maxLength(1000)
-                ->validationMessages(['required' => 'Informe o que está sendo requerido']),
+                // Acima disso o bloco de assinatura não cabe mais na primeira página
+                ->maxLength(500)
+                ->validationMessages(['required' => 'Informe a informação solicitada']),
         ];
     }
 
@@ -55,42 +56,32 @@ class PedidoInformacao implements AnexoInterface
             $logradouro .= ' - ' . $c->complemento;
         }
 
-        return [
+        $dados = [
             'nome' => $this->up($c->nome),
             'cpf' => $this->formatarCpfCnpj($c->cpfcnpj ?? ''),
             'rg' => $this->up($c->rg),
             'org_emissor' => $this->up($c->org_emissor),
             'logradouro' => $this->up($logradouro),
             'bairro' => $this->up($c->bairro),
-            'cidade' => $this->up(trim(($c->cidade ?? '') . ' / ' . ($c->uf ?? ''), ' /')),
+            'cidade' => $this->up($c->cidade),
+            'uf' => $this->up($c->uf),
             'cep' => $c->cep ?? '',
-            'telefone' => $c->celular ?? $c->telefone ?? '',
+            'telefone' => ($c->celular ?? '') ?: ($c->telefone ?? ''),
             'email' => $this->up($c->email),
             // Informados pelo usuário no momento da impressão
             'protocolo' => $input['protocolo'] ?? '',
-            'solicitacao' => $this->paraDocx($input['solicitacao'] ?? ''),
+            'solicitacao' => trim((string) ($input['solicitacao'] ?? '')),
             'data_extenso' => Carbon::now()->translatedFormat('d \d\e F \d\e Y'),
         ];
-    }
 
-    /**
-     * Prepara texto livre para entrar no .docx.
-     *
-     * O escaping do PhpWord vem desabilitado por padrão (Settings::$outputEscapingEnabled
-     * = false), então o valor é injetado cru no XML: um "&" ou "<" digitado pelo usuário
-     * corromperia o documento. Aqui escapamos e convertemos quebras de linha em <w:br/>.
-     */
-    private function paraDocx(?string $texto): string
-    {
-        $texto = trim((string) $texto);
+        // O escaping do PhpWord vem desabilitado por padrão (Settings::$outputEscapingEnabled
+        // = false), então o valor é injetado cru no XML: um "&" ou "<" no cadastro ou no texto
+        // digitado corromperia o documento. Escapamos tudo e, na solicitação, convertemos
+        // quebras de linha em <w:br/> (depois do escape, para a tag não ser escapada).
+        $dados = array_map(fn ($v) => htmlspecialchars((string) $v, ENT_QUOTES | ENT_XML1, 'UTF-8'), $dados);
+        $dados['solicitacao'] = preg_replace('/\R/u', '<w:br/>', $dados['solicitacao']);
 
-        if ($texto === '') {
-            return '';
-        }
-
-        $texto = htmlspecialchars($texto, ENT_QUOTES | ENT_XML1, 'UTF-8');
-
-        return preg_replace('/\R/u', '<w:br/>', $texto);
+        return $dados;
     }
 
     private function up($valor) { return mb_strtoupper((string) ($valor ?? ''), 'UTF-8'); }
