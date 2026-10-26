@@ -31,9 +31,9 @@ use Illuminate\Support\HtmlString;
 
 /**
  * Agendamento na Marinha:
- * 1) tela de meses (Pages\ListMesesAgendamento);
- * 2) cadastro de uma Capitania + Mês (Pages\CadastroAgendamentos) — onde se incluem procuradores e clientes;
- * 3) o mês aberto (Pages\VerMesAgendamento), para consulta e operação, agrupado por capitania · procurador.
+ * 1) calendário do ano (Pages\ListMesesAgendamento), com os dias que têm agendamento marcado;
+ * 2) o mês aberto (Pages\VerMesAgendamento): um balão por capitania + procurador e, abaixo, a lista de clientes;
+ * 3) o balão (Pages\CadastroAgendamentos), onde se preenchem os agendamentos e clientes.
  */
 class AgendamentoMarinhaResource extends Resource
 {
@@ -95,7 +95,8 @@ class AgendamentoMarinhaResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('agendamento.ordem')
                     ->label('Agendamento')
-                    ->formatStateUsing(fn($state) => "{$state}º"),
+                    ->formatStateUsing(fn($state) => AgendamentoMarinha::etiquetaDaOrdem((int) $state))
+                    ->html(),
 
                 Tables\Columns\TextColumn::make('cliente_nome')
                     ->label('Cliente')
@@ -164,9 +165,9 @@ class AgendamentoMarinhaResource extends Resource
             ->actions([
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\Action::make('editarCadastro')
-                        ->label('Editar cadastro')
+                        ->label('Editar')
                         ->icon('heroicon-o-pencil-square')
-                        ->url(fn(SolicitacaoAgendamento $record) => static::urlCadastro($record->capitania_id, $record->competencia)),
+                        ->url(fn(SolicitacaoAgendamento $record) => static::urlCadastro($record->capitania_id, $record->competencia, $record->prestador_id)),
 
                     Tables\Actions\Action::make('registrarResultado')
                         ->label('Registrar agendamento')
@@ -232,26 +233,25 @@ class AgendamentoMarinhaResource extends Resource
             ]);
     }
 
-    /**
-     * Novo cadastro, opcionalmente já com o mês escolhido. O mês vai na query string: com só o primeiro
-     * dos dois parâmetros opcionais da rota, o Livewire falha ao montar a página.
-     */
-    public static function urlNovoCadastro(?string $competencia = null): string
-    {
-        $url = static::getUrl('cadastro');
-
-        return $competencia ? $url . '?mes=' . Carbon::parse(strlen($competencia) === 7 ? "{$competencia}-01" : $competencia)->format('Y-m') : $url;
-    }
-
-    public static function urlCadastro(int $capitaniaId, mixed $competencia): string
+    /** O "balão" de um procurador numa capitania, no mês. */
+    public static function urlCadastro(int $capitaniaId, mixed $competencia, int $prestadorId): string
     {
         return static::getUrl('cadastro', [
             'competencia' => Carbon::parse($competencia)->format('Y-m'),
             'capitania' => $capitaniaId,
+            'procurador' => $prestadorId,
         ]);
     }
 
     // --- Campos dos clientes, usados no cadastro (Pages\CadastroAgendamentos) ---
+
+    /**
+     * O cadastro abre com todas as linhas de cliente: uma linha só é obrigatória quando começou a ser preenchida.
+     */
+    public static function linhaPreenchida(Get $get): bool
+    {
+        return filled($get('cliente_documento')) || filled($get('gru')) || filled($get('sisap_servico_id'));
+    }
 
     public static function campoServico(): Forms\Components\Select
     {
@@ -259,7 +259,7 @@ class AgendamentoMarinhaResource extends Resource
             ->label('Serviço')
             ->options(fn() => SisapServico::ativos()->orderBy('sigla')->pluck('sigla', 'id'))
             ->searchable()
-            ->required();
+            ->required(fn(Get $get) => static::linhaPreenchida($get));
     }
 
     public static function campoDocumento(): Forms\Components\TextInput
@@ -272,7 +272,9 @@ class AgendamentoMarinhaResource extends Resource
     JS))
             ->stripCharacters(['.', '-', '/'])
             ->formatStateUsing(fn(?string $state) => $state ? SolicitacaoAgendamento::formatarDocumento($state) : null)
-            ->required()
+            // Documento completo e válido: o cursor pula para a GRU (proaPularParaGru, em cadastro.blade.php).
+            ->extraInputAttributes(['x-on:input' => 'proaPularParaGru($event)'])
+            ->required(fn(Get $get) => static::linhaPreenchida($get))
             ->rule(fn() => function (string $attribute, $value, Closure $fail) {
                 if (!SolicitacaoAgendamento::documentoValido($value)) {
                     $fail(match (SolicitacaoAgendamento::tipoDocumento($value)) {
@@ -283,17 +285,34 @@ class AgendamentoMarinhaResource extends Resource
                 }
             })
             ->live(onBlur: true)
-            ->afterStateUpdated(function (?string $state, Get $get, Set $set) {
-                if (blank($get('cliente_nome'))) {
-                    $set('cliente_nome', Cliente::where('cpfcnpj', SolicitacaoAgendamento::somenteDigitos($state))->value('nome'));
-                }
-            });
+            // O nome vem sempre do cadastro de clientes; sem cadastro, fica em branco.
+            ->afterStateUpdated(fn(?string $state, Set $set) => $set('cliente_nome', static::nomeDoCliente($state)));
     }
 
+    public static function nomeDoCliente(?string $documento): ?string
+    {
+        $digitos = SolicitacaoAgendamento::somenteDigitos($documento);
+
+        if ($digitos === '') {
+            return null;
+        }
+
+        // Alguns clientes antigos têm o CPF/CNPJ gravado com pontuação.
+        return Cliente::query()
+            ->where(fn(Builder $q) => $q
+                ->where('cpfcnpj', $digitos)
+                ->orWhereRaw("regexp_replace(cpfcnpj, '[^0-9]', '', 'g') = ?", [$digitos]))
+            ->value('nome');
+    }
+
+    /** Só leitura: preenchido pelo CPF/CNPJ. Fora da ordem do Tab, para o Tab ir do documento à GRU. */
     public static function campoNome(): Forms\Components\TextInput
     {
         return Forms\Components\TextInput::make('cliente_nome')
             ->label('Nome do cliente')
+            ->readOnly()
+            ->placeholder('Sem cadastro de cliente')
+            ->extraInputAttributes(['tabindex' => '-1'])
             ->maxLength(255);
     }
 
@@ -302,7 +321,8 @@ class AgendamentoMarinhaResource extends Resource
         return Forms\Components\TextInput::make('gru')
             ->label('Número da GRU')
             ->mask('999999999999999999')
-            ->required()
+            ->extraInputAttributes(['data-campo' => 'gru'])
+            ->required(fn(Get $get) => static::linhaPreenchida($get))
             ->length(18)
             ->validationMessages([
                 'size' => 'A GRU deve ter 18 dígitos.',
@@ -357,8 +377,8 @@ class AgendamentoMarinhaResource extends Resource
 
         $resumo = $agendamentos
             ->values()
-            ->map(fn(AgendamentoMarinha $a, int $i) => e(($i + 1) . "º: {$a->solicitacoes_count}/{$a->vagasTotais()} · "
-                . (AgendamentoMarinha::statuses()[$a->status] ?? $a->status))
+            ->map(fn(AgendamentoMarinha $a, int $i) => AgendamentoMarinha::etiquetaDaOrdem($i + 1)
+                . e(" {$a->solicitacoes_count}/{$a->vagasTotais()} · " . (AgendamentoMarinha::statuses()[$a->status] ?? $a->status))
                 . ' ' . static::botaoExcluirAgendamento($a, $i + 1))
             ->implode('  |  ');
 
@@ -407,7 +427,7 @@ class AgendamentoMarinhaResource extends Resource
         return [
             'index' => Pages\ListMesesAgendamento::route('/'),
             // Antes de "mes": senão "/cadastro" seria lido como um mês.
-            'cadastro' => Pages\CadastroAgendamentos::route('/cadastro/{competencia?}/{capitania?}'),
+            'cadastro' => Pages\CadastroAgendamentos::route('/cadastro/{competencia}/{capitania}/{procurador}'),
             'mes' => Pages\VerMesAgendamento::route('/{competencia}'),
         ];
     }

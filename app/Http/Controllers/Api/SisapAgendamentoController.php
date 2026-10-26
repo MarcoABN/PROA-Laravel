@@ -9,7 +9,9 @@ use App\Models\SolicitacaoAgendamento;
 use App\Services\Agendamento\EscolhaDeHorario;
 use App\Services\Agendamento\RegistraResultadoAgendamento;
 use App\Services\Agendamento\RemanejamentoDeClientes;
+use App\Services\Agendamento\VisibilidadeNaExtensao;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use App\Support\ExtensaoChrome;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +20,8 @@ use Illuminate\Http\Request;
 class SisapAgendamentoController extends Controller
 {
     /**
-     * Agendamentos deste procurador que ainda precisam ser marcados no SISAP (inclui os que falharam).
+     * Agendamentos deste procurador que ainda precisam ser marcados no SISAP (inclui os que falharam),
+     * só dos meses que aparecem na extensão (VisibilidadeNaExtensao). O mês principal vem primeiro.
      */
     public function index(Request $request): JsonResponse
     {
@@ -27,9 +30,12 @@ class SisapAgendamentoController extends Controller
         $agendamentos = AgendamentoMarinha::with(['capitania', 'solicitacoes.servico'])
             ->where('prestador_id', $prestador->id)
             ->whereIn('status', [AgendamentoMarinha::STATUS_PENDENTE, AgendamentoMarinha::STATUS_FALHOU])
+            ->whereIn(DB::raw('competencia::date'), VisibilidadeNaExtensao::competencias())
             ->orderBy('competencia')
             ->orderBy('ordem')
-            ->get();
+            ->get()
+            ->sortBy(fn(AgendamentoMarinha $a) => VisibilidadeNaExtensao::motivo($a->competencia) === VisibilidadeNaExtensao::PRINCIPAL ? 0 : 1)
+            ->values();
 
         return response()->json([
             'procurador' => [
@@ -56,18 +62,34 @@ class SisapAgendamentoController extends Controller
         ]);
 
         // Entrada crua (não a validada) para devolver intactas as chaves extras que a extensão mandar.
-        $horarios = $request->input('horarios');
+        // Só horários do mês do agendamento: antes da agenda do mês seguinte abrir, o SISAP mostra datas
+        // do mês corrente, e marcar nelas queimaria a vaga e as GRUs no mês errado.
+        $mes = $agendamento->competencia->format('Y-m');
+        $horarios = array_values(array_filter(
+            $request->input('horarios'),
+            fn($h) => is_array($h) && str_starts_with((string) ($h['data'] ?? ''), $mes),
+        ));
+
+        if ($horarios === []) {
+            $nomeMes = $agendamento->competencia->locale('pt_BR')->translatedFormat('F \d\e Y');
+
+            return response()->json([
+                'horario' => null,
+                'fora_do_mes' => true,
+                'mensagem' => "O SISAP ainda não mostra horários de {$nomeMes}, o mês deste agendamento.",
+                'preferencia' => $this->preferencia($agendamento),
+            ]);
+        }
+
         $referencia = $agendamento->referenciaDeHorario();
 
         // Sem referência, a data sempre é escolhida com espaço para um segundo agendamento no mesmo período.
         $plano = $referencia
             ? null
-            : EscolhaDeHorario::planejarPar($horarios, $agendamento->data_sugerida, $agendamento->periodo, $agendamento->segunda_data_sugerida);
+            : EscolhaDeHorario::planejarPar($horarios, $agendamento->data_sugerida, $agendamento->periodo);
 
         return response()->json([
-            'horario' => EscolhaDeHorario::escolher(
-                $horarios, $referencia, $agendamento->data_sugerida, $agendamento->periodo, $agendamento->segunda_data_sugerida,
-            ),
+            'horario' => EscolhaDeHorario::escolher($horarios, $referencia, $agendamento->data_sugerida, $agendamento->periodo),
             'referencia' => $referencia?->format('Y-m-d H:i'),
             'plano' => $plano,
             'preferencia' => $this->preferencia($agendamento),
@@ -192,7 +214,12 @@ class SisapAgendamentoController extends Controller
             'status' => $agendamento->status,
             'erro' => $agendamento->erro,
             'competencia' => $agendamento->competencia->format('Y-m'),
+            'mes' => ucfirst($agendamento->competencia->locale('pt_BR')->translatedFormat('F \d\e Y')),
+            // principal | primeira_semana | liberado: por que aparece na extensão.
+            'exibicao' => VisibilidadeNaExtensao::motivo($agendamento->competencia),
+            'abre_em' => VisibilidadeNaExtensao::abertura($agendamento->competencia)->toDateString(),
             'ordem' => $agendamento->ordem,
+            'cor' => AgendamentoMarinha::corDaOrdem($agendamento->ordem),
             'capitania' => [
                 'nome' => $agendamento->capitania->nome,
                 'sigla' => $agendamento->capitania->sigla,
@@ -219,7 +246,6 @@ class SisapAgendamentoController extends Controller
     {
         return [
             'data' => $agendamento->data_sugerida?->toDateString(),
-            'segunda_data' => $agendamento->segunda_data_sugerida?->toDateString(),
             'periodo' => $agendamento->periodo,
         ];
     }

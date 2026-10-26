@@ -42,6 +42,57 @@
         }
     </style>
 
+    {{--
+        CPF/CNPJ completo e válido → o cursor vai para a GRU da mesma linha. CNPJ completa já na hora;
+        CPF espera um instante, porque os 11 primeiros dígitos de um CNPJ podem formar um CPF válido.
+    --}}
+    <script>
+        window.proaPularParaGru ??= (() => {
+            let espera;
+            const digitos = (v) => (v || '').replace(/\D/g, '');
+
+            const cpfValido = (c) => {
+                if (c.length !== 11 || /^(\d)\1{10}$/.test(c)) return false;
+                for (let p = 9; p < 11; p++) {
+                    let soma = 0;
+                    for (let i = 0; i < p; i++) soma += Number(c[i]) * (p + 1 - i);
+                    if (Number(c[p]) !== ((10 * soma) % 11) % 10) return false;
+                }
+                return true;
+            };
+
+            const cnpjValido = (c) => {
+                if (c.length !== 14 || /^(\d)\1{13}$/.test(c)) return false;
+                const dv = (base) => {
+                    let soma = 0, peso = base.length - 7;
+                    for (const n of base) {
+                        soma += Number(n) * peso--;
+                        if (peso < 2) peso = 9;
+                    }
+                    const r = soma % 11;
+                    return r < 2 ? 0 : 11 - r;
+                };
+                return dv(c.slice(0, 12)) === Number(c[12]) && dv(c.slice(0, 13)) === Number(c[13]);
+            };
+
+            return (event) => {
+                const campo = event.target;
+                const pular = () => campo.closest('.fi-fo-repeater-item')?.querySelector('[data-campo="gru"]')?.focus();
+                const d = digitos(campo.value);
+
+                clearTimeout(espera);
+
+                if (cnpjValido(d)) {
+                    pular();
+                } else if (cpfValido(d)) {
+                    espera = setTimeout(() => {
+                        if (document.activeElement === campo && digitos(campo.value).length === 11) pular();
+                    }, 700);
+                }
+            };
+        })();
+    </script>
+
     <x-filament-panels::form wire:submit="salvar">
         {{ $this->form }}
 

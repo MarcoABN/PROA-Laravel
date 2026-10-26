@@ -5,23 +5,29 @@ namespace App\Filament\Resources\AgendamentoMarinhaResource\Pages;
 use App\Filament\Resources\AgendamentoMarinhaResource;
 use App\Models\AgendamentoMarinha;
 use App\Models\Capitania;
+use App\Models\MesAgendamento;
 use App\Services\Agendamento\CadastroDoMes;
+use App\Services\Agendamento\VisibilidadeNaExtensao;
 use App\Support\AcessoAgendamento;
 use App\Support\ExtensaoChrome;
 use Carbon\Carbon;
 use Filament\Actions;
+use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Um mês aberto, para consulta e operação: serviços agrupados por capitania · procurador.
- * Incluir ou alterar clientes é no cadastro de cada capitania ("Editar cadastro").
+ * Um mês aberto: no alto, um balão por capitania + procurador (clicar abre para preencher);
+ * abaixo, a lista de clientes do mês para consulta e operação.
  */
 class VerMesAgendamento extends ListRecords
 {
     protected static string $resource = AgendamentoMarinhaResource::class;
+
+    protected static string $view = 'filament.resources.agendamento-marinha.mes';
 
     /** Mês no formato Y-m, vindo da URL. */
     public string $competencia = '';
@@ -48,7 +54,7 @@ class VerMesAgendamento extends ListRecords
 
     public function getTitle(): string
     {
-        return 'Agendamentos de ' . $this->dataCompetencia()->format('m/Y');
+        return 'Agendamentos de ' . $this->dataCompetencia()->locale('pt_BR')->translatedFormat('F \d\e Y');
     }
 
     /** Mesmo aviso da tela de meses, para quem usa uma versão antiga da extensão com o próprio token. */
@@ -60,7 +66,7 @@ class VerMesAgendamento extends ListRecords
     public function getBreadcrumbs(): array
     {
         return [
-            AgendamentoMarinhaResource::getUrl() => 'Agendamentos Marinha',
+            AgendamentoMarinhaResource::getUrl() . '?ano=' . $this->dataCompetencia()->year => 'Agendamentos Marinha',
             $this->dataCompetencia()->format('m/Y'),
         ];
     }
@@ -116,41 +122,134 @@ class VerMesAgendamento extends ListRecords
             });
     }
 
+    /**
+     * Os balões do mês: capitania + procurador, com a situação de cada agendamento permitido pela capitania.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function getBaloesProperty(): Collection
+    {
+        return AgendamentoMarinha::query()
+            ->with(['capitania', 'prestador'])
+            ->withCount(['solicitacoes' => fn(Builder $q) => $q->whereNull('descartada_em')])
+            ->whereDate('competencia', $this->dataCompetencia()->toDateString())
+            ->where('status', '!=', AgendamentoMarinha::STATUS_CANCELADO)
+            ->orderBy('ordem')
+            ->get()
+            ->groupBy(fn(AgendamentoMarinha $a) => "{$a->capitania_id}-{$a->prestador_id}")
+            ->map(function (Collection $agendamentos) {
+                $primeiro = $agendamentos->first();
+                $capitania = $primeiro->capitania;
+                $vagas = $primeiro->vagasTotais();
+                $slots = [];
+
+                foreach (range(1, max((int) $capitania->sisap_agendamentos_por_mes, $agendamentos->count())) as $ordem) {
+                    $a = $agendamentos->get($ordem - 1);
+
+                    $slots[] = [
+                        'ordem' => $ordem,
+                        'status' => $a ? (AgendamentoMarinha::statuses()[$a->status] ?? $a->status) : 'Livre',
+                        'cor' => $a ? (AgendamentoMarinha::coresStatus()[$a->status] ?? 'gray') : 'gray',
+                        'clientes' => $a ? "{$a->solicitacoes_count}/{$vagas} cliente(s)" : "0/{$vagas} cliente(s)",
+                        'quando' => $a?->data_hora?->format('d/m H:i'),
+                    ];
+                }
+
+                return [
+                    'url' => AgendamentoMarinhaResource::urlCadastro($capitania->id, $this->dataCompetencia(), $primeiro->prestador_id),
+                    'procurador' => $primeiro->prestador?->nome ?? 'Procurador',
+                    'capitania' => $capitania->nome,
+                    'sigla' => $capitania->sigla,
+                    'preferencia' => $agendamentos->firstWhere('status', '!=', AgendamentoMarinha::STATUS_AGENDADO)?->rotuloPreferencia(),
+                    'slots' => $slots,
+                ];
+            })
+            ->sortBy(fn(array $balao) => "{$balao['sigla']} {$balao['procurador']}")
+            ->values();
+    }
+
+    /** Novos agendamentos só no mês atual e nos seguintes. */
+    public function podeCriar(): bool
+    {
+        return $this->dataCompetencia()->gte(now()->startOfMonth());
+    }
+
+    /** "Novo agendamento": escolhe capitania e procurador e abre o balão (o mesmo, se já existir). */
+    public function novoBalaoAction(): Actions\Action
+    {
+        return Actions\Action::make('novoBalao')
+            ->label('Novo agendamento')
+            ->icon('heroicon-o-plus')
+            ->visible(fn() => $this->podeCriar())
+            ->modalHeading('Novo agendamento de ' . $this->dataCompetencia()->format('m/Y'))
+            ->modalDescription('Escolha a capitania e o procurador. Na próxima tela você preenche os clientes.')
+            ->modalSubmitActionLabel('Continuar')
+            ->modalWidth('md')
+            ->form([
+                Forms\Components\Select::make('capitania_id')
+                    ->label('Capitania')
+                    ->options(AgendamentoMarinhaResource::opcoesCapitanias())
+                    ->default(Capitania::where('padrao', true)->value('id'))
+                    ->native(false)
+                    ->required(),
+                Forms\Components\Select::make('prestador_id')
+                    ->label('Procurador')
+                    ->options(AgendamentoMarinhaResource::opcoesProcuradores())
+                    ->searchable()
+                    ->required(),
+            ])
+            ->action(fn(array $data) => $this->redirect(AgendamentoMarinhaResource::urlCadastro(
+                (int) $data['capitania_id'], $this->dataCompetencia(), (int) $data['prestador_id'],
+            )));
+    }
+
+    /** Situação do mês na extensão, para a faixa acima dos balões (null em mês que já passou). */
+    public function textoExtensao(): ?string
+    {
+        if (!$this->podeCriar()) {
+            return null;
+        }
+
+        return VisibilidadeNaExtensao::rotulo(VisibilidadeNaExtensao::motivo($this->dataCompetencia()))
+            ?? 'Não aparece na extensão. Use "Exibir na extensão" quando quiser agendar este mês.';
+    }
+
+    /** Liga/desliga "Exibir na extensão" do mês. O mês principal aparece sempre e não tem o botão. */
+    public function exibirNaExtensaoAction(): Actions\Action
+    {
+        $ligado = fn() => MesAgendamento::exibirNaExtensao($this->dataCompetencia());
+
+        return Actions\Action::make('exibirNaExtensao')
+            ->label(fn() => $ligado() ? 'Ocultar da extensão' : 'Exibir na extensão')
+            ->icon(fn() => $ligado() ? 'heroicon-o-eye-slash' : 'heroicon-o-eye')
+            ->color('gray')
+            ->visible(fn() => $this->podeCriar()
+                && VisibilidadeNaExtensao::motivo($this->dataCompetencia()) !== VisibilidadeNaExtensao::PRINCIPAL)
+            ->action(function () use ($ligado) {
+                $exibir = !$ligado();
+                MesAgendamento::definirExibirNaExtensao($this->dataCompetencia(), $exibir);
+
+                Notification::make()
+                    ->title($exibir
+                        ? 'Os agendamentos deste mês agora aparecem na extensão.'
+                        : 'Os agendamentos deste mês não aparecem mais na extensão.')
+                    ->success()
+                    ->send();
+            });
+    }
+
     protected function getHeaderActions(): array
     {
-        $capitaniasDoMes = Capitania::query()
-            ->whereIn('id', AgendamentoMarinha::query()
-                ->whereDate('competencia', $this->dataCompetencia()->toDateString())
-                ->where('status', '!=', AgendamentoMarinha::STATUS_CANCELADO)
-                ->select('capitania_id'))
-            ->orderBy('sigla')
-            ->get();
-
         return [
             Actions\Action::make('voltar')
-                ->label('Meses')
+                ->label('Calendário')
                 ->icon('heroicon-o-arrow-left')
                 ->color('gray')
-                ->url(AgendamentoMarinhaResource::getUrl()),
+                ->url(AgendamentoMarinhaResource::getUrl() . '?ano=' . $this->dataCompetencia()->year),
 
-            Actions\ActionGroup::make($capitaniasDoMes
-                ->map(fn(Capitania $capitania) => Actions\Action::make("editarCadastro{$capitania->id}")
-                    ->label("Editar cadastro {$capitania->sigla}")
-                    ->icon('heroicon-o-pencil-square')
-                    ->url(AgendamentoMarinhaResource::urlCadastro($capitania->id, $this->dataCompetencia())))
-                ->all())
-                ->label('Editar cadastro')
-                ->icon('heroicon-o-pencil-square')
-                ->button()
-                ->color('gray')
-                ->visible($capitaniasDoMes->isNotEmpty()),
+            $this->exibirNaExtensaoAction(),
 
-            // Só há novo cadastro no mês enquanto sobrar capitania sem cadastro (a chave capitania + mês não repete).
-            Actions\Action::make('novoCadastro')
-                ->label('Novo cadastro')
-                ->icon('heroicon-o-plus')
-                ->url(AgendamentoMarinhaResource::urlNovoCadastro($this->competencia))
-                ->visible(Capitania::whereNotIn('id', $capitaniasDoMes->pluck('id'))->exists()),
+            $this->novoBalaoAction(),
         ];
     }
 }

@@ -3,7 +3,8 @@
  *
  * Regras:
  * - Só clica e digita na tela do SISAP; nunca chama os endpoints dele por conta própria.
- * - Qualquer passo que não der para automatizar vira uma pausa: o usuário faz à mão e clica em Continuar.
+ * - As etapas avançam sozinhas. Qualquer passo que não der para automatizar vira uma pausa, avisada no
+ *   alto da tela: o usuário faz à mão e clica em Continuar, e a automação segue do passo seguinte.
  * - O CAPTCHA e o clique em FINALIZAR são sempre do usuário. A extensão só mostra a imagem sem o
  *   ruído para facilitar a leitura; nunca lê nem preenche o código.
  *
@@ -92,9 +93,11 @@
   let job = null;         // { id, horarios, slot, resultado }
   let executando = false;
   let parar = false;
-  let passoAPasso = true;
   let repetirSemHorario = true;
   let continuar = null;   // resolve da pausa atual
+  let alerta = null;      // { mensagem, tipo: 'pausa' | 'erro', contexto } — faixa no alto da tela
+  let atual = null;       // agendamento em andamento ("Agendando agora")
+  let verOutros = false;  // durante o agendamento, os demais ficam recolhidos
   let minimizado = false;
   let desdeAgenda = 0;
   let captchaLimpo = null; // data URL do CAPTCHA sem o ruído, mostrado no painel
@@ -251,7 +254,7 @@
   }
 
   /** Abre um q-select, opcionalmente filtra, e escolhe a opção com o texto exato (normalizado). */
-  async function escolherNoSelect(select, texto, { filtrar = false, descricao } = {}) {
+  async function escolherNoSelect(select, texto, { filtrar = false, descricao, timeout = 15000 } = {}) {
     const alvo = L.normalizar(texto);
 
     if (L.normalizar(select.innerText).includes(alvo)) {
@@ -284,13 +287,36 @@
       }
     }
 
-    const opcao = await esperar(
-      () => todos(SEL_OPCOES).find((item) => L.normalizar(item.innerText) === alvo),
-      { descricao: descricao || `a opção "${texto}"` },
-    );
+    let opcao;
+    try {
+      opcao = await esperar(
+        () => todos(SEL_OPCOES).find((item) => L.normalizar(item.innerText) === alvo),
+        { timeout, descricao: descricao || `a opção "${texto}"` },
+      );
+    } catch (erro) {
+      // Fecha a lista aberta, para o usuário poder escolher à mão.
+      document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', keyCode: 27, bubbles: true }));
+      document.body.click();
+      throw erro;
+    }
 
     clicar(opcao);
     await esperar(() => L.normalizar(select.innerText).includes(alvo), { timeout: 5000, descricao: `"${texto}" selecionado` });
+  }
+
+  /**
+   * Da etapa 4, volta para a 3 e avança de novo: o SISAP busca a agenda outra vez (agendadespachante).
+   * O seletor do botão Voltar é presumido (o mesmo stepper do Próximo), não inspecionado no SISAP.
+   */
+  async function recarregarAgenda() {
+    const voltar = await esperar(
+      () => todos('.stepper-button.previous, .stepper-button.prev, .stepper-button.back').find((b) => !desabilitado(b)) || botao('VOLTAR'),
+      { timeout: 5000, descricao: 'o botão Voltar' },
+    );
+    clicar(voltar);
+    await esperarEtapa(3);
+    desdeAgenda = Date.now();
+    await avancar(4);
   }
 
   async function avancar(proximaEtapa) {
@@ -358,22 +384,42 @@
   // Fluxo
   // ------------------------------------------------------------------
 
-  /** Pausa até o usuário clicar em Continuar. Por padrão avisa (notificação), porque precisa de alguém. */
-  function pausar(mensagem, avisarUsuario = true) {
+  /**
+   * Pausa até o usuário clicar em Continuar: aviso no alto da tela e notificação, porque precisa de alguém.
+   * Ao continuar, o fluxo segue do passo seguinte (o usuário já fez este à mão).
+   */
+  function pausar(mensagem) {
     registrar(mensagem, 'pausa');
-    if (avisarUsuario) {
-      avisar('A extensão precisa de você', mensagem);
-    }
+    avisar('A extensão precisa de você', `${contextoAtual()}: ${mensagem}`);
+    alerta = { mensagem, tipo: 'pausa', contexto: contextoAtual() };
     return new Promise((resolve) => {
-      continuar = resolve;
+      continuar = () => {
+        alerta = null;
+        resolve();
+      };
       render();
     });
   }
 
-  async function passo(nome, fn) {
-    if (passoAPasso) {
-      await pausar(`Próximo: ${nome}. Clique em Continuar.`, false);
+  /**
+   * Um passo de um cliente (tipo do documento, serviço da GRU...). Se falhar, pede para o usuário
+   * fazer à mão e continuar; o fluxo segue com o próximo item em vez de pular o resto da etapa.
+   */
+  async function corrigirSeFalhar(instrucao, fn) {
+    try {
+      await fn();
+    } catch (erro) {
+      if (erro instanceof Parado || erro instanceof ErroSisap) {
+        throw erro;
+      }
+      await pausar(`${instrucao} (${erro.message})`);
+      if (parar) {
+        throw new Parado();
+      }
     }
+  }
+
+  async function passo(nome, fn) {
     if (parar) {
       throw new Parado();
     }
@@ -399,6 +445,9 @@
 
     executando = true;
     parar = false;
+    alerta = null;
+    atual = agendamento;
+    verOutros = false;
     logs.length = 0;
     pararCaptcha();
     job = { id: agendamento.id, horarios: [], slot: null, resultado: null };
@@ -421,6 +470,7 @@
         registrar('Automação parada.', 'info');
       } else {
         registrar(erro.message, 'erro');
+        alerta = { mensagem: `O agendamento parou: ${erro.message}`, tipo: 'erro', contexto: contextoAtual() };
         if (erro instanceof ErroSisap) {
           await proa('falha', { id: agendamento.id, corpo: { mensagem: erro.message } }).catch(() => {});
         }
@@ -691,8 +741,10 @@
       }
       const doc = `${tipo} ${L.formatarDocumento(numero)}`;
 
-      const tipoDoc = await tipoDocLivre();
-      await escolherNoSelect(tipoDoc, tipo, { descricao: `a opção ${tipo} em "Tipo doc"` });
+      await corrigirSeFalhar(`Não consegui escolher ${tipo} em "Tipo doc" para ${doc}. Escolha no SISAP e clique em Continuar`, async () => {
+        const tipoDoc = await tipoDocLivre();
+        await escolherNoSelect(tipoDoc, tipo, { descricao: `a opção ${tipo} em "Tipo doc"`, timeout: 5000 });
+      });
 
       const campoDoc = await esperar(() => inputsPorRotulo(`DO ${tipo}`).find((input) => !input.value && !input.disabled), {
         descricao: `o campo "Nº do ${tipo}"`,
@@ -735,7 +787,12 @@
           continue;
         }
 
-        await escolherServico(campoGru, servico.descricao_sisap);
+        // Serviço não encontrado na lista: o usuário escolhe à mão e o fluxo segue com a próxima GRU.
+        await corrigirSeFalhar(
+          `Não achei o serviço "${servico.sigla || servico.descricao_sisap}" para a GRU ${servico.gru} (${doc}). `
+            + 'Escolha o serviço na lista do SISAP, ao lado da GRU, e clique em Continuar',
+          () => escolherServico(campoGru, servico.descricao_sisap),
+        );
         aceitos++;
       }
 
@@ -775,36 +832,59 @@
 
     await escolherNoSelect(lista, descricao, {
       descricao: `o serviço "${descricao}" na lista (confira o texto em Serviços do SISAP no PROA)`,
+      timeout: 5000,
     });
   }
 
   async function etapa4(agendamento) {
     await esperarEtapa(4);
 
-    const captura = await esperarResposta('agendadespachante', desdeAgenda);
-    if (captura.status !== 200) {
-      fecharAvisoDeErro();
-      throw new Error(`o Cloudflare bloqueou a agenda (erro ${captura.status}); clique em Voltar e Próximo no SISAP para recarregar os horários`);
-    }
+    // O PROA só aceita horário do mês do agendamento. Antes da agenda do mês abrir (último dia útil do mês
+    // anterior), o SISAP mostra só datas do mês corrente: com "Repetir sozinho", a extensão volta à
+    // etapa 3 e avança de novo até aparecerem datas do mês certo, sem refazer os clientes.
+    const inicio = Date.now();
+    let escolha;
 
-    const agenda = L.extrairHorarios(captura.json);
-    if (!agenda.ok) {
-      throw new ErroSisap(agenda.mensagem);
-    }
-    if (agenda.horarios.length === 0) {
-      throw new ErroSisap('O SISAP não mostrou nenhum horário livre.');
-    }
+    for (let tentativa = 1; ; tentativa++) {
+      const captura = await esperarResposta('agendadespachante', desdeAgenda);
+      if (captura.status !== 200) {
+        fecharAvisoDeErro();
+        throw new Error(`o Cloudflare bloqueou a agenda (erro ${captura.status}); clique em Voltar e Próximo no SISAP para recarregar os horários`);
+      }
 
-    job.horarios = agenda.horarios;
-    await salvarJob();
+      const agenda = L.extrairHorarios(captura.json);
+      if (!agenda.ok) {
+        throw new ErroSisap(agenda.mensagem);
+      }
 
-    const escolha = await proa('horario', {
-      id: agendamento.id,
-      corpo: { horarios: agenda.horarios.map(({ data, hora, turno }) => ({ data, hora, turno })) },
-    });
+      let semHorario = `O SISAP não mostrou nenhum horário livre para ${agendamento.mes || agendamento.competencia}.`;
 
-    if (!escolha || !escolha.horario) {
-      throw new Error('o PROA não escolheu um horário');
+      if (agenda.horarios.length) {
+        job.horarios = agenda.horarios;
+        await salvarJob();
+
+        escolha = await proa('horario', {
+          id: agendamento.id,
+          corpo: { horarios: agenda.horarios.map(({ data, hora, turno }) => ({ data, hora, turno })) },
+        });
+
+        if (escolha && escolha.horario) {
+          break;
+        }
+        if (!escolha || !escolha.fora_do_mes) {
+          throw new Error('o PROA não escolheu um horário');
+        }
+        semHorario = escolha.mensagem;
+      }
+
+      if (!repetirSemHorario) {
+        throw new Error(`${semHorario} Marque "Repetir sozinho" no painel para a extensão continuar tentando até a agenda abrir.`);
+      }
+
+      const espera = INTERVALO_SEM_HORARIO[0] + Math.random() * (INTERVALO_SEM_HORARIO[1] - INTERVALO_SEM_HORARIO[0]);
+      await contagemRegressiva(espera, (segundos) => `${semHorario} Tentativa ${tentativa}, tentando há ${tempoDesde(inicio)}. `
+        + `Nova tentativa em ${segundos}s. Deixe esta aba visível (sem minimizar).`);
+      await recarregarAgenda();
     }
 
     job.slot = { data: escolha.horario.data, hora: escolha.horario.hora };
@@ -1131,8 +1211,48 @@
     return partes.length ? `Preferência: ${partes.join(' · ')}` : '';
   }
 
-  function htmlAgendamento(ag) {
-    const [ano, mes] = ag.competencia.split('-');
+  /** Mesmas cores de AgendamentoMarinha::coresDaOrdem() no PROA, para versões do PROA que não mandam "cor". */
+  const CORES_DA_ORDEM = ['#2563eb', '#ea580c', '#7c3aed', '#0d9488'];
+  const corDaOrdem = (ordem) => CORES_DA_ORDEM[(Math.max(1, Number(ordem) || 1) - 1) % CORES_DA_ORDEM.length];
+
+  const MESES_CURTOS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+
+  /** "DEZ/26": o mês do agendamento escrito, para não depender da cor (que é do 1º/2º). */
+  function mesCurto(competencia) {
+    const [ano, mes] = String(competencia || '').split('-');
+    return `${MESES_CURTOS[Number(mes) - 1] || mes}/${String(ano).slice(-2)}`;
+  }
+
+  /** "Dezembro de 2026 · CFGO · 1º agendamento": de qual agendamento se trata, nos avisos. */
+  function contextoAtual() {
+    return atual ? `${atual.mes || mesCurto(atual.competencia)} · ${atual.capitania.sigla} · ${atual.ordem}º agendamento` : '';
+  }
+
+  const hojeLocal = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  /** Por que o agendamento está na extensão; o do mês seguinte é o principal, com o dia em que a agenda abre. */
+  function htmlExibicao(ag) {
+    if (ag.exibicao === 'principal') {
+      const abre = ag.abre_em;
+      const hoje = hojeLocal();
+      const quando = !abre ? '' : abre === hoje
+        ? ' · <strong>a agenda abre HOJE</strong>'
+        : abre > hoje ? ` · a agenda abre em ${esc(L.formatarData(abre))} (último dia útil)` : ` · agenda aberta desde ${esc(L.formatarData(abre))}`;
+      return `<div class="exibicao exibicao-principal${abre === hoje ? ' exibicao-hoje' : ''}">★ Principal${quando}</div>`;
+    }
+    if (ag.exibicao === 'primeira_semana') {
+      return '<div class="exibicao">Mês corrente · aparece até o dia 7</div>';
+    }
+    if (ag.exibicao === 'liberado') {
+      return '<div class="exibicao">Mês liberado no PROA</div>';
+    }
+    return '';
+  }
+
+  function htmlAgendamento(ag, emAndamento = false) {
     const servicos = ag.interessados.reduce((t, p) => t + p.servicos.length, 0);
 
     const linhas = ag.interessados.map((p) => p.servicos.map((s, i) => `
@@ -1147,12 +1267,17 @@
       .map((d) => `${esc(d.nome || L.formatarDocumento(d.documento))} · GRU ${esc(d.gru)}${d.motivo ? ` — ${esc(d.motivo)}` : ''}`)
       .join('<br>');
 
+    // Cada agendamento (1º, 2º...) tem a sua cor, a mesma do cadastro no PROA.
+    const cor = /^#[0-9a-f]{6}$/i.test(ag.cor || '') ? ag.cor : corDaOrdem(ag.ordem);
+
     return `
-      <div class="ag">
+      <div class="ag ${emAndamento ? 'ag-agora' : ''}" style="border-left-color: ${cor}">
+        ${emAndamento ? '<div class="agora">Agendando agora</div>' : ''}
         <div class="ag-topo">
-          <strong>Nº ${ag.ordem} · ${esc(ag.capitania.sigla)} · ${mes}/${ano}</strong>
+          <strong><span class="ordem" style="background: ${cor}">${ag.ordem}º</span> <span class="mes">${esc(mesCurto(ag.competencia))}</span> ${esc(ag.capitania.sigla)}</strong>
           <span class="selo ${ag.status === 'falhou' ? 'selo-erro' : ''}">${ag.status === 'falhou' ? 'Falhou' : 'Aguardando'}</span>
         </div>
+        ${htmlExibicao(ag)}
         <div class="sub">${esc(ag.capitania.nome)} · ${servicos} serviço(s)${ag.referencia_horario ? ` · tentar perto de ${esc(ag.referencia_horario)}` : ''}</div>
         ${textoPreferencia(ag.preferencia) ? `<div class="sub">${esc(textoPreferencia(ag.preferencia))}</div>` : ''}
         ${ag.status === 'falhou' && ag.erro ? `<div class="sub erro">${esc(ag.erro)}</div>` : ''}
@@ -1180,14 +1305,29 @@
     } else if (!dadosProa) {
       corpo = `${linhaLogin}<p class="sub">Carregando do PROA…</p>`;
     } else {
-      const lista = dadosProa.agendamentos.length
-        ? dadosProa.agendamentos.map(htmlAgendamento).join('')
-        : '<p class="sub">Nenhum agendamento pendente para este procurador.</p>';
+      // Durante o agendamento (e enquanto o CAPTCHA espera), só ele fica aberto; os outros, recolhidos.
+      const focado = atual && (executando || captchaLimpo)
+        ? dadosProa.agendamentos.find((a) => a.id === atual.id) || atual
+        : null;
+      const outros = focado ? dadosProa.agendamentos.filter((a) => a.id !== focado.id) : dadosProa.agendamentos;
+
+      let lista;
+      if (focado) {
+        lista = htmlAgendamento(focado, true)
+          + (outros.length
+            ? `<button class="ver-outros" data-acao="verOutros">${verOutros ? 'Esconder' : 'Ver'} outros agendamentos (${outros.length})</button>`
+              + (verOutros ? outros.map((a) => htmlAgendamento(a)).join('') : '')
+            : '');
+      } else {
+        lista = dadosProa.agendamentos.length
+          ? dadosProa.agendamentos.map((a) => htmlAgendamento(a)).join('')
+          : '<p class="sub">Nenhum agendamento para agendar agora. O do mês seguinte aparece sempre; '
+            + 'os de outros meses aparecem quando liberados no PROA ("Exibir na extensão").</p>';
+      }
 
       corpo = `
         ${linhaLogin}
         <p class="sub">Procurador no PROA: <strong>${esc(dadosProa.procurador.nome)}</strong></p>
-        <label class="opcao"><input type="checkbox" data-acao="passo" ${passoAPasso ? 'checked' : ''}> Pausar antes de cada etapa</label>
         <label class="opcao"><input type="checkbox" data-acao="repetir" ${repetirSemHorario ? 'checked' : ''}> Repetir sozinho quando a OM estiver sem horários</label>
         ${lista}`;
     }
@@ -1200,8 +1340,23 @@
         + 'Baixe a nova no PROA (Agendamentos Marinha → Baixar extensão), extraia por cima da mesma pasta e clique em Recarregar em chrome://extensions.</div>'
       : '';
 
+    // Faixa no alto da tela, visível mesmo com o painel minimizado: o que deu errado e o que fazer.
+    const faixaAlerta = alerta
+      ? `<div class="alerta alerta-${alerta.tipo}" role="alert">
+          <div class="alerta-texto">
+            <strong>${alerta.tipo === 'pausa' ? 'Precisa de você' : 'Erro'}${alerta.contexto ? ` — ${esc(alerta.contexto)}` : ''}</strong>
+            ${esc(alerta.mensagem)}
+          </div>
+          <div class="alerta-acoes">
+            ${continuar ? '<button class="principal" data-acao="continuar">Continuar</button>' : ''}
+            ${executando ? '<button data-acao="parar">Parar</button>' : '<button data-acao="fecharAlerta">Fechar</button>'}
+          </div>
+        </div>`
+      : '';
+
     raiz.innerHTML = `
       <style>${CSS}</style>
+      ${faixaAlerta}
       <div class="painel ${minimizado ? 'min' : ''}">
         <header>
           <span>PROA · Agendamento <small class="versao">v${esc(chrome.runtime.getManifest().version)}</small></span>
@@ -1244,18 +1399,23 @@
     } else if (acao === 'continuar' && continuar) {
       const resolver = continuar;
       continuar = null;
-      render();
       resolver();
+      render();
     } else if (acao === 'parar') {
       parar = true;
+      alerta = null;
       if (continuar) {
         const resolver = continuar;
         continuar = null;
         resolver();
       }
-    } else if (acao === 'passo') {
-      passoAPasso = alvo.checked;
-      chrome.storage.local.set({ proaPassoAPasso: passoAPasso });
+      render();
+    } else if (acao === 'verOutros') {
+      verOutros = !verOutros;
+      render();
+    } else if (acao === 'fecharAlerta') {
+      alerta = null;
+      render();
     } else if (acao === 'repetir') {
       repetirSemHorario = alvo.checked;
       chrome.storage.local.set({ proaRepetir: repetirSemHorario });
@@ -1282,7 +1442,26 @@
     .sub { color: #4b5563; margin: 2px 0; }
     .erro { color: #b91c1c; }
     .opcao { display: flex; gap: 6px; align-items: center; margin: 6px 0 8px; color: #374151; }
-    .ag { border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+    .ag { border: 1px solid #e5e7eb; border-left: 5px solid #2563eb; border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+    .ag-agora { border-color: #1d4ed8; box-shadow: 0 0 0 2px #bfdbfe; }
+    .agora { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1d4ed8; margin-bottom: 4px; }
+    .mes { display: inline-block; border: 1px solid #9ca3af; color: #111827; border-radius: 4px; padding: 0 5px; margin-right: 2px; font-size: 12px; }
+    .exibicao { font-size: 12px; color: #4b5563; margin: 3px 0; }
+    .exibicao-principal { color: #92400e; font-weight: 600; }
+    .exibicao-hoje { background: #fef3c7; border-radius: 4px; padding: 2px 6px; }
+    .ver-outros { width: 100%; margin-bottom: 8px; }
+    .ordem { display: inline-block; color: #fff; border-radius: 999px; padding: 0 8px; margin-right: 4px; font-size: 12px; }
+    .alerta { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 2147483647;
+      width: min(720px, calc(100vw - 32px)); display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.25); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif;
+      animation: proa-entrar .15s ease-out; }
+    .alerta-pausa { background: #fffbeb; color: #78350f; border: 2px solid #f59e0b; }
+    .alerta-erro { background: #fef2f2; color: #7f1d1d; border: 2px solid #ef4444; }
+    .alerta-texto { flex: 1; }
+    .alerta-texto strong { display: block; font-size: 15px; }
+    .alerta-acoes { display: flex; gap: 6px; flex-shrink: 0; }
+    .alerta-acoes button.principal { width: auto; padding: 8px 18px; font-weight: 600; }
+    @keyframes proa-entrar { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
     .ag-topo { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
     .selo { background: #dbeafe; color: #1e40af; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
     .selo-erro { background: #fee2e2; color: #991b1b; }
@@ -1316,9 +1495,11 @@
     raiz.addEventListener('click', aoClicar);
     raiz.addEventListener('change', aoClicar);
 
-    chrome.storage.local.get(['proaJob', 'proaPassoAPasso', 'proaRepetir']).then((salvo) => {
+    // A antiga opção "Pausar antes de cada etapa" saiu: as etapas sempre avançam sozinhas.
+    chrome.storage.local.remove('proaPassoAPasso');
+
+    chrome.storage.local.get(['proaJob', 'proaRepetir']).then((salvo) => {
       job = salvo.proaJob || null;
-      passoAPasso = salvo.proaPassoAPasso !== false;
       repetirSemHorario = salvo.proaRepetir !== false;
       render();
     });

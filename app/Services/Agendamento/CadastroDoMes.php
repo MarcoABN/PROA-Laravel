@@ -14,17 +14,15 @@ use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
- * Cadastro de agendamentos de uma Capitania + Mês — a chave do cadastro, única e imutável.
+ * Cadastro de agendamentos de uma Capitania + Mês.
  *
- * Dentro dele: procuradores (cada um com data sugerida e período) → 1º e 2º agendamento → clientes.
- * O formulário envia o estado completo e aqui ele é sincronizado com agendamentos_marinha e
- * agendamento_solicitacoes. Agendamentos já marcados no SISAP (status agendado) nunca são alterados.
+ * Dentro dele: procuradores (cada um com data sugerida e período) → 1º, 2º... agendamento (quantos a
+ * capitania permite) → clientes. A tela edita um procurador por vez (salvarProcurador); aqui o estado
+ * é sincronizado com agendamentos_marinha e agendamento_solicitacoes. Agendamentos já marcados no
+ * SISAP (status agendado) nunca são alterados.
  */
 class CadastroDoMes
 {
-    /** O cadastro mostra o 1º e o 2º agendamento de cada procurador. */
-    public const AGENDAMENTOS_POR_PROCURADOR = 2;
-
     public static function competencia(mixed $valor): string
     {
         return Carbon::parse($valor)->startOfMonth()->toDateString();
@@ -36,34 +34,19 @@ class CadastroDoMes
     }
 
     /**
-     * Capitanias que já têm cadastro no mês — não podem ser escolhidas num novo cadastro.
-     *
-     * @return array<int, int>
-     */
-    public static function capitaniasComCadastro(mixed $competencia): array
-    {
-        return AgendamentoMarinha::query()
-            ->whereDate('competencia', static::competencia($competencia))
-            ->where('status', '!=', AgendamentoMarinha::STATUS_CANCELADO)
-            ->distinct()
-            ->pluck('capitania_id')
-            ->map(fn($id) => (int) $id)
-            ->all();
-    }
-
-    /**
-     * Estado do formulário para editar o cadastro.
+     * Estado do cadastro inteiro da capitania/mês: um bloco por procurador.
      */
     public static function carregar(int $capitaniaId, mixed $competencia): array
     {
         $competencia = static::competencia($competencia);
+        $limite = (int) Capitania::whereKey($capitaniaId)->value('sisap_agendamentos_por_mes');
 
         $procuradores = static::consultaAtivos($capitaniaId, $competencia)
             ->with(['prestador', 'solicitacoes' => fn($q) => $q->orderBy('id')])
             ->orderBy('ordem')
             ->get()
             ->groupBy('prestador_id')
-            ->map(function (Collection $agendamentos, $prestadorId) {
+            ->map(function (Collection $agendamentos, $prestadorId) use ($limite) {
                 $agendamentos = $agendamentos->values();
                 // A preferência só é regravada nos não marcados: é deles que ela vem, quando houver.
                 $primeiro = $agendamentos->firstWhere('status', '!=', AgendamentoMarinha::STATUS_AGENDADO) ?? $agendamentos->first();
@@ -71,11 +54,11 @@ class CadastroDoMes
                 $bloco = [
                     'prestador_id' => (int) $prestadorId,
                     'data_sugerida' => $primeiro->data_sugerida?->toDateString(),
-                    'segunda_data_sugerida' => $primeiro->segunda_data_sugerida?->toDateString(),
                     'periodo' => $primeiro->periodo,
                 ];
 
-                for ($ordem = 1; $ordem <= self::AGENDAMENTOS_POR_PROCURADOR; $ordem++) {
+                // Quantos a capitania permite; mais, se o limite baixou depois de cadastrados.
+                for ($ordem = 1; $ordem <= max($limite, $agendamentos->count()); $ordem++) {
                     $agendamento = $agendamentos->get($ordem - 1);
 
                     $bloco["agendamento_{$ordem}"] = [
@@ -107,8 +90,48 @@ class CadastroDoMes
     }
 
     /**
-     * @param  array  $procuradores  blocos do formulário: prestador_id, data_sugerida, segunda_data_sugerida, periodo,
-     *                               agendamento_1/agendamento_2 => [id, clientes => [id, cliente_documento, cliente_nome, gru, sisap_servico_id]]
+     * O bloco de um procurador (o "balão" capitania + procurador). Sem cadastro, vem vazio, com os
+     * agendamentos que a capitania permite.
+     */
+    public static function carregarProcurador(int $capitaniaId, mixed $competencia, int $prestadorId): array
+    {
+        $bloco = collect(static::carregar($capitaniaId, $competencia)['procuradores'])->firstWhere('prestador_id', $prestadorId);
+
+        if ($bloco) {
+            return $bloco;
+        }
+
+        $bloco = ['prestador_id' => $prestadorId, 'data_sugerida' => null, 'periodo' => null];
+        $limite = (int) Capitania::whereKey($capitaniaId)->value('sisap_agendamentos_por_mes');
+
+        for ($ordem = 1; $ordem <= $limite; $ordem++) {
+            $bloco["agendamento_{$ordem}"] = ['id' => null, 'clientes' => []];
+        }
+
+        return $bloco;
+    }
+
+    /**
+     * Grava só o bloco de um procurador; os outros procuradores da capitania/mês ficam como estão no banco.
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function salvarProcurador(int $capitaniaId, mixed $competencia, array $bloco): void
+    {
+        $prestadorId = (int) ($bloco['prestador_id'] ?? 0);
+
+        $procuradores = collect(static::carregar($capitaniaId, $competencia)['procuradores'])
+            ->reject(fn(array $outro) => $outro['prestador_id'] === $prestadorId)
+            ->push($bloco)
+            ->values()
+            ->all();
+
+        static::salvar($capitaniaId, $competencia, $procuradores, novo: !static::existe($capitaniaId, $competencia));
+    }
+
+    /**
+     * @param  array  $procuradores  blocos: prestador_id, data_sugerida, periodo,
+     *                               agendamento_1, agendamento_2... => [id, clientes => [id, cliente_documento, cliente_nome, gru, sisap_servico_id]]
      * @param  bool  $novo  criando o cadastro (a chave não pode existir) ou editando
      *
      * @throws InvalidArgumentException
@@ -132,7 +155,7 @@ class CadastroDoMes
 
     /**
      * Exclui um agendamento e os clientes dele (as GRUs ficam livres) e renumera os demais agendamentos
-     * do procurador na capitania/mês, para continuarem sendo 1º e 2º.
+     * do procurador na capitania/mês, para continuarem sendo 1º, 2º...
      *
      * @return int quantos clientes foram excluídos
      */
@@ -196,19 +219,29 @@ class CadastroDoMes
         });
     }
 
+    /** Os agendamentos do bloco (agendamento_1, agendamento_2...), na ordem. */
+    private static function slots(array $bloco): array
+    {
+        return collect($bloco)
+            ->filter(fn($valor, $chave) => preg_match('/^agendamento_\d+$/', (string) $chave))
+            ->sortKeysUsing(fn($a, $b) => (int) substr($a, 12) <=> (int) substr($b, 12))
+            ->values()
+            ->all();
+    }
+
     private static function gravar(Capitania $capitania, string $competencia, array $procuradores, bool $novo, string $rotulo): void
     {
         DB::transaction(function () use ($capitania, $competencia, $procuradores, $novo, $rotulo) {
-            // Trava a capitania: dois "Novo cadastro" simultâneos da mesma chave não passam juntos.
+            // Trava a capitania: dois cadastros simultâneos da mesma chave não passam juntos.
             Capitania::whereKey($capitania->id)->lockForUpdate()->first();
 
             if ($novo && static::existe($capitania->id, $competencia)) {
-                throw new InvalidArgumentException("Já existe cadastro para {$rotulo}. Abra-o em \"Editar cadastro\".");
+                throw new InvalidArgumentException("Outra pessoa acabou de cadastrar {$rotulo}. Abra o mês de novo e confira.");
             }
 
             // Editar não recria a chave: se o cadastro deixou de existir, não há o que editar.
             if (!$novo && !static::existe($capitania->id, $competencia)) {
-                throw new InvalidArgumentException("O cadastro de {$rotulo} não existe mais. Crie-o em \"Novo cadastro\".");
+                throw new InvalidArgumentException("O cadastro de {$rotulo} não existe mais. Abra o mês de novo e confira.");
             }
 
             $existentes = static::consultaAtivos($capitania->id, $competencia)->with('prestador')->lockForUpdate()->get();
@@ -227,8 +260,7 @@ class CadastroDoMes
             // 2) Clientes que saíram (dos agendamentos ainda não marcados). Remover antes de gravar
             //    evita conflito de GRU quando um cliente muda de agendamento.
             $clientesNoFormulario = collect($procuradores)
-                ->flatMap(fn(array $bloco) => collect(range(1, self::AGENDAMENTOS_POR_PROCURADOR))
-                    ->flatMap(fn(int $ordem) => $bloco["agendamento_{$ordem}"]['clientes']))
+                ->flatMap(fn(array $bloco) => collect(static::slots($bloco))->flatMap(fn(array $slot) => $slot['clientes']))
                 ->pluck('id')
                 ->filter()
                 ->all();
@@ -238,12 +270,11 @@ class CadastroDoMes
                 ->whereNotIn('id', $clientesNoFormulario)
                 ->delete();
 
-            // 3) Cada procurador: 1º e 2º agendamento com os clientes do formulário.
+            // 3) Cada procurador: os agendamentos com os clientes do formulário.
             foreach ($procuradores as $bloco) {
                 $doProcurador = $existentes->where('prestador_id', $bloco['prestador_id'])->keyBy('id');
 
-                for ($ordem = 1; $ordem <= self::AGENDAMENTOS_POR_PROCURADOR; $ordem++) {
-                    $slot = $bloco["agendamento_{$ordem}"];
+                foreach (static::slots($bloco) as $slot) {
                     $agendamento = $slot['id'] ? $doProcurador->get($slot['id']) : null;
 
                     // Marcado no SISAP: número, chave, data e clientes ficam como estão.
@@ -265,7 +296,6 @@ class CadastroDoMes
 
                     $agendamento->update([
                         'data_sugerida' => $bloco['data_sugerida'],
-                        'segunda_data_sugerida' => $bloco['segunda_data_sugerida'],
                         'periodo' => $bloco['periodo'],
                     ]);
 
@@ -300,6 +330,7 @@ class CadastroDoMes
 
     /**
      * Normaliza o estado do formulário (repeaters vêm com chaves aleatórias e campos opcionais ausentes).
+     * A tela já abre com todas as linhas de cliente: linha deixada em branco não é cliente.
      */
     private static function normalizar(array $procuradores): array
     {
@@ -308,22 +339,26 @@ class CadastroDoMes
             $normalizado = [
                 'prestador_id' => (int) ($bloco['prestador_id'] ?? 0),
                 'data_sugerida' => filled($bloco['data_sugerida'] ?? null) ? Carbon::parse($bloco['data_sugerida'])->toDateString() : null,
-                'segunda_data_sugerida' => filled($bloco['segunda_data_sugerida'] ?? null) ? Carbon::parse($bloco['segunda_data_sugerida'])->toDateString() : null,
                 'periodo' => in_array($bloco['periodo'] ?? null, array_keys(AgendamentoMarinha::periodos()), true) ? $bloco['periodo'] : null,
             ];
 
-            for ($ordem = 1; $ordem <= self::AGENDAMENTOS_POR_PROCURADOR; $ordem++) {
-                $slot = (array) ($bloco["agendamento_{$ordem}"] ?? []);
+            foreach (array_values(static::slots($bloco)) as $indice => $slot) {
+                $slot = (array) $slot;
 
-                $normalizado["agendamento_{$ordem}"] = [
+                $normalizado['agendamento_' . ($indice + 1)] = [
                     'id' => filled($slot['id'] ?? null) ? (int) $slot['id'] : null,
-                    'clientes' => collect($slot['clientes'] ?? [])->map(fn($c) => [
-                        'id' => filled($c['id'] ?? null) ? (int) $c['id'] : null,
-                        'cliente_documento' => SolicitacaoAgendamento::somenteDigitos($c['cliente_documento'] ?? ''),
-                        'cliente_nome' => filled($c['cliente_nome'] ?? null) ? trim($c['cliente_nome']) : null,
-                        'gru' => SolicitacaoAgendamento::somenteDigitos($c['gru'] ?? ''),
-                        'sisap_servico_id' => filled($c['sisap_servico_id'] ?? null) ? (int) $c['sisap_servico_id'] : null,
-                    ])->values()->all(),
+                    'clientes' => collect($slot['clientes'] ?? [])
+                        ->map(fn($c) => [
+                            'id' => filled($c['id'] ?? null) ? (int) $c['id'] : null,
+                            'cliente_documento' => SolicitacaoAgendamento::somenteDigitos($c['cliente_documento'] ?? ''),
+                            'cliente_nome' => filled($c['cliente_nome'] ?? null) ? trim($c['cliente_nome']) : null,
+                            'gru' => SolicitacaoAgendamento::somenteDigitos($c['gru'] ?? ''),
+                            'sisap_servico_id' => filled($c['sisap_servico_id'] ?? null) ? (int) $c['sisap_servico_id'] : null,
+                        ])
+                        // Linha esvaziada (mesmo de cliente já gravado) = cliente removido.
+                        ->reject(fn(array $c) => $c['cliente_documento'] === '' && $c['gru'] === '' && !$c['sisap_servico_id'])
+                        ->values()
+                        ->all(),
                 ];
             }
 
@@ -337,7 +372,7 @@ class CadastroDoMes
     private static function validar(Capitania $capitania, string $competencia, array $procuradores, string $rotulo): void
     {
         $vagas = max(1, (int) $capitania->sisap_vagas_por_agendamento);
-        $limite = max(1, (int) $capitania->sisap_agendamentos_por_mes);
+        $limite = (int) $capitania->sisap_agendamentos_por_mes;
         $mes = Carbon::parse($competencia)->format('Y-m');
 
         $idsProcuradores = collect($procuradores)->pluck('prestador_id');
@@ -365,31 +400,17 @@ class CadastroDoMes
                 throw new InvalidArgumentException("{$nome}: a data sugerida precisa estar dentro de {$rotulo}.");
             }
 
-            if ($bloco['segunda_data_sugerida']) {
-                if (!$bloco['data_sugerida']) {
-                    throw new InvalidArgumentException("{$nome}: informe a 1ª data sugerida antes da 2ª.");
-                }
-
-                if (substr($bloco['segunda_data_sugerida'], 0, 7) !== $mes) {
-                    throw new InvalidArgumentException("{$nome}: a 2ª data sugerida precisa estar dentro de {$rotulo}.");
-                }
-
-                if ($bloco['segunda_data_sugerida'] === $bloco['data_sugerida']) {
-                    throw new InvalidArgumentException("{$nome}: a 2ª data sugerida precisa ser diferente da 1ª.");
-                }
-            }
-
             $slotAnteriorPreenchido = true;
 
-            for ($ordem = 1; $ordem <= self::AGENDAMENTOS_POR_PROCURADOR; $ordem++) {
-                $slot = $bloco["agendamento_{$ordem}"];
+            foreach (static::slots($bloco) as $indice => $slot) {
+                $ordem = $indice + 1;
                 $preenchido = $slot['id'] !== null || $slot['clientes'] !== [];
 
                 if ($preenchido && !$slotAnteriorPreenchido) {
                     throw new InvalidArgumentException("{$nome}: preencha o " . ($ordem - 1) . "º agendamento antes do {$ordem}º.");
                 }
 
-                if ($slot['clientes'] !== [] && $ordem > $limite) {
+                if ($slot['clientes'] !== [] && $slot['id'] === null && $ordem > $limite) {
                     throw new InvalidArgumentException("{$nome}: {$capitania->sigla} permite só {$limite} agendamento(s) por procurador no mês.");
                 }
 
@@ -400,6 +421,10 @@ class CadastroDoMes
                 foreach ($slot['clientes'] as $cliente) {
                     if (!SolicitacaoAgendamento::documentoValido($cliente['cliente_documento'])) {
                         throw new InvalidArgumentException("{$nome}: CPF/CNPJ inválido no {$ordem}º agendamento.");
+                    }
+
+                    if ($cliente['gru'] === '') {
+                        throw new InvalidArgumentException("{$nome}: falta a GRU de um cliente no {$ordem}º agendamento.");
                     }
 
                     if (strlen($cliente['gru']) !== 18) {

@@ -14,13 +14,15 @@ use DateTimeInterface;
  *
  * 2. Sem referência: a data escolhida precisa comportar um segundo agendamento no mesmo período, mesmo
  *    que por enquanto o procurador tenha um só. Por isso escolhe o melhor PAR de horários e devolve um
- *    deles, deixando o outro livre. Ordem de preferência:
- *      0) 1ª data sugerida, se nela couberem os dois no período; senão a 2ª data sugerida, na mesma condição;
- *      a) mesma data e ambos no período escolhido — a data mais próxima da 1ª sugerida
+ *    deles, deixando o outro livre. O período escolhido prevalece: enquanto houver horário livre nele,
+ *    o horário marcado é sempre do período. Ordem de preferência:
+ *      0) a data sugerida, se nela couberem os dois no período;
+ *      a) mesma data e ambos no período escolhido — a data mais próxima da sugerida
  *         (anterior ou posterior); dentro da data, horários vizinhos (até 60 min) antes de distantes;
- *      b) mesma data com períodos diferentes, na data mais próxima da sugerida;
+ *      b) mesma data com períodos diferentes, na data mais próxima da sugerida (marca o do período);
  *      c) datas diferentes com ambos no período;
- *      d) qualquer outra combinação.
+ *      d) datas diferentes com um deles no período (marca o do período);
+ *      e) sem nenhum horário no período, qualquer outra combinação.
  *    Uma data com só um horário no período é deixada de lado enquanto houver outra data que comporte os dois.
  *    Se só existir um horário livre, fica com ele.
  *
@@ -46,7 +48,6 @@ class EscolhaDeHorario
         ?DateTimeInterface $referencia = null,
         ?DateTimeInterface $dataSugerida = null,
         ?string $periodo = null,
-        ?DateTimeInterface $segundaDataSugerida = null,
     ): ?array {
         $candidatos = static::candidatos($horarios);
 
@@ -59,7 +60,7 @@ class EscolhaDeHorario
         }
 
         $periodo = static::periodoValido($periodo);
-        $par = static::melhorPar($candidatos, $dataSugerida, $periodo, $segundaDataSugerida);
+        $par = static::melhorPar($candidatos, $dataSugerida, $periodo);
 
         return $par
             ? static::primeiroDoPar($par, $periodo, static::base($candidatos, $dataSugerida))['horario']
@@ -75,11 +76,10 @@ class EscolhaDeHorario
         array $horarios,
         ?DateTimeInterface $dataSugerida = null,
         ?string $periodo = null,
-        ?DateTimeInterface $segundaDataSugerida = null,
     ): ?array {
         $periodo = static::periodoValido($periodo);
         $candidatos = static::candidatos($horarios);
-        $par = static::melhorPar($candidatos, $dataSugerida, $periodo, $segundaDataSugerida);
+        $par = static::melhorPar($candidatos, $dataSugerida, $periodo);
 
         if (!$par) {
             return null;
@@ -107,12 +107,8 @@ class EscolhaDeHorario
     /**
      * @return array{0: array, 1: array}|null  o par, com o horário mais cedo primeiro
      */
-    private static function melhorPar(
-        array $candidatos,
-        ?DateTimeInterface $dataSugerida,
-        ?string $periodo,
-        ?DateTimeInterface $segundaDataSugerida = null,
-    ): ?array {
+    private static function melhorPar(array $candidatos, ?DateTimeInterface $dataSugerida, ?string $periodo): ?array
+    {
         if (count($candidatos) < 2) {
             return null;
         }
@@ -120,12 +116,7 @@ class EscolhaDeHorario
         usort($candidatos, fn(array $a, array $b) => [$a['momento']->getTimestamp(), $a['posicao']] <=> [$b['momento']->getTimestamp(), $b['posicao']]);
 
         $base = static::base($candidatos, $dataSugerida);
-
-        // Datas sugeridas na ordem de tentativa; uma data só "atende" se couberem os dois no período.
-        $sugeridas = array_values(array_unique(array_filter([
-            $dataSugerida ? CarbonImmutable::instance($dataSugerida)->toDateString() : null,
-            $segundaDataSugerida ? CarbonImmutable::instance($segundaDataSugerida)->toDateString() : null,
-        ])));
+        $sugerida = $dataSugerida ? CarbonImmutable::instance($dataSugerida)->toDateString() : null;
         $melhor = null;
         $melhorChave = null;
         $total = count($candidatos);
@@ -142,18 +133,17 @@ class EscolhaDeHorario
                 $intervalo = intdiv($b['momento']->getTimestamp() - $a['momento']->getTimestamp(), 60);
 
                 // Sem período preferido, qualquer par no dia atende (o mesmo período continua preferido abaixo).
-                $posicaoSugerida = $mesmaData && (!$periodo || $ambosNoPeriodo)
-                    ? array_search($a['momento']->toDateString(), $sugeridas, true)
-                    : false;
+                $atendeSugerida = $mesmaData && (!$periodo || $ambosNoPeriodo) && $a['momento']->toDateString() === $sugerida;
 
                 $chave = [
-                    $posicaoSugerida === false ? count($sugeridas) : $posicaoSugerida,
+                    $atendeSugerida ? 0 : 1,
+                    // O período prevalece: par sem horário no período só quando não houver outro.
+                    $algumNoPeriodo ? 0 : 1,
                     $mesmaData ? ($ambosNoPeriodo ? 0 : 1) : ($ambosNoPeriodo ? 2 : 3),
                     $mesmaData
                         ? static::distanciaEmDias($a['momento'], $base)
                         : static::distanciaEmDias($a['momento'], $base) + static::distanciaEmDias($b['momento'], $base),
                     $mesmoPeriodo ? 0 : 1,
-                    $algumNoPeriodo ? 0 : 1,
                     $mesmaData && $intervalo <= self::MINUTOS_VIZINHOS ? 0 : 1,
                     $intervalo,
                     $a['momento']->getTimestamp(),

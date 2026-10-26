@@ -213,59 +213,34 @@ class EscolhaDeHorarioTest extends TestCase
         $this->assertSame('12:00', EscolhaDeHorario::escolher($horarios, null, null, 'manha')['hora']);
     }
 
-    // --- Segunda data sugerida ---
+    // --- Período prevalece ao trocar de data ---
 
-    public function test_primeira_data_que_comporta_os_dois_ganha_da_segunda(): void
+    public function test_data_sugerida_com_dois_no_outro_periodo_nao_ganha_de_data_vizinha_no_periodo(): void
     {
+        // Dia 20 (sugerido) só tem manhã; dia 21 tem um à tarde e um de manhã.
         $horarios = [
-            self::h('2026-10-07', '14:00'), self::h('2026-10-07', '14:30'),
-            self::h('2026-10-14', '14:00'), self::h('2026-10-14', '14:30'),
+            self::h('2026-10-20', '08:00'), self::h('2026-10-20', '08:30'),
+            self::h('2026-10-21', '09:00'), self::h('2026-10-21', '15:00'),
         ];
 
-        $plano = EscolhaDeHorario::planejarPar($horarios, CarbonImmutable::parse('2026-10-07'), 'tarde', CarbonImmutable::parse('2026-10-14'));
-
-        $this->assertSame(['2026-10-07', '2026-10-07'], [$plano[0]['data'], $plano[1]['data']]);
+        $this->assertSame('2026-10-21 15:00', implode(' ', EscolhaDeHorario::escolher($horarios, null, CarbonImmutable::parse('2026-10-20'), 'tarde')));
     }
 
-    public function test_primeira_data_com_um_so_horario_no_periodo_passa_para_a_segunda(): void
+    public function test_horario_no_periodo_ganha_de_par_fora_do_periodo_mais_perto(): void
     {
-        // 08/10 fica colado na 1ª data, mas a 2ª data sugerida vem antes da busca por proximidade.
+        // Só existe um horário à tarde, no dia 25; os da manhã estão colados na data sugerida.
         $horarios = [
-            self::h('2026-10-07', '14:00'), self::h('2026-10-07', '09:00'),
-            self::h('2026-10-08', '14:00'), self::h('2026-10-08', '14:30'),
-            self::h('2026-10-20', '15:00'), self::h('2026-10-20', '16:00'),
+            self::h('2026-10-20', '08:00'), self::h('2026-10-21', '08:00'),
+            self::h('2026-10-25', '14:00'),
         ];
 
-        $plano = EscolhaDeHorario::planejarPar($horarios, CarbonImmutable::parse('2026-10-07'), 'tarde', CarbonImmutable::parse('2026-10-20'));
-
-        $this->assertSame(['2026-10-20', '2026-10-20'], [$plano[0]['data'], $plano[1]['data']]);
-        $this->assertSame('2026-10-20', EscolhaDeHorario::escolher($horarios, null, CarbonImmutable::parse('2026-10-07'), 'tarde', CarbonImmutable::parse('2026-10-20'))['data']);
+        $this->assertSame('2026-10-25 14:00', implode(' ', EscolhaDeHorario::escolher($horarios, null, CarbonImmutable::parse('2026-10-20'), 'tarde')));
     }
 
-    public function test_sem_as_duas_datas_procura_a_mais_proxima_da_primeira(): void
+    public function test_sem_horario_no_periodo_fica_com_o_mais_proximo_de_outro_periodo(): void
     {
-        $horarios = [
-            self::h('2026-10-07', '14:00'),
-            self::h('2026-10-20', '15:00'),
-            self::h('2026-10-08', '14:00'), self::h('2026-10-08', '14:30'),
-            self::h('2026-10-27', '14:00'), self::h('2026-10-27', '14:30'),
-        ];
+        $horarios = [self::h('2026-10-27', '08:00'), self::h('2026-10-21', '09:00'), self::h('2026-10-21', '09:30')];
 
-        $plano = EscolhaDeHorario::planejarPar($horarios, CarbonImmutable::parse('2026-10-07'), 'tarde', CarbonImmutable::parse('2026-10-20'));
-
-        $this->assertSame(['2026-10-08', '2026-10-08'], [$plano[0]['data'], $plano[1]['data']]);
-    }
-
-    public function test_sem_periodo_a_segunda_data_atende_com_dois_horarios_quaisquer(): void
-    {
-        $horarios = [
-            self::h('2026-10-07', '09:00'),
-            self::h('2026-10-14', '09:00'), self::h('2026-10-14', '15:00'),
-            self::h('2026-10-08', '09:00'), self::h('2026-10-08', '09:30'),
-        ];
-
-        $plano = EscolhaDeHorario::planejarPar($horarios, CarbonImmutable::parse('2026-10-07'), null, CarbonImmutable::parse('2026-10-14'));
-
-        $this->assertSame(['2026-10-14', '2026-10-14'], [$plano[0]['data'], $plano[1]['data']]);
+        $this->assertSame('2026-10-21 09:00', implode(' ', EscolhaDeHorario::escolher($horarios, null, CarbonImmutable::parse('2026-10-20'), 'tarde')));
     }
 }

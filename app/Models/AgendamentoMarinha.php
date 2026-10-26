@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\HtmlString;
 use LogicException;
 
 /**
@@ -31,7 +32,6 @@ class AgendamentoMarinha extends Model
         'competencia' => 'date',
         'data_hora' => 'datetime',
         'data_sugerida' => 'date',
-        'segunda_data_sugerida' => 'date',
     ];
 
     protected static function booted()
@@ -54,17 +54,30 @@ class AgendamentoMarinha extends Model
 
     public function rotuloPreferencia(): ?string
     {
-        $datas = implode(' ou ', array_filter([
-            $this->data_sugerida?->format('d/m'),
-            $this->segunda_data_sugerida?->format('d/m'),
-        ]));
-
         $partes = array_filter([
-            $datas,
+            $this->data_sugerida?->format('d/m'),
             static::periodos()[$this->periodo] ?? null,
         ]);
 
         return $partes ? 'Preferência: ' . implode(' · ', $partes) : null;
+    }
+
+    /**
+     * Cor fixa de cada agendamento do procurador (1º azul, 2º laranja, 3º roxo, 4º verde-água), igual no
+     * PROA e na extensão (CORES_DA_ORDEM em content.js), para identificar o mesmo agendamento nos dois lados.
+     */
+    public const CORES_DA_ORDEM = ['#2563eb', '#ea580c', '#7c3aed', '#0d9488'];
+
+    public static function corDaOrdem(?int $ordem): string
+    {
+        return self::CORES_DA_ORDEM[(max(1, (int) $ordem) - 1) % count(self::CORES_DA_ORDEM)];
+    }
+
+    /** "1º" numa etiqueta com a cor do agendamento. */
+    public static function etiquetaDaOrdem(?int $ordem): HtmlString
+    {
+        return new HtmlString('<span style="display:inline-block;background:' . static::corDaOrdem($ordem)
+            . ';color:#fff;border-radius:999px;padding:0 .55rem;font-weight:600;font-size:.8rem;line-height:1.5rem">' . (int) $ordem . 'º</span>');
     }
 
 
