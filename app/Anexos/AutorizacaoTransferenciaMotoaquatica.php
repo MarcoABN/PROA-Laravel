@@ -4,6 +4,7 @@ namespace App\Anexos;
 
 use App\Anexos\Contracts\AnexoInterface;
 use App\Models\Cliente;
+use App\Models\Embarcacao;
 use Carbon\Carbon;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
@@ -42,6 +43,11 @@ class AutorizacaoTransferenciaMotoaquatica implements AnexoInterface
                     TextInput::make('vendedor_bairro')
                 ]),
             ]),
+            Section::make('Dados da Venda')->schema([
+                TextInput::make('valor')->label('Valor da venda')->prefix('R$')->placeholder('Ex.: 150.000,00')
+                    ->default(fn ($livewire) => ($v = Embarcacao::find($livewire->data['embarcacao_id'] ?? null)?->valor)
+                        ? number_format($v, 2, ',', '.') : null),
+            ]),
         ];
     }
 
@@ -52,7 +58,7 @@ class AutorizacaoTransferenciaMotoaquatica implements AnexoInterface
         $dados = [
             'nomeembarcacao' => $this->up($embarcacao->nome_embarcacao), 
             'inscricao' => $this->up($embarcacao->num_inscricao),
-            'valor' => 'R$ ' . number_format($embarcacao->valor ?? 0, 2, ',', '.'),
+            'valorcomprador' => $this->formatarValor($input['valor'] ?? null, $embarcacao->valor),
             
             // Dados do Vendedor
             'nomeproprietario' => $this->up($input['vendedor_nome'] ?? ''), 
@@ -113,6 +119,22 @@ class AutorizacaoTransferenciaMotoaquatica implements AnexoInterface
         }
 
         return '';
+    }
+
+    // Aceita "150.000,00", "150000" ou "150000.50"; texto não numérico vai como digitado
+    private function formatarValor($digitado, $valorEmbarcacao): string
+    {
+        $digitado = trim((string) ($digitado ?? ''));
+        if ($digitado === '') {
+            return $valorEmbarcacao ? 'R$ ' . number_format($valorEmbarcacao, 2, ',', '.') : '';
+        }
+        $limpo = preg_replace('/[^\d,.]/', '', $digitado);
+        $numero = str_contains($limpo, ',') || preg_match('/^\d{1,3}(\.\d{3})+$/', $limpo)
+            ? str_replace(['.', ','], ['', '.'], $limpo) : $limpo;
+        if (is_numeric($numero) && substr_count($numero, '.') <= 1) {
+            return 'R$ ' . number_format((float) $numero, 2, ',', '.');
+        }
+        return $digitado;
     }
 
     private function up($valor) { return mb_strtoupper((string)($valor ?? ''), 'UTF-8'); }
