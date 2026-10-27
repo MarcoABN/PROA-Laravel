@@ -1260,20 +1260,21 @@
   function htmlAgendamento(ag, emAndamento = false) {
     const servicos = ag.interessados.reduce((t, p) => t + p.servicos.length, 0);
 
-    // Um bloco por cliente: nome e documento em cima, cada GRU com o serviço embaixo. Nada de colunas
-    // estreitas: nome de empresa, CNPJ e serviço quebram linha em vez de serem cortados.
-    const linhas = ag.interessados.map((p) => `
+    // Um bloco por cliente: o nome em cima e, embaixo, na ordem em que se cola no SISAP, documento → GRU →
+    // serviço. O documento vai na linha da 1ª GRU; as GRUs seguintes ficam alinhadas abaixo dela.
+    // Nome de empresa e serviço quebram linha em vez de serem cortados.
+    const linhas = ag.interessados.map((p) => {
+      const documento = `<button class="copiar" data-acao="copiar" data-valor="${esc(p.documento || p.cpf)}" title="Copiar CPF/CNPJ">${esc(L.formatarDocumento(p.documento || p.cpf))}</button>`;
+
+      return `
       <div class="cliente">
-        <div class="cliente-topo">
-          <span class="cliente-nome">${esc(p.nome || '—')}</span>
-          <button class="copiar" data-acao="copiar" data-valor="${esc(p.documento || p.cpf)}" title="Copiar CPF/CNPJ">${esc(L.formatarDocumento(p.documento || p.cpf))}</button>
-        </div>
-        ${p.servicos.map((s) => `
-          <div class="cliente-gru">
-            <button class="copiar" data-acao="copiar" data-valor="${esc(s.gru)}" title="Copiar GRU">${esc(s.gru)}</button>
-            <span title="${esc(s.descricao_sisap)}">${esc(s.sigla)}</span>
-          </div>`).join('')}
-      </div>`).join('');
+        <div class="cliente-nome">${esc(p.nome || '—')}</div>
+        ${p.servicos.map((s, i) => `
+          ${i === 0 ? documento : '<span></span>'}
+          <button class="copiar" data-acao="copiar" data-valor="${esc(s.gru)}" title="Copiar GRU">${esc(s.gru)}</button>
+          <span class="cliente-servico" title="${esc(s.descricao_sisap)}">${esc(s.sigla)}</span>`).join('')}
+      </div>`;
+    }).join('');
 
     const descartados = (ag.descartados || [])
       .map((d) => `${esc(d.nome || L.formatarDocumento(d.documento))} · GRU ${esc(d.gru)}${d.motivo ? ` — ${esc(d.motivo)}` : ''}`)
@@ -1479,11 +1480,10 @@
     .selo { background: #dbeafe; color: #1e40af; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
     .selo-erro { background: #fee2e2; color: #991b1b; }
     .clientes { margin: 6px 0; font-size: 12px; }
-    .cliente { border-top: 1px solid #f3f4f6; padding: 4px 0; }
-    .cliente-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
-    .cliente-nome { font-weight: 600; min-width: 0; }
-    .cliente-gru { display: flex; align-items: center; gap: 6px; margin-top: 3px; padding-left: 8px; color: #374151; }
-    .cliente-gru span { min-width: 0; }
+    .cliente { display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); align-items: center;
+      gap: 3px 6px; border-top: 1px solid #f3f4f6; padding: 4px 0; }
+    .cliente-nome { grid-column: 1 / -1; font-weight: 600; }
+    .cliente-servico { color: #374151; }
     button { font: inherit; cursor: pointer; border: 1px solid #d1d5db; background: #f9fafb; border-radius: 6px; padding: 4px 10px; }
     button:disabled { opacity: .5; cursor: default; }
     button.principal { background: #1d4ed8; border-color: #1d4ed8; color: #fff; width: 100%; padding: 6px 10px; }
