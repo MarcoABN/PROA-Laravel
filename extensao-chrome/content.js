@@ -543,6 +543,8 @@
 
   // Intervalo entre tentativas quando a OM está sem horários: variável, para não bater em ritmo fixo.
   const INTERVALO_SEM_HORARIO = [8000, 12000];
+  // Quanto tempo o aviso do SISAP ("Não temos horários...") fica visível antes da extensão clicar em OK.
+  const TEMPO_DO_AVISO_NA_TELA = 1800;
   // Após "Erro na comunicação" (Cloudflare/sessão), espera cada vez mais antes de tentar de novo.
   const ESPERAS_APOS_ERRO = [30000, 60000, 120000];
 
@@ -580,6 +582,9 @@
         return;
       }
 
+      // Deixa o aviso do SISAP na tela um instante antes de fechar: quem olha vê que as tentativas estão ocorrendo.
+      registrar(`${resposta === 'erro' ? 'Erro na comunicação com o SISAP' : `Sem horários em ${nomeOm}`} — tentativa ${tentativa}.`, 'espera');
+      await dormir(TEMPO_DO_AVISO_NA_TELA);
       fecharAviso(resposta === 'erro' ? 'ERRO NA COMUNICACAO' : 'NAO TEMOS HORARIOS');
 
       if (resposta === 'sem-horario' && !repetirSemHorario) {
@@ -1255,13 +1260,20 @@
   function htmlAgendamento(ag, emAndamento = false) {
     const servicos = ag.interessados.reduce((t, p) => t + p.servicos.length, 0);
 
-    const linhas = ag.interessados.map((p) => p.servicos.map((s, i) => `
-      <tr>
-        <td>${i === 0 ? esc(p.nome || '—') : ''}</td>
-        <td>${i === 0 ? `<button class="copiar" data-acao="copiar" data-valor="${esc(p.documento || p.cpf)}" title="Copiar CPF/CNPJ">${esc(L.formatarDocumento(p.documento || p.cpf))}</button>` : ''}</td>
-        <td><button class="copiar" data-acao="copiar" data-valor="${esc(s.gru)}" title="Copiar GRU">${esc(s.gru)}</button></td>
-        <td title="${esc(s.descricao_sisap)}">${esc(s.sigla)}</td>
-      </tr>`).join('')).join('');
+    // Um bloco por cliente: nome e documento em cima, cada GRU com o serviço embaixo. Nada de colunas
+    // estreitas: nome de empresa, CNPJ e serviço quebram linha em vez de serem cortados.
+    const linhas = ag.interessados.map((p) => `
+      <div class="cliente">
+        <div class="cliente-topo">
+          <span class="cliente-nome">${esc(p.nome || '—')}</span>
+          <button class="copiar" data-acao="copiar" data-valor="${esc(p.documento || p.cpf)}" title="Copiar CPF/CNPJ">${esc(L.formatarDocumento(p.documento || p.cpf))}</button>
+        </div>
+        ${p.servicos.map((s) => `
+          <div class="cliente-gru">
+            <button class="copiar" data-acao="copiar" data-valor="${esc(s.gru)}" title="Copiar GRU">${esc(s.gru)}</button>
+            <span title="${esc(s.descricao_sisap)}">${esc(s.sigla)}</span>
+          </div>`).join('')}
+      </div>`).join('');
 
     const descartados = (ag.descartados || [])
       .map((d) => `${esc(d.nome || L.formatarDocumento(d.documento))} · GRU ${esc(d.gru)}${d.motivo ? ` — ${esc(d.motivo)}` : ''}`)
@@ -1281,7 +1293,7 @@
         <div class="sub">${esc(ag.capitania.nome)} · ${servicos} serviço(s)${ag.referencia_horario ? ` · tentar perto de ${esc(ag.referencia_horario)}` : ''}</div>
         ${textoPreferencia(ag.preferencia) ? `<div class="sub">${esc(textoPreferencia(ag.preferencia))}</div>` : ''}
         ${ag.status === 'falhou' && ag.erro ? `<div class="sub erro">${esc(ag.erro)}</div>` : ''}
-        <table>${linhas}</table>
+        <div class="clientes">${linhas}</div>
         ${descartados.length ? `<div class="sub erro">Descartados pelo SISAP (não serão enviados até serem corrigidos no PROA):<br>${descartados}</div>` : ''}
         <button class="principal" data-acao="agendar" data-id="${ag.id}" ${executando || !ag.interessados.length ? 'disabled' : ''}>Agendar no SISAP</button>
       </div>`;
@@ -1431,14 +1443,15 @@
 
   const CSS = `
     :host { all: initial; }
-    .painel { position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; width: 380px; max-height: 75vh;
+    .painel { position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; width: min(440px, calc(100vw - 32px)); max-height: 75vh;
+      box-sizing: border-box;
       display: flex; flex-direction: column; background: #fff; color: #111827; border: 1px solid #d1d5db;
       border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.2); font: 13px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
     .painel.min { width: auto; }
     .painel.min .corpo { display: none; }
     header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px;
       background: #1e3a8a; color: #fff; border-radius: 10px 10px 0 0; font-weight: 600; }
-    .corpo { padding: 10px; overflow: auto; }
+    .corpo { padding: 10px; overflow-y: auto; overflow-x: hidden; overflow-wrap: anywhere; }
     .sub { color: #4b5563; margin: 2px 0; }
     .erro { color: #b91c1c; }
     .opcao { display: flex; gap: 6px; align-items: center; margin: 6px 0 8px; color: #374151; }
@@ -1465,13 +1478,18 @@
     .ag-topo { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
     .selo { background: #dbeafe; color: #1e40af; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
     .selo-erro { background: #fee2e2; color: #991b1b; }
-    table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
-    td { padding: 2px 3px; border-top: 1px solid #f3f4f6; vertical-align: middle; }
+    .clientes { margin: 6px 0; font-size: 12px; }
+    .cliente { border-top: 1px solid #f3f4f6; padding: 4px 0; }
+    .cliente-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+    .cliente-nome { font-weight: 600; min-width: 0; }
+    .cliente-gru { display: flex; align-items: center; gap: 6px; margin-top: 3px; padding-left: 8px; color: #374151; }
+    .cliente-gru span { min-width: 0; }
     button { font: inherit; cursor: pointer; border: 1px solid #d1d5db; background: #f9fafb; border-radius: 6px; padding: 4px 10px; }
     button:disabled { opacity: .5; cursor: default; }
     button.principal { background: #1d4ed8; border-color: #1d4ed8; color: #fff; width: 100%; padding: 6px 10px; }
     button.icone { background: transparent; border: none; color: #fff; padding: 0 4px; font-size: 15px; }
-    button.copiar { font-family: ui-monospace, Consolas, monospace; font-size: 11px; padding: 1px 4px; background: #fff; }
+    button.copiar { font-family: ui-monospace, Consolas, monospace; font-size: 11px; padding: 1px 4px; background: #fff;
+      white-space: nowrap; flex-shrink: 0; overflow-wrap: normal; }
     .registro { margin-top: 8px; border-top: 1px solid #e5e7eb; padding-top: 6px; }
     .log { padding: 3px 0; }
     .log-erro { color: #b91c1c; }
