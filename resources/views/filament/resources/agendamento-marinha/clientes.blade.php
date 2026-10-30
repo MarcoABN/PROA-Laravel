@@ -25,13 +25,34 @@
         .dark .proa-resumo .proa-espera { color: rgb(var(--warning-400)); }
         .dark .proa-resumo .proa-erro { color: rgb(var(--danger-400)); }
 
-        /* Abas em pílula: a ativa em verde claro. */
-        .proa-grade .fi-tabs { background: transparent; box-shadow: none; padding: 0; gap: .5rem; margin-inline: 0; }
-        .proa-grade .fi-tabs-item { border-radius: .5rem; padding: .35rem .75rem; font-size: .85rem; }
-        .proa-grade .fi-tabs-item.fi-active { background: rgb(var(--success-50)); }
-        .proa-grade .fi-tabs-item.fi-active .fi-tabs-item-label { color: rgb(var(--success-700)); font-weight: 600; }
-        .dark .proa-grade .fi-tabs-item.fi-active { background: rgb(var(--success-500) / .15); }
-        .dark .proa-grade .fi-tabs-item.fi-active .fi-tabs-item-label { color: rgb(var(--success-400)); }
+        /* Barra da grade (barra-clientes.blade.php): abas em pílula e filtros compactos ao lado da busca. */
+        .proa-grade .fi-ta-filters-dropdown { display: none; }
+        .proa-grade .fi-ta-search-field { width: 13rem; }
+        .proa-barra { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; min-width: 0; flex: 1 1 0; }
+        .proa-aba { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .65rem; border-radius: .5rem;
+            font-size: .8rem; font-weight: 500; color: rgb(var(--gray-600)); white-space: nowrap; }
+        .proa-aba:hover { background: rgb(var(--gray-50)); }
+        .proa-aba--ativa, .proa-aba--ativa:hover { background: rgb(var(--success-50)); color: rgb(var(--success-700)); font-weight: 600; }
+        .proa-aba__total { font-size: .7rem; padding: 0 .35rem; border-radius: .375rem; background: rgb(var(--primary-50)); color: rgb(var(--primary-600)); }
+        .dark .proa-aba { color: rgb(var(--gray-300)); }
+        .dark .proa-aba:hover { background: rgb(255 255 255 / .05); }
+        .dark .proa-aba--ativa, .dark .proa-aba--ativa:hover { background: rgb(var(--success-500) / .15); color: rgb(var(--success-400)); }
+        .dark .proa-aba__total { background: rgb(var(--primary-500) / .15); color: rgb(var(--primary-400)); }
+        .proa-barra__divisor { width: 1px; height: 1.25rem; margin: 0 .25rem; background: rgb(var(--gray-200)); }
+        .dark .proa-barra__divisor { background: rgb(255 255 255 / .1); }
+        .proa-filtro { height: 2rem; padding: 0 2rem 0 .6rem; border-radius: .5rem; font-size: .8rem; max-width: 12rem;
+            border: 1px solid rgb(var(--gray-300)); background-color: #fff; color: rgb(var(--gray-700)); }
+        .dark .proa-filtro { background-color: rgb(255 255 255 / .05); border-color: rgb(255 255 255 / .1); color: rgb(var(--gray-200)); }
+        .proa-chave { display: inline-flex; align-items: center; gap: .45rem; margin-left: .25rem; font-size: .8rem;
+            color: rgb(var(--gray-700)); cursor: pointer; white-space: nowrap; }
+        .dark .proa-chave { color: rgb(var(--gray-200)); }
+        .proa-chave input { position: absolute; opacity: 0; pointer-events: none; }
+        .proa-chave__trilho { position: relative; width: 2rem; height: 1.1rem; border-radius: 999px; background: rgb(var(--gray-200)); transition: background .15s; }
+        .proa-chave__trilho::after { content: ''; position: absolute; top: .15rem; left: .15rem; width: .8rem; height: .8rem;
+            border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .2); transition: transform .15s; }
+        .proa-chave input:checked + .proa-chave__trilho { background: rgb(var(--primary-600)); }
+        .proa-chave input:checked + .proa-chave__trilho::after { transform: translateX(.9rem); }
+        .proa-chave input:focus-visible + .proa-chave__trilho { outline: 2px solid rgb(var(--primary-500)); outline-offset: 2px; }
 
         /* Cabeçalho em caixa alta, pequeno; linhas compactas. */
         .proa-grade .fi-ta-header-cell { padding-top: .6rem; padding-bottom: .6rem; }
@@ -68,8 +89,6 @@
                 • <b class="proa-erro">{{ $resumo['descartados'] }} descartado(s)</b>
             @endif
         </div>
-
-        <x-filament-panels::resources.tabs />
 
         {{ $this->table }}
     </div>

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\AgendamentoMarinhaResource\Pages;
 use App\Filament\Resources\AgendamentoMarinhaResource;
 use App\Models\AgendamentoMarinha;
 use App\Models\Capitania;
+use App\Models\Prestador;
 use App\Models\SolicitacaoAgendamento;
 use Filament\Actions;
 use Filament\Resources\Components\Tab;
@@ -16,7 +17,9 @@ use Illuminate\Database\Eloquent\Builder;
  * Só a lista de clientes de um mês, para consulta e operação (copiar CPF/GRU, registrar, excluir).
  * Herda do mês o filtro pela competência e a ação de excluir o agendamento inteiro.
  *
- * Visual no estilo da grade do KellHub: linha de resumo, abas por capitania, colunas agrupadas por cor.
+ * Visual no estilo da grade do KellHub: linha de resumo; abas por capitania e filtros na barra da grade
+ * (barra-clientes.blade.php, gancho tables::toolbar.start registrado no AdminPanelProvider); colunas
+ * agrupadas por cor.
  */
 class ClientesDoMesAgendamento extends VerMesAgendamento
 {
@@ -46,12 +49,13 @@ class ClientesDoMesAgendamento extends VerMesAgendamento
         ];
     }
 
-    /** Filtros à vista: o principal aqui é "Só os não agendados". */
+    /**
+     * Os filtros são preenchidos pela barra da grade; o formulário de filtros do Filament (em lista suspensa)
+     * fica oculto, mas continua sendo quem aplica cada filtro à consulta.
+     */
     public function table(Table $table): Table
     {
-        $table = parent::table($table)
-            ->filtersLayout(FiltersLayout::AboveContent)
-            ->filtersFormColumns(4);
+        $table = parent::table($table)->filtersLayout(FiltersLayout::Dropdown);
 
         foreach ($table->getColumns() as $nome => $coluna) {
             if ($grupo = self::GRUPOS_DE_COLUNA[$nome] ?? null) {
@@ -74,7 +78,9 @@ class ClientesDoMesAgendamento extends VerMesAgendamento
 
         Capitania::whereKey($porCapitania->keys())->orderByDesc('padrao')->orderBy('nome')->get()
             ->each(function (Capitania $capitania) use (&$tabs, $porCapitania) {
-                $tabs["cap-{$capitania->id}"] = Tab::make($capitania->sigla ? "{$capitania->sigla} - {$capitania->nome}" : $capitania->nome)
+                // Só a sigla, para caber na barra da grade; o nome por extenso aparece ao passar o mouse.
+                $tabs["cap-{$capitania->id}"] = Tab::make($capitania->sigla ?: $capitania->nome)
+                    ->extraAttributes(['title' => $capitania->nome])
                     ->badge($porCapitania[$capitania->id])
                     ->modifyQueryUsing(fn(Builder $query) => $query->where('capitania_id', $capitania->id));
             });
@@ -102,6 +108,15 @@ class ClientesDoMesAgendamento extends VerMesAgendamento
             'falharam' => $comStatus(AgendamentoMarinha::STATUS_FALHOU),
             'descartados' => $clientes->count() - $ativos->count(),
         ];
+    }
+
+    /** Procuradores com cliente no mês, para o filtro da barra. */
+    public function procuradoresDoMes(): array
+    {
+        return Prestador::whereIn('id', $this->clientesDoMes()->select('prestador_id'))
+            ->orderBy('nome')
+            ->pluck('nome', 'id')
+            ->all();
     }
 
     private function clientesDoMes(): Builder

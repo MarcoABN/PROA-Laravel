@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\Dashboard;
+use App\Filament\Resources\AgendamentoMarinhaResource\Pages\ClientesDoMesAgendamento;
 use App\Support\PreferenciaNavegacao;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -20,6 +21,7 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Filament\Tables\View\TablesRenderHook;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Contracts\View\View;
 
@@ -85,6 +87,12 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::STYLES_AFTER,
                 fn(): string => '<style>.fi-ta-group-header:has(.proa-grupo-titulo) h4{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}</style>',
+            )
+            // Agendamentos Marinha, "Clientes do mês": abas e filtros na barra da grade, ao lado da busca.
+            ->renderHook(
+                TablesRenderHook::TOOLBAR_START,
+                fn(): View => view('filament.resources.agendamento-marinha.barra-clientes'),
+                scopes: ClientesDoMesAgendamento::class,
             )
             ->middleware([
                 EncryptCookies::class,
