@@ -100,11 +100,11 @@ class VerMesAgendamento extends ListRecords
                     return 'Ele pode já ter sido excluído. Atualize a página.';
                 }
 
-                $aviso = $a->status === AgendamentoMarinha::STATUS_AGENDADO
-                    ? "Ele já foi marcado no SISAP (nº {$a->numero}): cancele também no SISAP, até 24h antes. "
-                    : '';
+                if ($a->status === AgendamentoMarinha::STATUS_AGENDADO) {
+                    return "Ele já foi marcado no SISAP (nº {$a->numero}) e não pode ser excluído.";
+                }
 
-                return $aviso . 'O agendamento e os ' . $a->solicitacoes()->count() . ' cliente(s) dele são apagados do PROA, a cota do procurador é liberada e as GRUs podem ser usadas de novo.';
+                return 'O agendamento e os ' . $a->solicitacoes()->count() . ' cliente(s) dele são apagados do PROA, a cota do procurador é liberada e as GRUs podem ser usadas de novo.';
             })
             ->modalSubmitActionLabel('Excluir agendamento')
             ->action(function (array $arguments) use ($agendamento) {
@@ -116,7 +116,13 @@ class VerMesAgendamento extends ListRecords
                     return;
                 }
 
-                $clientes = CadastroDoMes::excluirAgendamento($a);
+                try {
+                    $clientes = CadastroDoMes::excluirAgendamento($a);
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()->title('Agendamento não excluído')->body($e->getMessage())->danger()->send();
+
+                    return;
+                }
 
                 Notification::make()->title("Agendamento excluído com {$clientes} cliente(s).")->success()->send();
             });

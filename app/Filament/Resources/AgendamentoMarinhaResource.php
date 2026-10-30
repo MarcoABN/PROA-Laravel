@@ -391,7 +391,8 @@ class AgendamentoMarinhaResource extends Resource
 
     /**
      * "PROCURADOR · CAPITANIA POR EXTENSO" (capitania em vermelho) e, abaixo, um resumo de cada agendamento
-     * dele no mês, com o botão que exclui o agendamento inteiro (ação excluirAgendamento da página do mês).
+     * dele no mês, com o botão que exclui o agendamento inteiro (ação excluirAgendamento da página do mês),
+     * exceto nos já marcados no SISAP.
      */
     private static function resumoProcurador(SolicitacaoAgendamento $record): HtmlString
     {
@@ -408,7 +409,8 @@ class AgendamentoMarinhaResource extends Resource
             ->values()
             ->map(fn(AgendamentoMarinha $a, int $i) => AgendamentoMarinha::etiquetaDaOrdem($i + 1)
                 . e(" {$a->solicitacoes_count}/{$a->vagasTotais()} · " . (AgendamentoMarinha::statuses()[$a->status] ?? $a->status))
-                . ' ' . static::botaoExcluirAgendamento($a, $i + 1))
+                // Marcado no SISAP não se exclui: sem o botão.
+                . ($a->status === AgendamentoMarinha::STATUS_AGENDADO ? '' : ' ' . static::botaoExcluirAgendamento($a, $i + 1)))
             ->implode('  |  ');
 
         $preferencia = $agendamentos->first()?->rotuloPreferencia();

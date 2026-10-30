@@ -155,14 +155,25 @@ class CadastroDoMes
     }
 
     /**
-     * Exclui um agendamento e os clientes dele (as GRUs ficam livres) e renumera os demais agendamentos
-     * do procurador na capitania/mês, para continuarem sendo 1º, 2º...
+     * Exclui um agendamento ainda não marcado no SISAP e os clientes dele (as GRUs ficam livres) e renumera
+     * os demais agendamentos do procurador na capitania/mês, para continuarem sendo 1º, 2º...
+     * Agendamento já marcado no SISAP nunca é excluído: número, chave e clientes ficam registrados.
      *
      * @return int quantos clientes foram excluídos
+     *
+     * @throws InvalidArgumentException
      */
     public static function excluirAgendamento(AgendamentoMarinha $agendamento): int
     {
         return DB::transaction(function () use ($agendamento) {
+            // Relê travado: a extensão pode ter acabado de registrar o resultado.
+            $agendamento = AgendamentoMarinha::whereKey($agendamento->id)->lockForUpdate()->first() ?? $agendamento;
+
+            if ($agendamento->status === AgendamentoMarinha::STATUS_AGENDADO) {
+                throw new InvalidArgumentException("O {$agendamento->ordem}º agendamento já foi marcado no SISAP (nº {$agendamento->numero}) "
+                    . 'e não pode ser excluído.');
+            }
+
             $clientes = $agendamento->solicitacoes()->delete();
             $agendamento->delete();
 
@@ -205,7 +216,7 @@ class CadastroDoMes
                 }
 
                 throw new InvalidArgumentException("O {$agendamento->ordem}º agendamento já foi marcado no SISAP (nº {$agendamento->numero}): "
-                    . 'os clientes dele não podem ser excluídos um a um. Exclua o agendamento inteiro.');
+                    . 'os clientes dele não podem ser excluídos.');
             }
 
             if ($agendamento && $agendamento->solicitacoes()->whereKeyNot($solicitacao->id)->doesntExist()) {
@@ -254,7 +265,7 @@ class CadastroDoMes
             foreach ($existentes->whereNotIn('prestador_id', $prestadoresNoFormulario) as $agendamento) {
                 if ($agendamento->status === AgendamentoMarinha::STATUS_AGENDADO) {
                     throw new InvalidArgumentException("{$agendamento->prestador?->nome} tem agendamento já marcado no SISAP (nº {$agendamento->numero}) "
-                        . 'e não pode sair do cadastro. Exclua esse agendamento na tela do mês antes.');
+                        . 'e não pode sair do cadastro.');
                 }
             }
 
