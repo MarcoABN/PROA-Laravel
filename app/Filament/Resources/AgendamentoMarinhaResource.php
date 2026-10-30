@@ -102,6 +102,7 @@ class AgendamentoMarinhaResource extends Resource
                 Tables\Columns\TextColumn::make('cliente_nome')
                     ->label('Cliente')
                     ->placeholder('—')
+                    ->description(fn(SolicitacaoAgendamento $record) => static::avisoClienteEmOutroAgendamento($record))
                     ->searchable(query: function (Builder $query, string $search) {
                         $digitos = SolicitacaoAgendamento::somenteDigitos($search);
 
@@ -124,6 +125,7 @@ class AgendamentoMarinhaResource extends Resource
 
                 Tables\Columns\TextColumn::make('gru')
                     ->label('GRU')
+                    ->description(fn(SolicitacaoAgendamento $record) => static::avisoGruReaproveitada($record))
                     ->copyable()
                     ->copyMessage('GRU copiada')
                     ->icon('heroicon-m-document-duplicate')
@@ -428,6 +430,48 @@ class AgendamentoMarinhaResource extends Resource
             '<x-filament::link tag="button" color="danger" size="sm" icon="heroicon-m-trash" x-on:click.stop="null" wire:click="mountAction(\'excluirAgendamento\', { agendamento: {{ $id }} })">Excluir {{ $posicao }}º</x-filament::link>',
             ['id' => $agendamento->id, 'posicao' => $posicao],
         );
+    }
+
+    /** @var array<string, array> clientes em mais de um agendamento, por capitania + mês da grade */
+    private static array $clientesRepetidos = [];
+
+    /** "Também no 2º de FULANO (12/11 14:30)", em laranja, quando o cliente está em outro agendamento da capitania no mês. */
+    private static function avisoClienteEmOutroAgendamento(SolicitacaoAgendamento $record): ?HtmlString
+    {
+        if ($record->descartada()) {
+            return null;
+        }
+
+        $chave = $record->capitania_id . '-' . $record->competencia->format('Y-m');
+        static::$clientesRepetidos[$chave] ??= SolicitacaoAgendamento::clientesEmVariosAgendamentos($record->capitania_id, $record->competencia);
+
+        $outros = collect(static::$clientesRepetidos[$chave][$record->cliente_documento]['agendamentos'] ?? [])
+            ->except($record->agendamento_marinha_id);
+
+        return $outros->isNotEmpty()
+            ? new HtmlString('<span class="text-warning-600 dark:text-warning-400" title="Cliente em mais de um agendamento no mês">⚠ Também no ' . e($outros->implode(' e no ')) . '</span>')
+            : null;
+    }
+
+    /** @var array<string, array<string, list<string>>> usos das GRUs em outros meses, por mês da grade */
+    private static array $usosDeGru = [];
+
+    /** "Também em 10/2026 · CFGO · Agendado", em laranja, quando a GRU já foi usada em outro mês. */
+    private static function avisoGruReaproveitada(SolicitacaoAgendamento $record): ?HtmlString
+    {
+        $mes = $record->competencia->format('Y-m');
+
+        // Uma consulta para todas as GRUs do mês, não uma por linha.
+        static::$usosDeGru[$mes] ??= SolicitacaoAgendamento::usosEmOutrosMeses(
+            SolicitacaoAgendamento::whereDate('competencia', $record->competencia->toDateString())->pluck('gru'),
+            $record->competencia,
+        );
+
+        $usos = static::$usosDeGru[$mes][$record->gru] ?? [];
+
+        return $usos
+            ? new HtmlString('<span class="text-warning-600 dark:text-warning-400" title="GRU reaproveitada de outro mês">⚠ Também em ' . e(implode('; ', $usos)) . '</span>')
+            : null;
     }
 
     private static function detalheAgendamento(?AgendamentoMarinha $agendamento): ?string

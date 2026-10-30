@@ -115,9 +115,11 @@ class CadastroDoMes
     /**
      * Grava só o bloco de um procurador; os outros procuradores da capitania/mês ficam como estão no banco.
      *
+     * @return list<string> avisos que não impedem salvar (GRU já usada em outro mês, cliente em mais de um agendamento)
+     *
      * @throws InvalidArgumentException
      */
-    public static function salvarProcurador(int $capitaniaId, mixed $competencia, array $bloco): void
+    public static function salvarProcurador(int $capitaniaId, mixed $competencia, array $bloco): array
     {
         $prestadorId = (int) ($bloco['prestador_id'] ?? 0);
 
@@ -127,17 +129,26 @@ class CadastroDoMes
             ->values()
             ->all();
 
-        static::salvar($capitaniaId, $competencia, $procuradores, novo: !static::existe($capitaniaId, $competencia));
+        $avisos = static::salvar($capitaniaId, $competencia, $procuradores, novo: !static::existe($capitaniaId, $competencia));
+
+        // Só o que envolve os clientes deste procurador: o dos outros já foi avisado quando eles salvaram.
+        $clientesDoBloco = collect(static::slots(static::normalizar([$bloco])[0] ?? []))->flatMap(fn(array $slot) => $slot['clientes']);
+        $marcas = $clientesDoBloco->pluck('gru')
+            ->merge($clientesDoBloco->pluck('cliente_documento')->map(fn($doc) => SolicitacaoAgendamento::formatarDocumento($doc)))
+            ->filter();
+
+        return array_values(array_filter($avisos, fn(string $aviso) => $marcas->contains(fn($marca) => str_contains($aviso, $marca))));
     }
 
     /**
      * @param  array  $procuradores  blocos: prestador_id, data_sugerida, periodo,
      *                               agendamento_1, agendamento_2... => [id, clientes => [id, cliente_documento, cliente_nome, gru, sisap_servico_id]]
      * @param  bool  $novo  criando o cadastro (a chave não pode existir) ou editando
+     * @return list<string> avisos que não impedem salvar (GRU já usada em outro mês, cliente em mais de um agendamento)
      *
      * @throws InvalidArgumentException
      */
-    public static function salvar(int $capitaniaId, mixed $competencia, array $procuradores, bool $novo): void
+    public static function salvar(int $capitaniaId, mixed $competencia, array $procuradores, bool $novo): array
     {
         $competencia = static::competencia($competencia);
         $capitania = Capitania::findOrFail($capitaniaId);
@@ -152,6 +163,20 @@ class CadastroDoMes
             // Índice único mês + GRU: pega o que a validação não previu (ex.: duas GRUs trocadas entre clientes).
             throw new InvalidArgumentException('Não foi possível salvar: há GRU repetida neste mês. Confira as GRUs dos clientes.');
         }
+
+        $grus = collect($procuradores)
+            ->flatMap(fn(array $bloco) => collect(static::slots($bloco))->flatMap(fn(array $slot) => $slot['clientes']))
+            ->pluck('gru');
+
+        $avisosDeGru = collect(SolicitacaoAgendamento::usosEmOutrosMeses($grus, $competencia))
+            ->map(fn(array $usos, string $gru) => "A GRU {$gru} já foi usada em " . implode('; ', $usos) . '.');
+
+        // Permitido (serviços em dias diferentes), mas precisa ser visto.
+        $avisosDeCliente = collect(SolicitacaoAgendamento::clientesEmVariosAgendamentos($capitania->id, $competencia))
+            ->map(fn(array $c, string $documento) => "{$c['nome']} (" . SolicitacaoAgendamento::formatarDocumento($documento) . ') está em mais de um agendamento: '
+                . implode(' e ', $c['agendamentos']) . '.');
+
+        return $avisosDeCliente->merge($avisosDeGru)->values()->all();
     }
 
     /**

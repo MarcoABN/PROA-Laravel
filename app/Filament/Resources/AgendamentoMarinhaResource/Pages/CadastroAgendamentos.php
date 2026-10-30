@@ -250,7 +250,7 @@ class CadastroAgendamentos extends Page implements HasForms
         }
 
         try {
-            CadastroDoMes::salvarProcurador($this->capitaniaId, $this->competencia, ['prestador_id' => $this->prestadorId] + $estado);
+            $avisos = CadastroDoMes::salvarProcurador($this->capitaniaId, $this->competencia, ['prestador_id' => $this->prestadorId] + $estado);
         } catch (InvalidArgumentException $e) {
             Notification::make()->title('Não foi salvo')->body($e->getMessage())->danger()->persistent()->send();
 
@@ -258,6 +258,11 @@ class CadastroAgendamentos extends Page implements HasForms
         }
 
         Notification::make()->title('Agendamentos salvos')->success()->send();
+
+        // Permitidos, mas precisam ser vistos: GRU de outro mês, cliente em mais de um agendamento.
+        if ($avisos !== []) {
+            Notification::make()->title('Salvo, mas confira')->body(implode('<br>', array_map('e', $avisos)))->warning()->persistent()->send();
+        }
 
         $this->redirect(AgendamentoMarinhaResource::getUrl('mes', ['competencia' => Carbon::parse($this->competencia)->format('Y-m')]));
     }

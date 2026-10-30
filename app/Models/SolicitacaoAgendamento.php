@@ -110,6 +110,62 @@ class SolicitacaoAgendamento extends Model
         return $query->whereNull('descartada_em');
     }
 
+    /**
+     * Onde cada GRU já foi usada em OUTROS meses (no mesmo mês ela é única). Pode ser reaproveitada,
+     * mas o usuário precisa ver: "10/2026 · CFGO · Agendado".
+     *
+     * @param  iterable<string>  $grus
+     * @return array<string, list<string>>  gru => usos
+     */
+    public static function usosEmOutrosMeses(iterable $grus, mixed $competencia): array
+    {
+        $grus = collect($grus)->map(fn($gru) => static::somenteDigitos($gru))->filter()->unique()->values();
+
+        if ($grus->isEmpty()) {
+            return [];
+        }
+
+        return static::with(['capitania', 'agendamento'])
+            ->whereIn('gru', $grus)
+            ->whereDate('competencia', '!=', \Carbon\Carbon::parse($competencia)->startOfMonth()->toDateString())
+            ->orderBy('competencia')
+            ->get()
+            ->groupBy('gru')
+            ->map(fn($usos) => $usos->map(fn(SolicitacaoAgendamento $s) => $s->competencia->format('m/Y')
+                . ($s->capitania?->sigla ? " · {$s->capitania->sigla}" : '')
+                . ' · ' . ($s->descartada() ? 'Descartado' : (AgendamentoMarinha::statuses()[$s->agendamento?->status] ?? 'sem agendamento')))
+                ->values()->all())
+            ->all();
+    }
+
+    /**
+     * Clientes em mais de um agendamento da capitania no mês (permitido: serviços em dias diferentes, mas
+     * sinalizado). Descartados e agendamentos cancelados não contam.
+     *
+     * @return array<string, array{nome: string, agendamentos: array<int, string>}>  documento => nome e
+     *                                                                                  agendamento_id => "1º de FULANO"
+     */
+    public static function clientesEmVariosAgendamentos(int $capitaniaId, mixed $competencia): array
+    {
+        return static::with(['agendamento.prestador'])
+            ->whereNull('descartada_em')
+            ->where('capitania_id', $capitaniaId)
+            ->whereDate('competencia', \Carbon\Carbon::parse($competencia)->startOfMonth()->toDateString())
+            ->whereHas('agendamento', fn(Builder $a) => $a->where('status', '!=', AgendamentoMarinha::STATUS_CANCELADO))
+            ->get()
+            ->groupBy('cliente_documento')
+            ->map(fn($servicos) => $servicos->unique('agendamento_marinha_id')->sortBy(fn(SolicitacaoAgendamento $s) => [$s->agendamento->ordem, $s->prestador_id]))
+            ->filter(fn($porAgendamento) => $porAgendamento->count() > 1)
+            ->map(fn($porAgendamento) => [
+                'nome' => $porAgendamento->pluck('cliente_nome')->filter()->first() ?? 'Cliente',
+                'agendamentos' => $porAgendamento->mapWithKeys(fn(SolicitacaoAgendamento $s) => [
+                    $s->agendamento_marinha_id => "{$s->agendamento->ordem}º de " . ($s->agendamento->prestador?->nome ?? 'procurador')
+                        . ($s->agendamento->data_hora ? ' (' . $s->agendamento->data_hora->format('d/m H:i') . ')' : ''),
+                ])->all(),
+            ])
+            ->all();
+    }
+
     public static function somenteDigitos(?string $valor): string
     {
         return preg_replace('/\D/', '', (string) $valor);

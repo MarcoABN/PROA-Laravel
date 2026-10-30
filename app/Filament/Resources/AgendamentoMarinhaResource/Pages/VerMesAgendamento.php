@@ -6,6 +6,7 @@ use App\Filament\Resources\AgendamentoMarinhaResource;
 use App\Models\AgendamentoMarinha;
 use App\Models\Capitania;
 use App\Models\MesAgendamento;
+use App\Models\SolicitacaoAgendamento;
 use App\Services\Agendamento\CadastroDoMes;
 use App\Services\Agendamento\VisibilidadeNaExtensao;
 use App\Support\AcessoAgendamento;
@@ -135,6 +136,8 @@ class VerMesAgendamento extends ListRecords
      */
     public function getBaloesProperty(): Collection
     {
+        $repetidosPorCapitania = [];
+
         return AgendamentoMarinha::query()
             ->with(['capitania', 'prestador'])
             ->withCount(['solicitacoes' => fn(Builder $q) => $q->whereNull('descartada_em')])
@@ -143,7 +146,7 @@ class VerMesAgendamento extends ListRecords
             ->orderBy('ordem')
             ->get()
             ->groupBy(fn(AgendamentoMarinha $a) => "{$a->capitania_id}-{$a->prestador_id}")
-            ->map(function (Collection $agendamentos) {
+            ->map(function (Collection $agendamentos) use (&$repetidosPorCapitania) {
                 $primeiro = $agendamentos->first();
                 $capitania = $primeiro->capitania;
                 $vagas = $primeiro->vagasTotais();
@@ -174,6 +177,10 @@ class VerMesAgendamento extends ListRecords
                     'capitania' => $capitania->nome,
                     'sigla' => $capitania->sigla,
                     'preferencia' => $agendamentos->firstWhere('status', '!=', AgendamentoMarinha::STATUS_AGENDADO)?->rotuloPreferencia(),
+                    // Clientes deste procurador que também estão em outro agendamento da capitania no mês.
+                    'repetidos' => collect($repetidosPorCapitania[$capitania->id] ??= SolicitacaoAgendamento::clientesEmVariosAgendamentos($capitania->id, $this->dataCompetencia()))
+                        ->filter(fn(array $c) => array_intersect(array_keys($c['agendamentos']), $agendamentos->pluck('id')->all()) !== [])
+                        ->count(),
                     'slots' => $slots,
                 ];
             })

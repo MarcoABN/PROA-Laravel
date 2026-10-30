@@ -32,6 +32,8 @@
             white-space: nowrap; color: rgb(var(--gray-600)); }
         .dark .proa-balao__linha { color: rgb(var(--gray-300)); }
         .proa-balao__rodape { font-size: .7rem; color: rgb(var(--gray-500)); }
+        .proa-balao__aviso { font-size: .7rem; font-weight: 500; color: rgb(var(--warning-600)); }
+        .dark .proa-balao__aviso { color: rgb(var(--warning-400)); }
         .proa-balao--novo { flex-direction: row; align-items: center; justify-content: center; gap: .4rem; min-height: 4.5rem;
             border-style: dashed; border-width: 2px; color: rgb(var(--primary-600)); font-size: .8rem; font-weight: 600; cursor: pointer; }
         .dark .proa-balao--novo { color: rgb(var(--primary-400)); }
@@ -70,6 +72,12 @@
 
                             @if ($balao['preferencia'])
                                 <div class="proa-balao__rodape">{{ $balao['preferencia'] }}</div>
+                            @endif
+
+                            @if ($balao['repetidos'])
+                                <div class="proa-balao__aviso" title="Permitido (serviços em dias diferentes); confira na lista de clientes.">
+                                    ⚠ {{ $balao['repetidos'] }} cliente(s) em mais de um agendamento
+                                </div>
                             @endif
                         </a>
                     @endforeach
