@@ -18,13 +18,13 @@ use DateTimeInterface;
  *    o horário marcado é sempre do período. Ordem de preferência:
  *      0) a data sugerida, se nela couberem os dois no período;
  *      a) mesma data e ambos no período escolhido — a data mais próxima da sugerida
- *         (anterior ou posterior); dentro da data, horários vizinhos (até 60 min) antes de distantes;
+ *         (anterior ou posterior); dentro da data, os dois últimos horários livres;
  *      b) mesma data com períodos diferentes, na data mais próxima da sugerida (marca o do período);
  *      c) datas diferentes com ambos no período;
  *      d) datas diferentes com um deles no período (marca o do período);
  *      e) sem nenhum horário no período, qualquer outra combinação.
  *    Uma data com só um horário no período é deixada de lado enquanto houver outra data que comporte os dois.
- *    Se só existir um horário livre, fica com ele.
+ *    Se só existir um horário livre, fica com ele. Do par, marca o último horário (o mais tarde), seja ele qual for.
  *
  * Sem data sugerida, "mais próxima" é a mais cedo disponível. Sem período, vale qualquer período,
  * mas os dois agendamentos continuam preferindo ficar no mesmo.
@@ -33,9 +33,6 @@ class EscolhaDeHorario
 {
     public const MANHA = 'manha';
     public const TARDE = 'tarde';
-
-    /** Até este intervalo dois horários contam como vizinhos (capitanias com vagas de 30 e de 60 min). */
-    private const MINUTOS_VIZINHOS = 60;
 
     /**
      * @param  array<int, array{data: string, hora: string, turno?: string}>  $horarios  data em Y-m-d, hora em H:i,
@@ -130,7 +127,6 @@ class EscolhaDeHorario
                 $mesmoPeriodo = $a['turno'] === $b['turno'];
                 $ambosNoPeriodo = $periodo ? ($a['turno'] === $periodo && $b['turno'] === $periodo) : $mesmoPeriodo;
                 $algumNoPeriodo = !$periodo || $a['turno'] === $periodo || $b['turno'] === $periodo;
-                $intervalo = intdiv($b['momento']->getTimestamp() - $a['momento']->getTimestamp(), 60);
 
                 // Sem período preferido, qualquer par no dia atende (o mesmo período continua preferido abaixo).
                 $atendeSugerida = $mesmaData && (!$periodo || $ambosNoPeriodo) && $a['momento']->toDateString() === $sugerida;
@@ -144,9 +140,9 @@ class EscolhaDeHorario
                         ? static::distanciaEmDias($a['momento'], $base)
                         : static::distanciaEmDias($a['momento'], $base) + static::distanciaEmDias($b['momento'], $base),
                     $mesmoPeriodo ? 0 : 1,
-                    $mesmaData && $intervalo <= self::MINUTOS_VIZINHOS ? 0 : 1,
-                    $intervalo,
-                    $a['momento']->getTimestamp(),
+                    // Os últimos horários: o mais tarde do par e, depois, o outro também o mais tarde possível.
+                    -$b['momento']->getTimestamp(),
+                    -$a['momento']->getTimestamp(),
                 ];
 
                 if ($melhorChave === null || $chave < $melhorChave) {
@@ -161,14 +157,14 @@ class EscolhaDeHorario
 
     /**
      * Qual horário do par marcar agora: o que está no período escolhido (garante ao menos um no período),
-     * depois o da data mais próxima da sugerida, depois o mais cedo.
+     * depois o da data mais próxima da sugerida, depois o mais tarde.
      */
     private static function primeiroDoPar(array $par, ?string $periodo, CarbonImmutable $base): array
     {
         return static::menor($par, fn(array $c) => [
             $periodo && $c['turno'] !== $periodo ? 1 : 0,
             static::distanciaEmDias($c['momento'], $base),
-            $c['momento']->getTimestamp(),
+            -$c['momento']->getTimestamp(),
             $c['posicao'],
         ]);
     }

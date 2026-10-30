@@ -769,8 +769,11 @@
         continue;
       }
 
+      // Sem cadastro na Marinha o SISAP exige endereço e nascimento: o cliente sai e o fluxo segue.
       if (consulta.lencontrado === false) {
-        await pausar(`O ${doc} não tem cadastro na Marinha. Preencha os dados obrigatórios no SISAP e clique em Continuar.`);
+        await descartar(pessoa.servicos, `O ${doc} não tem cadastro na Marinha (o SISAP pede os dados pessoais).`);
+        await removerDaTela(campoDoc, `a linha do ${doc}`);
+        continue;
       }
 
       // Área do interessado: o menor ancestral com um único campo de documento (CPF ou CNPJ) e o botão de serviço.
@@ -798,12 +801,18 @@
           continue;
         }
 
-        // Serviço não encontrado na lista: o usuário escolhe à mão e o fluxo segue com a próxima GRU.
-        await corrigirSeFalhar(
-          `Não achei o serviço "${servico.sigla || servico.descricao_sisap}" para a GRU ${servico.gru} (${doc}). `
-            + 'Escolha o serviço na lista do SISAP, ao lado da GRU, e clique em Continuar',
-          () => escolherServico(campoGru, servico.descricao_sisap),
-        );
+        // Serviço fora da lista que o SISAP liberou para a GRU: a GRU sai e o fluxo segue com a próxima.
+        try {
+          await escolherServico(campoGru, servico.descricao_sisap);
+        } catch (erro) {
+          if (erro instanceof Parado) {
+            throw erro;
+          }
+          await descartar([servico], `GRU ${servico.gru} (${doc}): o serviço "${servico.descricao_sisap || servico.sigla}" `
+            + `não está entre os que o SISAP permite para esta GRU (${erro.message}).`);
+          await removerDaTela(campoGru, `a linha da GRU ${servico.gru}`);
+          continue;
+        }
         aceitos++;
       }
 

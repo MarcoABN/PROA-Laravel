@@ -32,7 +32,8 @@ use Illuminate\Support\HtmlString;
 /**
  * Agendamento na Marinha:
  * 1) calendário do ano (Pages\ListMesesAgendamento), com os dias que têm agendamento marcado;
- * 2) o mês aberto (Pages\VerMesAgendamento): um balão por capitania + procurador e, abaixo, a lista de clientes;
+ * 2) o mês aberto (Pages\VerMesAgendamento): um balão por capitania + procurador; a lista de clientes do mês
+ *    fica em Pages\ClientesDoMesAgendamento;
  * 3) o balão (Pages\CadastroAgendamentos), onde se preenchem os agendamentos e clientes.
  */
 class AgendamentoMarinhaResource extends Resource
@@ -153,6 +154,16 @@ class AgendamentoMarinhaResource extends Resource
                 Tables\Filters\SelectFilter::make('prestador_id')
                     ->label('Procurador')
                     ->relationship('prestador', 'nome', fn(Builder $query) => $query->where('is_procurador', true)),
+
+                // Clientes que ainda não foram para o SISAP: agendamento aguardando ou que falhou, e descartados.
+                Tables\Filters\Filter::make('nao_realizados')
+                    ->label('Só os não agendados')
+                    ->toggle()
+                    ->query(fn(Builder $query) => $query->where(fn(Builder $q) => $q
+                        ->whereNotNull('descartada_em')
+                        ->orWhereHas('agendamento', fn(Builder $a) => $a->whereIn('status', [
+                            AgendamentoMarinha::STATUS_PENDENTE, AgendamentoMarinha::STATUS_FALHOU,
+                        ])))),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
@@ -329,9 +340,27 @@ class AgendamentoMarinhaResource extends Resource
             ]);
     }
 
+    /**
+     * Documento antes do nome: o mesmo procurador pode ter dois cadastros (CPF e CNPJ/MEI).
+     * Ordenado pelo nome, para os dois ficarem lado a lado.
+     */
     public static function opcoesProcuradores(): array
     {
-        return Prestador::where('is_procurador', true)->orderBy('nome')->pluck('nome', 'id')->all();
+        return Prestador::where('is_procurador', true)
+            ->orderBy('nome')
+            ->orderBy('cpfcnpj')
+            ->get(['id', 'nome', 'cpfcnpj'])
+            ->mapWithKeys(function (Prestador $p) {
+                $digitos = SolicitacaoAgendamento::somenteDigitos($p->cpfcnpj);
+                $documento = match (strlen($digitos)) {
+                    11 => 'CPF ' . SolicitacaoAgendamento::formatarDocumento($digitos),
+                    14 => 'CNPJ ' . SolicitacaoAgendamento::formatarDocumento($digitos),
+                    default => null,
+                };
+
+                return [$p->id => $documento ? "{$documento} — {$p->nome}" : $p->nome];
+            })
+            ->all();
     }
 
     public static function opcoesCapitanias(): array
@@ -428,6 +457,7 @@ class AgendamentoMarinhaResource extends Resource
             'index' => Pages\ListMesesAgendamento::route('/'),
             // Antes de "mes": senão "/cadastro" seria lido como um mês.
             'cadastro' => Pages\CadastroAgendamentos::route('/cadastro/{competencia}/{capitania}/{procurador}'),
+            'clientes' => Pages\ClientesDoMesAgendamento::route('/{competencia}/clientes'),
             'mes' => Pages\VerMesAgendamento::route('/{competencia}'),
         ];
     }

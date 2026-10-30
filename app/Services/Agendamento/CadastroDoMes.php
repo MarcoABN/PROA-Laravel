@@ -101,7 +101,8 @@ class CadastroDoMes
             return $bloco;
         }
 
-        $bloco = ['prestador_id' => $prestadorId, 'data_sugerida' => null, 'periodo' => null];
+        // Vespertino por padrão; o usuário pode trocar ou deixar "Tanto faz".
+        $bloco = ['prestador_id' => $prestadorId, 'data_sugerida' => null, 'periodo' => AgendamentoMarinha::PERIODO_TARDE];
         $limite = (int) Capitania::whereKey($capitaniaId)->value('sisap_agendamentos_por_mes');
 
         for ($ordem = 1; $ordem <= $limite; $ordem++) {

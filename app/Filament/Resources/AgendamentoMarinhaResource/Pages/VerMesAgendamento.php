@@ -20,8 +20,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Um mês aberto: no alto, um balão por capitania + procurador (clicar abre para preencher);
- * abaixo, a lista de clientes do mês para consulta e operação.
+ * Um mês aberto: um balão por capitania + procurador (clicar abre para preencher), agrupados por capitania.
+ * A lista de clientes do mês fica numa tela própria (ClientesDoMesAgendamento), pelo botão no alto.
  */
 class VerMesAgendamento extends ListRecords
 {
@@ -146,11 +146,18 @@ class VerMesAgendamento extends ListRecords
                 foreach (range(1, max((int) $capitania->sisap_agendamentos_por_mes, $agendamentos->count())) as $ordem) {
                     $a = $agendamentos->get($ordem - 1);
 
+                    // Rótulos curtos: o balão é estreito e "Aguardando agendamento" era cortado.
+                    $status = match (true) {
+                        !$a => 'Livre',
+                        $a->status === AgendamentoMarinha::STATUS_PENDENTE => 'Aguardando',
+                        default => AgendamentoMarinha::statuses()[$a->status] ?? $a->status,
+                    };
+
                     $slots[] = [
                         'ordem' => $ordem,
-                        'status' => $a ? (AgendamentoMarinha::statuses()[$a->status] ?? $a->status) : 'Livre',
+                        'status' => $status,
                         'cor' => $a ? (AgendamentoMarinha::coresStatus()[$a->status] ?? 'gray') : 'gray',
-                        'clientes' => $a ? "{$a->solicitacoes_count}/{$vagas} cliente(s)" : "0/{$vagas} cliente(s)",
+                        'clientes' => ($a ? $a->solicitacoes_count : 0) . "/{$vagas}",
                         'quando' => $a?->data_hora?->format('d/m H:i'),
                     ];
                 }
@@ -246,6 +253,12 @@ class VerMesAgendamento extends ListRecords
                 ->icon('heroicon-o-arrow-left')
                 ->color('gray')
                 ->url(AgendamentoMarinhaResource::getUrl() . '?ano=' . $this->dataCompetencia()->year),
+
+            Actions\Action::make('clientes')
+                ->label('Clientes do mês')
+                ->icon('heroicon-o-table-cells')
+                ->color('gray')
+                ->url(AgendamentoMarinhaResource::getUrl('clientes', ['competencia' => $this->competencia])),
 
             $this->exibirNaExtensaoAction(),
 
