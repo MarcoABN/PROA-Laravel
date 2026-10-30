@@ -76,21 +76,31 @@ test('le etapa, CPF do cabecalho e contador de servicos', () => {
     + 'AGENDAMENTO PARA REPRESENTANTE LEGAL - ETAPA 3 DE 5\nKENTARO I*** 002.691.071-34\nSERVIÇOS 2 DE 5';
 
   assert.equal(L.etapaDoTexto(pagina), 3);
-  assert.equal(L.cpfDoCabecalho(pagina), '03674660156');
+  assert.equal(L.documentoDoCabecalho(pagina), '03674660156');
   assert.deepEqual(L.contadorServicos(pagina), { usados: 2, total: 5 });
   assert.equal(L.etapaDoTexto('Página inicial'), null);
 });
 
 test('identifica o procurador logado pelo auth.php e pelo cabecalho', () => {
-  assert.equal(L.cpfDoLogin({ logado: true, usuario: 'EDIVANIA BORGES NUNES', cpfcnpj: '54983363149', nivel: 'OURO' }), '54983363149');
-  assert.equal(L.cpfDoLogin([{ logado: true, cpfcnpj: '549.833.631-49' }]), '54983363149');
-  assert.equal(L.cpfDoLogin({ logado: false, cpfcnpj: '' }), null);
-  assert.equal(L.cpfDoLogin(null), null);
+  assert.equal(L.documentoDoLogin({ logado: true, usuario: 'EDIVANIA BORGES NUNES', cpfcnpj: '54983363149', nivel: 'OURO' }), '54983363149');
+  assert.equal(L.documentoDoLogin([{ logado: true, cpfcnpj: '549.833.631-49' }]), '54983363149');
+  assert.equal(L.documentoDoLogin({ logado: false, cpfcnpj: '' }), null);
+  assert.equal(L.documentoDoLogin(null), null);
 
   const cabecalho = 'Portos e Costas\nMARINHA DO BRASIL\nEDIVANIA BORGES NUNES | 549.833.631-49 | OURO | SAIR';
   assert.equal(L.nomeDoCabecalho(cabecalho), 'EDIVANIA BORGES NUNES');
-  assert.equal(L.cpfDoCabecalho(cabecalho), '54983363149');
+  assert.equal(L.documentoDoCabecalho(cabecalho), '54983363149');
   assert.equal(L.nomeDoCabecalho('sem login'), null);
+});
+
+test('identifica a empresa logada com certificado digital (CNPJ, nome mascarado)', () => {
+  const cabecalho = 'Diretoria de\nPortos e Costas\nMARINHA DO BRASIL\n********* | 53.775.360/0001-21 | OURO | SAIR\n'
+    + 'AGENDAMENTO PARA REPRESENTANTE LEGAL - ETAPA 3 DE 5\nKENTARO I*** 002.691.071-34';
+
+  assert.equal(L.documentoDoCabecalho(cabecalho), '53775360000121');
+  assert.equal(L.nomeDoCabecalho(cabecalho), null);
+  assert.equal(L.documentoDoLogin({ logado: true, cpfcnpj: '53.775.360/0001-21' }), '53775360000121');
+  assert.equal(L.documentoDoLogin({ logado: true, cpfcnpj: '123' }), null);
 });
 
 test('separa as letras escuras do CAPTCHA do ruido claro', () => {

@@ -132,23 +132,30 @@
     return m ? Number(m[1]) : null;
   }
 
-  /** O primeiro CPF da página é o do usuário logado, no cabeçalho ("NOME | 000.000.000-00 | OURO"). */
-  function cpfDoCabecalho(texto) {
-    const m = String(texto ?? '').match(/\d{3}\.\d{3}\.\d{3}-\d{2}/);
+  // CPF (login gov.br) ou CNPJ (login com certificado digital da empresa), formatados como no cabeçalho.
+  const DOCUMENTO_FORMATADO = /\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2}/;
+
+  /**
+   * O primeiro CPF ou CNPJ da página é o de quem está logado, no cabeçalho:
+   * "NOME | 000.000.000-00 | OURO" (gov.br) ou "********* | 00.000.000/0000-00 | OURO" (certificado da empresa).
+   */
+  function documentoDoCabecalho(texto) {
+    const m = String(texto ?? '').match(DOCUMENTO_FORMATADO);
     return m ? somenteDigitos(m[0]) : null;
   }
 
-  /** auth.php → CPF (11 dígitos) do usuário logado no SISAP, ou null. */
-  function cpfDoLogin(json) {
+  /** auth.php → CPF (11 dígitos) ou CNPJ (14) de quem está logado no SISAP, ou null. */
+  function documentoDoLogin(json) {
     const r = primeiro(json);
-    const cpf = somenteDigitos(r && r.logado !== false ? r.cpfcnpj : '');
-    return cpf.length === 11 ? cpf : null;
+    const documento = somenteDigitos(r && r.logado !== false ? r.cpfcnpj : '');
+    return documento.length === 11 || documento.length === 14 ? documento : null;
   }
 
-  /** "NOME | 000.000.000-00 | OURO | SAIR" → "NOME" */
+  /** "NOME | 000.000.000-00 | OURO | SAIR" → "NOME". Com certificado o nome vem mascarado ("*****") → null. */
   function nomeDoCabecalho(texto) {
-    const m = String(texto ?? '').match(/([^\n|]+?)\s*\|\s*\d{3}\.\d{3}\.\d{3}-\d{2}/);
-    return m ? m[1].trim() : null;
+    const m = String(texto ?? '').match(new RegExp(`([^\\n|]+?)\\s*\\|\\s*(?:${DOCUMENTO_FORMATADO.source})`));
+    const nome = m ? m[1].trim() : '';
+    return nome && !/^\*+$/.test(nome) ? nome : null;
   }
 
   /** "SERVIÇOS 2 DE 5" → {usados: 2, total: 5} */
@@ -323,8 +330,8 @@
     horarioEnviado,
     encontrarOms,
     etapaDoTexto,
-    cpfDoCabecalho,
-    cpfDoLogin,
+    documentoDoCabecalho,
+    documentoDoLogin,
     nomeDoCabecalho,
     contadorServicos,
   };

@@ -482,17 +482,23 @@
     }
   }
 
-  function conferirProcurador() {
-    const cpfLogado = L.cpfDoCabecalho(textoPagina());
+  /** "CPF 000.000.000-00" ou "CNPJ 00.000.000/0000-00" (login com certificado da empresa). */
+  function rotuloDocumento(documento) {
+    const digitos = L.somenteDigitos(documento);
+    return `${digitos.length === 14 ? 'CNPJ' : 'CPF'} ${L.formatarDocumento(digitos)}`;
+  }
 
-    if (!cpfLogado) {
-      throw new Error('Faça login no SISAP pelo gov.br antes de agendar.');
+  function conferirProcurador() {
+    const documentoLogado = L.documentoDoCabecalho(textoPagina());
+
+    if (!documentoLogado) {
+      throw new Error('Faça login no SISAP (gov.br ou certificado digital) antes de agendar.');
     }
 
     const procurador = dadosProa.procurador;
-    if (cpfLogado !== L.somenteDigitos(procurador.cpf)) {
-      throw new Error(`Este Chrome está logado no SISAP com o CPF ${L.formatarCpf(cpfLogado)}, `
-        + `mas o token da extensão é de ${procurador.nome} (${L.formatarCpf(procurador.cpf)}).`);
+    if (documentoLogado !== L.somenteDigitos(procurador.cpf)) {
+      throw new Error(`Este navegador está logado no SISAP com o ${rotuloDocumento(documentoLogado)}, `
+        + `mas o token da extensão é de ${procurador.nome} (${rotuloDocumento(procurador.cpf)}).`);
     }
   }
 
@@ -1170,10 +1176,13 @@
     render();
   }
 
-  /** Lê quem está logado no SISAP: resposta do auth.php e, na falta dela, o cabeçalho da página. */
+  /**
+   * Lê quem está logado no SISAP: resposta do auth.php e, na falta dela, o cabeçalho da página.
+   * Pode ser CPF (gov.br) ou CNPJ (certificado digital da empresa); "cpfLogado" guarda qualquer dos dois.
+   */
   function detectarLogin() {
     const texto = textoPagina();
-    cpfLogado = (capturas.auth && L.cpfDoLogin(capturas.auth.json)) || L.cpfDoCabecalho(texto) || null;
+    cpfLogado = (capturas.auth && L.documentoDoLogin(capturas.auth.json)) || L.documentoDoCabecalho(texto) || null;
     nomeLogado = cpfLogado ? L.nomeDoCabecalho(texto) : null;
   }
 
@@ -1196,7 +1205,7 @@
       dadosProa = null;
       erroProa = null;
       if (cpfLogado) {
-        registrar(`SISAP logado como ${nomeLogado || L.formatarCpf(cpfLogado)}. Carregando os agendamentos desse procurador…`, 'info');
+        registrar(`SISAP logado como ${nomeLogado || rotuloDocumento(cpfLogado)}. Carregando os agendamentos desse procurador…`, 'info');
       }
       atualizarLista();
     }, 2000);
@@ -1308,11 +1317,12 @@
     let corpo;
 
     const linhaLogin = cpfLogado
-      ? `<p class="sub">SISAP logado como: <strong>${esc(nomeLogado || '—')}</strong> (${esc(L.formatarCpf(cpfLogado))})</p>`
+      // Com certificado da empresa o SISAP mascara o nome ("*****"): mostra o nome do procurador no PROA.
+      ? `<p class="sub">SISAP logado como: <strong>${esc(nomeLogado || (dadosProa && dadosProa.procurador.nome) || '—')}</strong> (${esc(rotuloDocumento(cpfLogado))})</p>`
       : '';
 
     if (!cpfLogado) {
-      corpo = '<p class="sub">Faça login no SISAP pelo gov.br. A extensão carrega os agendamentos do procurador que estiver logado.</p>';
+      corpo = '<p class="sub">Faça login no SISAP (gov.br ou certificado digital). A extensão carrega os agendamentos do procurador que estiver logado.</p>';
     } else if (erroProa) {
       corpo = `${linhaLogin}<p class="erro">${esc(erroProa)}</p><button data-acao="opcoes">Abrir configurações</button>`;
     } else if (!dadosProa) {

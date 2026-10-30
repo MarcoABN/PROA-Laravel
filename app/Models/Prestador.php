@@ -36,12 +36,15 @@ class Prestador extends Model
             ->first();
     }
 
-    /** Procurador cadastrado com este CPF (cpfcnpj é gravado só com dígitos). */
+    /**
+     * Procurador cadastrado com este CPF ou CNPJ (cpfcnpj é gravado só com dígitos). CNPJ é o login
+     * com certificado digital da própria empresa no SISAP.
+     */
     public static function procuradorPorCpf(?string $cpf): ?self
     {
         $digitos = preg_replace('/\D/', '', (string) $cpf);
 
-        return strlen($digitos) === 11
+        return in_array(strlen($digitos), [11, 14], true)
             ? static::where('is_procurador', true)->where('cpfcnpj', $digitos)->first()
             : null;
     }
